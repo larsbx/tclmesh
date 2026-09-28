@@ -54,7 +54,7 @@ test CMP-003-macro-like-procedures {safe Tcl procedures can generate canonical d
     }]
 
     dict get $manifest actions Shipment::accept changes
-} -result {{{set status {literal accepted}}}}
+} -result {{set status {literal accepted}}}
 
 test CMP-004-hygienic-gensym {generated symbols are local and deterministic within one compilation} -body {
     set manifest [tclmesh compiler compile {
