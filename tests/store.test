@@ -120,4 +120,84 @@ test ST-005-effect-idempotency-restores {reopened effect registry retains termin
     }
 } -match glob -result {effect:1 authorized}
 
+test ST-006-stale-handles-merge {separate handles do not erase each other's later keys} -body {
+    set path [::storetest_path stale]
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh store put $first alpha 1
+
+        set second [tclmesh store create file $path]
+        tclmesh store put $first beta 2
+        tclmesh store put $second gamma 3
+
+        set reopened [tclmesh store create file $path]
+        list             [tclmesh store keys $reopened]             [tclmesh store get $reopened beta]             [tclmesh store get $reopened gamma]
+    } finally {
+        ::storetest_cleanup $path
+    }
+} -result {{alpha beta gamma} 2 3}
+
+test ST-007-invalid-store-switch-is-atomic {malformed registry store does not replace active store} -body {
+    namespace eval ::tclmesh::language {
+        set instances {}
+        set next_id 0
+        set store {}
+    }
+
+    set good [tclmesh store create memory]
+    tclmesh language use-store $good
+    set first [tclmesh language instantiate Operator user:a {inspect} {read}]
+
+    set bad [tclmesh store create memory]
+    tclmesh store put $bad language.registry [dict create instances {}]
+
+    set status [catch {
+        tclmesh language use-store $bad
+    } message options]
+
+    set second [tclmesh language instantiate Operator user:b {inspect} {read}]
+    set durable [tclmesh store get $good language.registry]
+
+    list         $status         [dict get $options -errorcode]         [dict exists $durable instances $first]         [dict exists $durable instances $second]
+} -result {1 {TCLMESH LANGUAGE STORE INVALID_STATE next_id} 1 1}
+
+test ST-008-persistence-failure-rolls-back {failed durable write does not publish language state} -body {
+    namespace eval ::tclmesh::language {
+        set instances {}
+        set next_id 0
+        set store {}
+    }
+
+    set root [file join [temporaryDirectory]         "tclmesh-blocked-[pid]-[clock clicks]"]
+    set path [file join $root registry.dict]
+
+    try {
+        file mkdir $root
+        set durable [tclmesh store create file $path]
+        tclmesh language use-store $durable
+        set first [tclmesh language instantiate Operator user:a {inspect} {read}]
+
+        file delete -force $path
+        file delete -force $root
+        set blocker [open $root {WRONLY CREAT TRUNC}]
+        close $blocker
+
+        set status [catch {
+            tclmesh language instantiate Operator user:b {inspect} {read}
+        } message options]
+
+        set visible [tclmesh language list]
+        tclmesh language use-store {}
+        set next [tclmesh language instantiate Operator user:c {inspect} {read}]
+
+        scan $first "language:%d" first_number
+        scan $next "language:%d" next_number
+
+        list             $status             [llength $visible]             [expr {$next_number == $first_number + 1}]
+    } finally {
+        tclmesh language use-store {}
+        catch {file delete -force $root}
+    }
+} -result {1 1 1}
+
 cleanupTests
