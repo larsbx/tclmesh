@@ -55,12 +55,17 @@ Deferred beyond v0.1.0:
 
 ## v0.2
 
-- safe compiler interpreter;
-- hygienic generated symbols;
-- richer canonical expression AST;
-- pluggable persistent registries for manifests, languages, and effects;
-- first durable workflow state machine;
-- structured audit event stream.
+Status after the first two v0.2 slices:
+
+- [x] safe compiler interpreter with deterministic command surface and resource limits;
+- [x] compilation-local hygienic `gensym`;
+- [x] recursive canonical action/value/predicate validation;
+- [x] pluggable persistent registries for manifests, languages, and effects;
+- [x] single-process atomic file-store reference adapter with stale-handle merge protection;
+- [x] crash reconciliation for uncertain effect execution;
+- [ ] first durable workflow state machine;
+- [ ] structured audit event stream;
+- [ ] richer canonical expression operators beyond the initial equality/boolean subset.
 
 ## v0.3
 
