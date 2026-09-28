@@ -86,7 +86,7 @@ proc ::tclmesh::language::why-not {id command} {
     }
 
     if {$command ni [dict get $descriptor commands]} {
-        return [dict create             command $command             available false             blockers [list [dict create kind command-not-granted]]]
+        return [dict create             command $command             available false             blockers [::list [dict create kind command-not-granted]]]
     }
 
     return [dict create command $command available true blockers {}]
