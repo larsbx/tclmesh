@@ -109,4 +109,47 @@ test CMP-006-command-budget {compiler command budget terminates runaway generati
     expr {$status == 1}
 } -result 1
 
+test CMP-007-nondeterministic-primitives-hidden {clock and expr randomness are unavailable} -body {
+    set clockStatus [catch {
+        tclmesh compiler compile {
+            application [clock clicks] 1
+        }
+    } clockMessage]
+
+    set exprStatus [catch {
+        tclmesh compiler compile {
+            application [expr {rand()}] 1
+        }
+    } exprMessage]
+
+    list         $clockStatus         [string match {*invalid command name "clock"*} $clockMessage]         $exprStatus         [string match {*invalid command name "expr"*} $exprMessage]
+} -result {1 1 1 1}
+
+test CMP-008-nested-ast-validation {unknown nested predicate is rejected at compile time} -body {
+    set status [catch {
+        tclmesh compiler compile {
+            application bad-ast 1
+            action Bad::action {
+                authorize permit
+                deontic M
+                validate {assert {bogus}}
+            }
+        }
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH ACTION NON_CANONICAL Bad::action validations}}
+
+test CMP-009-duplicate-action {duplicate action declarations are rejected} -body {
+    set status [catch {
+        tclmesh compiler compile {
+            application duplicate-action 1
+            action A { authorize permit; deontic M }
+            action A { authorize deny; deontic H }
+        }
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH COMPILER ACTION DUPLICATE A}}
+
 cleanupTests
