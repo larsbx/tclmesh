@@ -1,7 +1,7 @@
 namespace eval ::tclmesh::manifest {
     variable registry {}
 
-    namespace export new validate install get list
+    namespace export         new validate canonical digest install get describe versions         activate active list
     namespace ensemble create
 }
 
@@ -43,31 +43,139 @@ proc ::tclmesh::manifest::validate {manifest} {
     return $manifest
 }
 
+proc ::tclmesh::manifest::_canonical_map {value} {
+    set output {}
+
+    foreach key [lsort -dictionary [dict keys $value]] {
+        lappend output $key [dict get $value $key]
+    }
+
+    return $output
+}
+
+proc ::tclmesh::manifest::canonical {manifest} {
+    set manifest [validate $manifest]
+
+    set output [::list         manifest_version [dict get $manifest manifest_version]         application [_canonical_map [dict get $manifest application]]]
+
+    foreach section {
+        types
+        resources
+        actions
+        policies
+        rules
+        circuits
+        workflows
+        ceremonies
+        languages
+        capabilities
+        provenance
+    } {
+        lappend output $section [_canonical_map [dict get $manifest $section]]
+    }
+
+    return $output
+}
+
+proc ::tclmesh::manifest::digest {manifest} {
+    package require sha256
+
+    set bytes [encoding convertto utf-8 [canonical $manifest]]
+    return [string tolower [::sha2::sha256 -hex -- $bytes]]
+}
+
+proc ::tclmesh::manifest::_descriptor {application_id version} {
+    variable registry
+
+    if {![dict exists $registry $application_id versions $version]} {
+        return -code error             -errorcode [::list TCLMESH MANIFEST VERSION_NOT_FOUND $application_id $version]             "manifest '$application_id' version '$version' is not installed"
+    }
+
+    return [dict get $registry $application_id versions $version]
+}
+
 proc ::tclmesh::manifest::install {manifest} {
     variable registry
 
     set manifest [validate $manifest]
     set id [dict get $manifest application id]
+    set version [dict get $manifest application version]
 
-    if {[dict exists $registry $id]} {
-        return -code error             -errorcode [::list TCLMESH MANIFEST ALREADY_INSTALLED $id]             "manifest '$id' is already installed; installed manifests are immutable"
+    if {[dict exists $registry $id versions $version]} {
+        return -code error             -errorcode [::list TCLMESH MANIFEST ALREADY_INSTALLED $id $version]             "manifest '$id' version '$version' is already installed"
     }
 
-    dict set registry $id $manifest
-    return $id
+    set hash [digest $manifest]
+    set descriptor [dict create         application_id $id         version $version         manifest_hash $hash         manifest $manifest]
+
+    dict set registry $id versions $version $descriptor
+
+    if {![dict exists $registry $id active]} {
+        dict set registry $id active {}
+    }
+
+    return [dict create         application_id $id         version $version         manifest_hash $hash]
 }
 
-proc ::tclmesh::manifest::get {application_id} {
+proc ::tclmesh::manifest::get {application_id {version {}}} {
     variable registry
 
-    if {![dict exists $registry $application_id]} {
-        return -code error             -errorcode {TCLMESH MANIFEST NOT_FOUND}             "manifest '$application_id' is not installed"
+    if {$version eq ""} {
+        if {![dict exists $registry $application_id active] ||
+            [dict get $registry $application_id active] eq ""} {
+            return -code error                 -errorcode [::list TCLMESH MANIFEST NOT_ACTIVE $application_id]                 "manifest '$application_id' has no active version"
+        }
+
+        set version [dict get $registry $application_id active]
     }
 
-    return [dict get $registry $application_id]
+    return [dict get [_descriptor $application_id $version] manifest]
+}
+
+proc ::tclmesh::manifest::describe {application_id version} {
+    return [_descriptor $application_id $version]
+}
+
+proc ::tclmesh::manifest::versions {application_id} {
+    variable registry
+
+    if {![dict exists $registry $application_id versions]} {
+        return -code error             -errorcode [::list TCLMESH MANIFEST NOT_FOUND $application_id]             "manifest '$application_id' is not installed"
+    }
+
+    return [lsort -dictionary [dict keys [dict get $registry $application_id versions]]]
+}
+
+proc ::tclmesh::manifest::activate {application_id version expected_hash} {
+    variable registry
+
+    set descriptor [_descriptor $application_id $version]
+    set actual [dict get $descriptor manifest_hash]
+
+    if {![string equal -nocase $actual $expected_hash]} {
+        return -code error             -errorcode [::list TCLMESH MANIFEST HASH_MISMATCH $application_id $version]             "manifest '$application_id' version '$version' hash does not match activation request"
+    }
+
+    dict set registry $application_id active $version
+
+    return [dict create         application_id $application_id         version $version         manifest_hash $actual]
+}
+
+proc ::tclmesh::manifest::active {application_id} {
+    variable registry
+
+    if {![dict exists $registry $application_id active] ||
+        [dict get $registry $application_id active] eq ""} {
+        return -code error             -errorcode [::list TCLMESH MANIFEST NOT_ACTIVE $application_id]             "manifest '$application_id' has no active version"
+    }
+
+    set version [dict get $registry $application_id active]
+    set descriptor [_descriptor $application_id $version]
+
+    return [dict create         application_id $application_id         version $version         manifest_hash [dict get $descriptor manifest_hash]]
 }
 
 proc ::tclmesh::manifest::list {} {
     variable registry
-    return [lsort [dict keys $registry]]
+    return [lsort -dictionary [dict keys $registry]]
 }
