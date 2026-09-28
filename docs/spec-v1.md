@@ -26,7 +26,11 @@ Installed manifests SHALL be immutable. A semantic change requires compilation o
 
 A registry keyed only by application identifier SHALL reject a second installation under an already-installed identifier. An implementation that supports multiple versions SHALL retain versioned/hash-bound manifest entries and use a distinct activation operation; installation SHALL NOT silently replace an installed manifest.
 
+A versioned registry SHALL reject replacement of an already-installed application/version pair. Installation MAY add a distinct version without changing which version is active. Activation SHALL identify the exact application, version, and expected manifest hash; a hash mismatch SHALL fail activation. Authoritative execution SHALL pin the activated version and manifest hash at request start.
+
 Canonical serialization SHALL define deterministic key ordering, scalar normalization, identifier normalization, and semantic list ordering. It SHALL NOT depend on ambient hash iteration order, undeclared timestamps, or undeclared randomness.
+
+The reference registry SHALL compute a SHA-256 digest over the canonical manifest byte sequence. Hashing SHALL use an explicit byte encoding. A change to the canonical manifest SHALL produce a distinct manifest identity except for the ordinary collision bound of the selected digest.
 
 ## Action lifecycle
 
