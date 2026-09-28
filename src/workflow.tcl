@@ -309,12 +309,14 @@ proc ::tclmesh::workflow::run-next {id executor} {
     } result options]
 
     if {$code} {
+        set errorcode {}
+        if {[dict exists $options -errorcode]} {
+            set errorcode [dict get $options -errorcode]
+        }
+
         dict set instance status failed
         dict set instance steps $step_id status failed
-        dict set instance steps $step_id error [dict create             message $result             errorcode [expr {
-                [dict exists $options -errorcode] ?
-                [dict get $options -errorcode] : {}
-            }]]
+        dict set instance steps $step_id error [dict create             message $result             errorcode $errorcode]
         dict set instances $id $instance
         _persist
 
