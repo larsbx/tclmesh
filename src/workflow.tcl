@@ -320,7 +320,8 @@ proc ::tclmesh::workflow::run-next {id executor} {
     set step_descriptor [dict get $descriptor steps $step_id]
 
     dict set instance steps $step_id status running
-    dict incr instance steps $step_id attempts
+    set attempts [dict get $instance steps $step_id attempts]
+    dict set instance steps $step_id attempts [expr {$attempts + 1}]
     set instance [_save_instance $instance]
     _audit workflow.step.started $instance $step_id
 
