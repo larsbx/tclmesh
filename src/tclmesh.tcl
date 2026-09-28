@@ -5,6 +5,7 @@ namespace eval ::tclmesh {
 set ::tclmesh::here [file dirname [info script]]
 foreach file {
     manifest.tcl
+    compiler.tcl
     action.tcl
     effect.tcl
     macro.tcl
@@ -19,6 +20,7 @@ unset ::tclmesh::here
 namespace eval ::tclmesh {
     namespace ensemble create -command ::tclmesh -map {
         manifest ::tclmesh::manifest
+        compiler ::tclmesh::compiler
         action   ::tclmesh::action
         effect   ::tclmesh::effect
         macro    ::tclmesh::macro
