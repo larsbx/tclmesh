@@ -45,17 +45,27 @@ test C-005-versioned-installation {distinct versions coexist and same-version re
     list         [tclmesh manifest versions demo-versioned]         $status         [dict get $options -errorcode]         [dict get [tclmesh manifest get demo-versioned 1] application version]         [dict get [tclmesh manifest get demo-versioned 2] application version]
 } -result {{1 2} 1 {TCLMESH MANIFEST ALREADY_INSTALLED demo-versioned 2} 1 2}
 
-test C-006-manifest-hash-determinism {root and collection insertion order do not change current canonical digest} -body {
+test C-006-manifest-hash-determinism {root, collection, and nested node-map insertion order do not change digest} -body {
     set a [tclmesh manifest new demo-hash 1]
-    dict set a resources beta {kind resource}
-    dict set a resources alpha {kind resource}
+    dict set a resources beta [dict create         kind resource         label x         metadata [dict create z 9 a 1]         attributes [dict create             status [dict create type enum nullable false]             id [dict create primary true type uuid]]]
+    dict set a resources alpha [dict create kind resource label y]
 
     set b [tclmesh manifest new demo-hash 1]
     dict set b application [dict create version 1 id demo-hash]
-    dict set b resources alpha {kind resource}
-    dict set b resources beta {kind resource}
+    dict set b resources alpha [dict create label y kind resource]
+    dict set b resources beta [dict create         attributes [dict create             id [dict create type uuid primary true]             status [dict create nullable false type enum]]         metadata [dict create a 1 z 9]         label x         kind resource]
 
     expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}
+} -result 1
+
+test C-006a-semantic-list-order-is-preserved {ordered semantic lists remain hash-significant} -body {
+    set a [tclmesh manifest new demo-list-order 1]
+    dict set a actions run [dict create kind update accepts {first second}]
+
+    set b [tclmesh manifest new demo-list-order 1]
+    dict set b actions run [dict create kind update accepts {second first}]
+
+    expr {[tclmesh manifest digest $a] ne [tclmesh manifest digest $b]}
 } -result 1
 
 test C-007-manifest-hash-binds-version {manifest version contributes to hash identity} -body {
@@ -63,6 +73,12 @@ test C-007-manifest-hash-binds-version {manifest version contributes to hash ide
     set v2 [tclmesh manifest new demo-hash-version 2]
     expr {[tclmesh manifest digest $v1] ne [tclmesh manifest digest $v2]}
 } -result 1
+
+test C-007a-empty-version-rejected {empty application versions cannot collide with omitted/ inactive sentinels} -body {
+    set manifest [tclmesh manifest new demo-empty-version {}]
+    set status [catch {tclmesh manifest validate $manifest} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH MANIFEST APPLICATION EMPTY version}}
 
 test C-008-explicit-activation {activation requires exact expected hash and controls default get} -body {
     set v1 [tclmesh manifest new demo-active 1]
