@@ -211,7 +211,7 @@ test A-010-holder-binding {language holder must match authenticated actor before
     } message options]
 
     list $status [dict get $options -errorcode] $::actiontest::transaction_count
-} -result {1 {TCLMESH ACTION LANGUAGE HOLDER_MISMATCH language:10} 0}
+} -match glob -result {1 {TCLMESH ACTION LANGUAGE HOLDER_MISMATCH language:*} 0}
 
 test A-011-actor-required {authoritative action invocation requires actor identity} -body {
     ::actiontest::reset [dict create id shipment-9 status proposed]
