@@ -7,14 +7,17 @@ namespace eval ::tclmesh::language {
     namespace ensemble create
 }
 
-proc ::tclmesh::language::_persist {} {
+proc ::tclmesh::language::_commit {candidate_instances candidate_next_id} {
     variable instances
     variable next_id
     variable store
 
     if {$store ne ""} {
-        ::tclmesh::store put $store language.registry [dict create             instances $instances             next_id $next_id]
+        ::tclmesh::store put $store language.registry [dict create             instances $candidate_instances             next_id $candidate_next_id]
     }
+
+    set instances $candidate_instances
+    set next_id $candidate_next_id
 }
 
 proc ::tclmesh::language::use-store {store_id} {
@@ -28,21 +31,25 @@ proc ::tclmesh::language::use-store {store_id} {
     }
 
     ::tclmesh::store describe $store_id
-    set store $store_id
 
-    if {[::tclmesh::store exists $store language.registry]} {
-        set state [::tclmesh::store get $store language.registry]
+    if {[::tclmesh::store exists $store_id language.registry]} {
+        set state [::tclmesh::store get $store_id language.registry]
         foreach key {instances next_id} {
             if {![dict exists $state $key]} {
                 return -code error                     -errorcode [::list TCLMESH LANGUAGE STORE INVALID_STATE $key]                     "language registry store is missing '$key'"
             }
         }
-        set instances [dict get $state instances]
-        set next_id [dict get $state next_id]
+        set candidate_instances [dict get $state instances]
+        set candidate_next_id [dict get $state next_id]
     } else {
-        _persist
+        set candidate_instances $instances
+        set candidate_next_id $next_id
+        ::tclmesh::store put $store_id language.registry [dict create             instances $candidate_instances             next_id $candidate_next_id]
     }
 
+    set instances $candidate_instances
+    set next_id $candidate_next_id
+    set store $store_id
     return $store
 }
 
@@ -84,13 +91,14 @@ proc ::tclmesh::language::_instantiate {package holder commands capabilities con
     variable instances
     variable next_id
 
-    incr next_id
-    set id "language:$next_id"
+    set candidate_next_id [expr {$next_id + 1}]
+    set id "language:$candidate_next_id"
 
     set descriptor [dict create         id $id         package $package         holder $holder         parent $parent         commands [lsort -unique $commands]         capabilities [lsort -unique $capabilities]         context $context         generation 1         status active]
 
-    dict set instances $id $descriptor
-    _persist
+    set candidate_instances $instances
+    dict set candidate_instances $id $descriptor
+    _commit $candidate_instances $candidate_next_id
     return $id
 }
 
@@ -121,8 +129,9 @@ proc ::tclmesh::language::revoke {id} {
     set descriptor [_require $id]
     dict set descriptor status revoked
     dict incr descriptor generation
-    dict set instances $id $descriptor
-    _persist
+    set candidate_instances $instances
+    dict set candidate_instances $id $descriptor
+    _commit $candidate_instances $next_id
     return $descriptor
 }
 
