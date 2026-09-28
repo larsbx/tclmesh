@@ -272,6 +272,9 @@ proc ::tclmesh::workflow::run-next {id executor} {
     }
 
     set descriptor [dict get $manifest workflows         [dict get $instance workflow_id]]
+
+    _require_language         [dict get $instance language_id]         [dict get $instance actor_id]         [dict get $instance workflow_id]         $descriptor
+
     set states [dict get $instance steps]
 
     set ready {}
