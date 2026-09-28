@@ -32,13 +32,15 @@ namespace eval ::tclmesh::manifest {
     namespace ensemble create
 }
 
-proc ::tclmesh::manifest::_persist {} {
+proc ::tclmesh::manifest::_commit {candidate} {
     variable registry
     variable store
 
     if {$store ne ""} {
-        ::tclmesh::store put $store manifest.registry             [dict create registry $registry]
+        ::tclmesh::store put $store manifest.registry             [dict create registry $candidate]
     }
+
+    set registry $candidate
 }
 
 proc ::tclmesh::manifest::use-store {store_id} {
@@ -51,18 +53,20 @@ proc ::tclmesh::manifest::use-store {store_id} {
     }
 
     ::tclmesh::store describe $store_id
-    set store $store_id
 
-    if {[::tclmesh::store exists $store manifest.registry]} {
-        set state [::tclmesh::store get $store manifest.registry]
+    if {[::tclmesh::store exists $store_id manifest.registry]} {
+        set state [::tclmesh::store get $store_id manifest.registry]
         if {![dict exists $state registry]} {
             return -code error                 -errorcode {TCLMESH MANIFEST STORE INVALID_STATE}                 "manifest registry store is missing registry state"
         }
-        set registry [dict get $state registry]
+        set candidate [dict get $state registry]
     } else {
-        _persist
+        set candidate $registry
+        ::tclmesh::store put $store_id manifest.registry             [dict create registry $candidate]
     }
 
+    set registry $candidate
+    set store $store_id
     return $store
 }
 
@@ -232,20 +236,22 @@ proc ::tclmesh::manifest::install {manifest} {
     set id [dict get $manifest application id]
     set version [dict get $manifest application version]
 
-    if {[dict exists $registry $id versions $version]} {
+    set candidate $registry
+
+    if {[dict exists $candidate $id versions $version]} {
         return -code error             -errorcode [::list TCLMESH MANIFEST ALREADY_INSTALLED $id $version]             "manifest '$id' version '$version' is already installed"
     }
 
     set hash [digest $manifest]
     set descriptor [dict create         application_id $id         version $version         manifest_hash $hash         manifest $manifest]
 
-    dict set registry $id versions $version $descriptor
+    dict set candidate $id versions $version $descriptor
 
-    if {![dict exists $registry $id active]} {
-        dict set registry $id active {}
+    if {![dict exists $candidate $id active]} {
+        dict set candidate $id active {}
     }
 
-    _persist
+    _commit $candidate
 
     return [dict create         application_id $id         version $version         manifest_hash $hash]
 }
@@ -293,8 +299,9 @@ proc ::tclmesh::manifest::activate {application_id version expected_hash} {
         return -code error             -errorcode [::list TCLMESH MANIFEST HASH_MISMATCH $application_id $version]             "manifest '$application_id' version '$version' hash does not match activation request"
     }
 
-    dict set registry $application_id active $version
-    _persist
+    set candidate $registry
+    dict set candidate $application_id active $version
+    _commit $candidate
 
     return [dict create         application_id $application_id         version $version         manifest_hash $actual]
 }
