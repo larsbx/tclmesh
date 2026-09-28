@@ -197,16 +197,17 @@ proc ::tclmesh::compiler::_install_aliases {child token} {
         validate _validate
         change _change
         effect _effect
-        literal _literal
-        field _field
-        request _request
-        assert _assert
-        set-field _set_field
-        emit _emit
         gensym _gensym
     } {
         interp alias $child $name {} ::tclmesh::compiler::$target $token
     }
+
+    interp alias $child literal {} ::tclmesh::compiler::_literal
+    interp alias $child field {} ::tclmesh::compiler::_field
+    interp alias $child request {} ::tclmesh::compiler::_request
+    interp alias $child assert {} ::tclmesh::compiler::_assert
+    interp alias $child set-field {} ::tclmesh::compiler::_set_field
+    interp alias $child emit {} ::tclmesh::compiler::_emit
 
     interp alias $child eq {} ::tclmesh::compiler::_binary eq
     interp alias $child neq {} ::tclmesh::compiler::_binary neq
