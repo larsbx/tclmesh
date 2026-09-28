@@ -1,0 +1,15 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1
+
+test H-004-circuit-validate {known circuit nodes validate} -body {
+    set c [tclmesh private circuit eligibility         {age {cipher uint8}}         {eligible {cipher bool}}         [dict create             n1 [tclmesh private node input age]             n2 [tclmesh private node constant 18]             n3 [tclmesh private node greater-than n1 n2]]]
+    dict get [tclmesh private validate $c] name
+} -result eligibility
+
+test H-unknown-node-rejected {unknown private-circuit operation is rejected} -body {
+    tclmesh private node arbitrary-exec x
+} -returnCodes error -match glob -result {*unsupported private-circuit operation*}
+
+cleanupTests
