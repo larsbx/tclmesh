@@ -63,8 +63,8 @@ Status after the first three v0.2 slices:
 - [x] pluggable persistent registries for manifests, languages, effects, workflows, and audit;
 - [x] single-process atomic file-store reference adapter with stale-handle merge protection;
 - [x] crash reconciliation for uncertain effect execution;
-- [x] durable workflow state machine with pinned manifests, step dependencies, retry, and interrupted-step reconciliation;
-- [x] append-only structured audit event stream with persistent monotonic sequence numbers;
+- [x] durable workflow state machine with pinned manifests, step dependencies, retry, and explicit reconciliation of interrupted `running` steps;
+- [x] append-only structured audit event stream with persistent monotonic sequence numbers and no public reset operation;
 - [ ] richer canonical expression operators beyond the initial equality/boolean subset.
 
 ## v0.3
