@@ -21,6 +21,27 @@ test L-010-no-authority-amplification {delegation rejects a command absent from 
     tclmesh language delegate $parent agent:8 {inspect approve} {read}
 } -returnCodes error -match glob -result {*exceed parent authority*}
 
+test L-011-delegation-inherits-context {default delegation retains all parent context bindings} -body {
+    set parent [tclmesh language instantiate Operator user:context-1 {inspect} {read} {tenant tenant-a region north}]
+    set child [tclmesh language delegate $parent agent:context-1 {inspect} {read}]
+    dict get [tclmesh language describe $child] context
+} -result {tenant tenant-a region north}
+
+test L-011a-delegation-may-narrow-context {delegation may add narrower context bindings} -body {
+    set parent [tclmesh language instantiate Operator user:context-2 {inspect} {read} {tenant tenant-a}]
+    set child [tclmesh language delegate $parent agent:context-2 {inspect} {read} {case case-17}]
+    set context [dict get [tclmesh language describe $child] context]
+    list [dict get $context tenant] [dict get $context case]
+} -result {tenant-a case-17}
+
+test L-011b-delegation-cannot-replace-context {delegation cannot replace inherited binding} -body {
+    set parent [tclmesh language instantiate Operator user:context-3 {inspect} {read} {tenant tenant-a}]
+    set status [catch {
+        tclmesh language delegate $parent agent:context-3 {inspect} {read} {tenant tenant-b}
+    } message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH LANGUAGE CONTEXT_AMPLIFICATION tenant}}
+
 test L-012-why-not {why-not explains unavailable command} -body {
     set id [tclmesh language instantiate Reviewer user:4 {inspect} {read}]
     set result [tclmesh language why-not $id approve]
