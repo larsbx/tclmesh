@@ -13,10 +13,10 @@ test C-001-manifest-new {new manifest has required root fields} -body {
     }
 } -result 1
 
-test C-002-manifest-install {manifest registry installs and retrieves by application id} -body {
+test C-002-manifest-install {manifest registry installs and retrieves an exact version} -body {
     set m [tclmesh manifest new demo-install 1]
     tclmesh manifest install $m
-    dict get [tclmesh manifest get demo-install] application id
+    dict get [tclmesh manifest get demo-install 1] application id
 } -result demo-install
 
 test C-003-manifest-missing-root-errorcode {missing root field retains TclMesh error code} -body {
@@ -33,13 +33,53 @@ test C-004-manifest-missing-application-errorcode {missing application field ret
     list $status [dict get $options -errorcode]
 } -result {1 {TCLMESH MANIFEST APPLICATION MISSING version}}
 
-test C-005-manifest-install-is-immutable {duplicate application id cannot replace installed manifest} -body {
-    set original [tclmesh manifest new demo-immutable 1]
-    set replacement [tclmesh manifest new demo-immutable 2]
-    tclmesh manifest install $original
-    set status [catch {tclmesh manifest install $replacement} message options]
-    list         $status         [dict get $options -errorcode]         [dict get [tclmesh manifest get demo-immutable] application version]
-} -result {1 {TCLMESH MANIFEST ALREADY_INSTALLED demo-immutable} 1}
+test C-005-versioned-installation {distinct versions coexist and same-version replacement is rejected} -body {
+    set v1 [tclmesh manifest new demo-versioned 1]
+    set v2 [tclmesh manifest new demo-versioned 2]
+
+    tclmesh manifest install $v1
+    tclmesh manifest install $v2
+
+    set status [catch {tclmesh manifest install $v2} message options]
+
+    list         [tclmesh manifest versions demo-versioned]         $status         [dict get $options -errorcode]         [dict get [tclmesh manifest get demo-versioned 1] application version]         [dict get [tclmesh manifest get demo-versioned 2] application version]
+} -result {{1 2} 1 {TCLMESH MANIFEST ALREADY_INSTALLED demo-versioned 2} 1 2}
+
+test C-006-manifest-hash-determinism {root and collection insertion order do not change current canonical digest} -body {
+    set a [tclmesh manifest new demo-hash 1]
+    dict set a resources beta {kind resource}
+    dict set a resources alpha {kind resource}
+
+    set b [tclmesh manifest new demo-hash 1]
+    dict set b application [dict create version 1 id demo-hash]
+    dict set b resources alpha {kind resource}
+    dict set b resources beta {kind resource}
+
+    expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}
+} -result 1
+
+test C-007-manifest-hash-binds-version {manifest version contributes to hash identity} -body {
+    set v1 [tclmesh manifest new demo-hash-version 1]
+    set v2 [tclmesh manifest new demo-hash-version 2]
+    expr {[tclmesh manifest digest $v1] ne [tclmesh manifest digest $v2]}
+} -result 1
+
+test C-008-explicit-activation {activation requires exact expected hash and controls default get} -body {
+    set v1 [tclmesh manifest new demo-active 1]
+    set v2 [tclmesh manifest new demo-active 2]
+
+    set d1 [tclmesh manifest install $v1]
+    set d2 [tclmesh manifest install $v2]
+
+    set before [catch {tclmesh manifest get demo-active} message beforeOptions]
+    set wrong [catch {
+        tclmesh manifest activate demo-active 2 deadbeef
+    } message wrongOptions]
+
+    tclmesh manifest activate         demo-active         2         [dict get $d2 manifest_hash]
+
+    list         $before         [dict get $beforeOptions -errorcode]         $wrong         [dict get $wrongOptions -errorcode]         [dict get [tclmesh manifest active demo-active] version]         [dict get [tclmesh manifest get demo-active] application version]
+} -result {1 {TCLMESH MANIFEST NOT_ACTIVE demo-active} 1 {TCLMESH MANIFEST HASH_MISMATCH demo-active 2} 2 2}
 
 proc ::tclmesh_test_double {value} {
     expr {$value * 2}
