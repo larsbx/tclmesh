@@ -1,0 +1,227 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1
+
+namespace eval ::actiontest {
+    variable state {}
+    variable in_transaction 0
+    variable switch_activation {}
+    variable transaction_count 0
+}
+
+proc ::actiontest::reset {new_state} {
+    variable state
+    variable in_transaction
+    variable switch_activation
+    variable transaction_count
+
+    set state $new_state
+    set in_transaction 0
+    set switch_activation {}
+    set transaction_count 0
+}
+
+proc ::actiontest::switch_on_next_transaction {application version hash} {
+    variable switch_activation
+    set switch_activation [list $application $version $hash]
+}
+
+proc ::actiontest::adapter {operation args} {
+    variable state
+    variable in_transaction
+    variable switch_activation
+    variable transaction_count
+
+    switch -- $operation {
+        transact {
+            incr transaction_count
+            if {$in_transaction} {
+                error "nested transaction"
+            }
+
+            set callback [lindex $args 0]
+            set in_transaction 1
+
+            try {
+                if {$switch_activation ne ""} {
+                    lassign $switch_activation application version hash
+                    set switch_activation {}
+                    tclmesh manifest activate $application $version $hash
+                }
+
+                set result [uplevel #0 $callback]
+            } finally {
+                set in_transaction 0
+            }
+
+            return $result
+        }
+
+        load {
+            if {!$in_transaction} {
+                error "state load occurred outside transaction"
+            }
+            return $state
+        }
+
+        persist {
+            if {!$in_transaction} {
+                error "state persistence occurred outside transaction"
+            }
+
+            set state [lindex $args 1]
+            return $state
+        }
+
+        default {
+            error "unknown adapter operation '$operation'"
+        }
+    }
+}
+
+proc ::actiontest::manifest {application version {deontic {N}} {new_status accepted}} {
+    set manifest [tclmesh manifest new $application $version]
+
+    dict set manifest actions Shipment::accept [dict create         kind update         capability shipment:accept         authorize {permit}         deontic $deontic         validations [list             [list assert [list eq [list field status] [list literal proposed]]]]         changes [list             [list set status [list literal $new_status]]]         effects [list             [list emit audit status [list field status]]]]
+
+    return $manifest
+}
+
+proc ::actiontest::language {{holder user:action-test} {capabilities {shipment:accept}}} {
+    return [tclmesh language instantiate         Operator         $holder         {Shipment::accept}         $capabilities]
+}
+
+proc ::actiontest::request {object_id {actor_id user:action-test}} {
+    return [dict create object_id $object_id actor_id $actor_id]
+}
+
+test A-001-guarded-update {canonical state-dependent action phases execute inside transaction} -body {
+    ::actiontest::reset [dict create id shipment-1 status proposed]
+
+    set manifest [::actiontest::manifest guarded-action 1]
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate         guarded-action         1         [dict get $installed manifest_hash]
+
+    set result [tclmesh action run         [::actiontest::language]         guarded-action         Shipment::accept         ::actiontest::adapter         [::actiontest::request shipment-1]]
+
+    list         [dict get $result status]         [dict get $result manifest_version]         [dict get $result authorization decision]         [dict get $result deontic verdict]         [dict get $result result status]         [dict get [lindex [dict get $result effects proposed] 0] type]
+} -result {ok 1 permit N accepted audit}
+
+test A-002-reload-current-state {second transition observes persisted state and is rejected} -body {
+    set status [catch {
+        tclmesh action run             [::actiontest::language]             guarded-action             Shipment::accept             ::actiontest::adapter             [::actiontest::request shipment-1]
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH ACTION VALIDATION FAILED}}
+
+test A-003-request-hash-pin {caller may require exact active manifest hash} -body {
+    set request [::actiontest::request shipment-1]
+    dict set request expected_manifest_hash deadbeef
+
+    set status [catch {
+        tclmesh action run             [::actiontest::language]             guarded-action             Shipment::accept             ::actiontest::adapter             $request
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH ACTION MANIFEST_MISMATCH guarded-action Shipment::accept}}
+
+test A-004-start-pin-survives-reactivation {run uses manifest pinned before transaction begins} -body {
+    ::actiontest::reset [dict create id shipment-2 status proposed]
+
+    set v1 [::actiontest::manifest pin-action 1 {N} accepted]
+    set v2 [::actiontest::manifest pin-action 2 {N} cancelled]
+
+    set d1 [tclmesh manifest install $v1]
+    set d2 [tclmesh manifest install $v2]
+
+    tclmesh manifest activate pin-action 1 [dict get $d1 manifest_hash]
+
+    ::actiontest::switch_on_next_transaction         pin-action         2         [dict get $d2 manifest_hash]
+
+    set result [tclmesh action run         [::actiontest::language]         pin-action         Shipment::accept         ::actiontest::adapter         [::actiontest::request shipment-2]]
+
+    list         [dict get $result manifest_version]         [dict get $result result status]         [dict get [tclmesh manifest active pin-action] version]
+} -result {1 accepted 2}
+
+test A-005-noncanonical-callback-rejected {authoritative action manifests reject Tcl callbacks} -body {
+    set manifest [tclmesh manifest new callback-reject 1]
+    dict set manifest actions Shipment::accept [dict create         kind update         authorize ::some::mutable_callback]
+
+    set status [catch {tclmesh manifest install $manifest} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH ACTION NON_CANONICAL Shipment::accept authorize}}
+
+test A-006-forbidden-deontic {omit-required judgment stops before mutation and persistence} -body {
+    ::actiontest::reset [dict create id shipment-4 status proposed]
+    set manifest [::actiontest::manifest forbidden-action 1 {H}]
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate forbidden-action 1 [dict get $installed manifest_hash]
+
+    set status [catch {
+        tclmesh action run             [::actiontest::language]             forbidden-action             Shipment::accept             ::actiontest::adapter             [::actiontest::request shipment-4]
+    } message options]
+
+    list $status [dict get $options -errorcode] [dict get $::actiontest::state status]
+} -result {1 {TCLMESH ACTION DEONTIC FORBIDDEN} proposed}
+
+test A-007-conflicted-deontic {conflicted judgment stops before mutation and persistence} -body {
+    ::actiontest::reset [dict create id shipment-5 status proposed]
+    set manifest [::actiontest::manifest conflict-action 1 {W H}]
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate conflict-action 1 [dict get $installed manifest_hash]
+
+    set status [catch {
+        tclmesh action run             [::actiontest::language]             conflict-action             Shipment::accept             ::actiontest::adapter             [::actiontest::request shipment-5]
+    } message options]
+
+    list $status [dict get $options -errorcode] [dict get $::actiontest::state status]
+} -result {1 {TCLMESH ACTION DEONTIC CONFLICT} proposed}
+
+test A-008-ungranted-capability {ungranted capability is rejected before transaction} -body {
+    ::actiontest::reset [dict create id shipment-6 status proposed]
+    set language [::actiontest::language user:action-test {}]
+
+    set status [catch {
+        tclmesh action run             $language             guarded-action             Shipment::accept             ::actiontest::adapter             [::actiontest::request shipment-6]
+    } message options]
+
+    list $status [dict get $options -errorcode] $::actiontest::transaction_count
+} -result {1 {TCLMESH ACTION CAPABILITY NOT_GRANTED shipment:accept} 0}
+
+test A-009-revoked-language {revoked language is rejected before transaction} -body {
+    ::actiontest::reset [dict create id shipment-7 status proposed]
+    set language [::actiontest::language]
+    tclmesh language revoke $language
+
+    set status [catch {
+        tclmesh action run             $language             guarded-action             Shipment::accept             ::actiontest::adapter             [::actiontest::request shipment-7]
+    } message options]
+
+    list $status [dict get $options -errorcode] $::actiontest::transaction_count
+} -result {1 {TCLMESH ACTION LANGUAGE INACTIVE} 0}
+
+test A-010-holder-binding {language holder must match authenticated actor before transaction} -body {
+    ::actiontest::reset [dict create id shipment-8 status proposed]
+    set language [::actiontest::language user:alice]
+
+    set status [catch {
+        tclmesh action run             $language             guarded-action             Shipment::accept             ::actiontest::adapter             [::actiontest::request shipment-8 user:bob]
+    } message options]
+
+    list $status [dict get $options -errorcode] $::actiontest::transaction_count
+} -match glob -result {1 {TCLMESH ACTION LANGUAGE HOLDER_MISMATCH language:*} 0}
+
+test A-011-actor-required {authoritative action invocation requires actor identity} -body {
+    ::actiontest::reset [dict create id shipment-9 status proposed]
+    set language [::actiontest::language]
+
+    set status [catch {
+        tclmesh action run             $language             guarded-action             Shipment::accept             ::actiontest::adapter             [dict create object_id shipment-9]
+    } message options]
+
+    list $status [dict get $options -errorcode] $::actiontest::transaction_count
+} -result {1 {TCLMESH ACTION ACTOR_REQUIRED} 0}
+
+cleanupTests

@@ -1,0 +1,26 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1
+
+test D-001-obligatory {single W verdict resolves determinately} -body {
+    set result [tclmesh deontic resolve {W}]
+    list         [dict get $result status]         [dict get $result verdict]         [dict get $result semantics admissibility]
+} -result {determinate W perform-required}
+
+test D-006-hard-conflict {W and H remain an explicit hard conflict} -body {
+    set result [tclmesh deontic resolve {W H}]
+    list         [dict get $result status]         [dict get $result verdict]         [lindex [dict get $result conflicts] 0]
+} -result {conflicted {} hard-admissibility}
+
+test D-007-preference-conflict {N and K remain an explicit preference conflict} -body {
+    set result [tclmesh deontic resolve {N K}]
+    list         [dict get $result status]         [lindex [dict get $result conflicts] 0]
+} -result {conflicted preference}
+
+test D-008-multiple-conflict-classes {all simultaneously applicable conflict classes are retained} -body {
+    set result [tclmesh deontic resolve {W H N K}]
+    dict get $result conflicts
+} -result {hard-admissibility preference}
+
+cleanupTests

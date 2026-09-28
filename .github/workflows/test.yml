@@ -1,0 +1,36 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  tcltest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TCL
+        run: sudo apt-get update && sudo apt-get install -y tcl8.6 tcllib
+      - name: Verify failing tests propagate exit status
+        run: |
+          cat > tests/zz_exit_status_probe.test <<'EOF'
+          package require Tcl 8.6
+          package require tcltest 2
+          namespace import ::tcltest::*
+          test exit-status-probe {intentional failure must make runner nonzero} -body {
+              return actual
+          } -result expected
+          cleanupTests
+          EOF
+
+          if tclsh tests/all.tcl; then
+            echo "tests/all.tcl returned success despite an intentional failing test"
+            rm -f tests/zz_exit_status_probe.test
+            exit 1
+          fi
+
+          rm -f tests/zz_exit_status_probe.test
+      - name: Run conformance smoke tests
+        run: tclsh tests/all.tcl

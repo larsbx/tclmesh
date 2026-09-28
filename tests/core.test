@@ -1,0 +1,136 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1
+
+test C-001-manifest-new {new manifest has required root fields} -body {
+    set m [tclmesh manifest new demo 1]
+    expr {
+        [dict exists $m manifest_version] &&
+        [dict exists $m application id] &&
+        [dict exists $m resources] &&
+        [dict exists $m capabilities]
+    }
+} -result 1
+
+test C-002-manifest-install {manifest registry installs and retrieves an exact version} -body {
+    set m [tclmesh manifest new demo-install 1]
+    tclmesh manifest install $m
+    dict get [tclmesh manifest get demo-install 1] application id
+} -result demo-install
+
+test C-003-manifest-missing-root-errorcode {missing root field retains TclMesh error code} -body {
+    set m [tclmesh manifest new demo-missing-root 1]
+    dict unset m resources
+    set status [catch {tclmesh manifest validate $m} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH MANIFEST MISSING resources}}
+
+test C-004-manifest-missing-application-errorcode {missing application field retains TclMesh error code} -body {
+    set m [tclmesh manifest new demo-missing-app 1]
+    dict unset m application version
+    set status [catch {tclmesh manifest validate $m} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH MANIFEST APPLICATION MISSING version}}
+
+test C-005-versioned-installation {distinct versions coexist and same-version replacement is rejected} -body {
+    set v1 [tclmesh manifest new demo-versioned 1]
+    set v2 [tclmesh manifest new demo-versioned 2]
+
+    tclmesh manifest install $v1
+    tclmesh manifest install $v2
+
+    set status [catch {tclmesh manifest install $v2} message options]
+
+    list         [tclmesh manifest versions demo-versioned]         $status         [dict get $options -errorcode]         [dict get [tclmesh manifest get demo-versioned 1] application version]         [dict get [tclmesh manifest get demo-versioned 2] application version]
+} -result {{1 2} 1 {TCLMESH MANIFEST ALREADY_INSTALLED demo-versioned 2} 1 2}
+
+test C-006-manifest-hash-determinism {root, collection, and nested node-map insertion order do not change digest} -body {
+    set a [tclmesh manifest new demo-hash 1]
+    dict set a resources beta [dict create         kind resource         label x         metadata [dict create z 9 a 1]         attributes [dict create             status [dict create type enum nullable false]             id [dict create primary true type uuid]]]
+    dict set a resources alpha [dict create kind resource label y]
+
+    set b [tclmesh manifest new demo-hash 1]
+    dict set b application [dict create version 1 id demo-hash]
+    dict set b resources alpha [dict create label y kind resource]
+    dict set b resources beta [dict create         attributes [dict create             id [dict create type uuid primary true]             status [dict create nullable false type enum]]         metadata [dict create a 1 z 9]         label x         kind resource]
+
+    expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}
+} -result 1
+
+test C-006a-semantic-list-order-is-preserved {ordered semantic lists remain hash-significant} -body {
+    set a [tclmesh manifest new demo-list-order 1]
+    dict set a actions run [dict create kind update accepts {first second}]
+
+    set b [tclmesh manifest new demo-list-order 1]
+    dict set b actions run [dict create kind update accepts {second first}]
+
+    expr {[tclmesh manifest digest $a] ne [tclmesh manifest digest $b]}
+} -result 1
+
+test C-006b-circuit-node-map-is-canonical-but-operation-order-is-semantic {node-table insertion order is ignored while operation list order is preserved} -body {
+    set a [tclmesh manifest new demo-circuit-order 1]
+    dict set a circuits score [dict create         outputs {}         nodes [dict create             n2 {add n1 n0}             n1 {input x}]         inputs {}]
+
+    set b [tclmesh manifest new demo-circuit-order 1]
+    dict set b circuits score [dict create         inputs {}         nodes [dict create             n1 {input x}             n2 {add n1 n0}]         outputs {}]
+
+    set c [tclmesh manifest new demo-circuit-order 1]
+    dict set c circuits score [dict create         inputs {}         nodes [dict create             n1 {input x}             n2 {add n0 n1}]         outputs {}]
+
+    list         [expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}]         [expr {[tclmesh manifest digest $a] ne [tclmesh manifest digest $c]}]
+} -result {1 1}
+
+test C-006c-provenance-nested-maps-are-canonical {nested provenance map insertion order does not change digest} -body {
+    set a [tclmesh manifest new demo-provenance 1]
+    dict set a provenance compiler [dict create z 9 a 1]
+    dict set a provenance runtime [dict create mode strict version 1]
+
+    set b [tclmesh manifest new demo-provenance 1]
+    dict set b provenance runtime [dict create version 1 mode strict]
+    dict set b provenance compiler [dict create a 1 z 9]
+
+    expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}
+} -result 1
+
+test C-007-manifest-hash-binds-version {manifest version contributes to hash identity} -body {
+    set v1 [tclmesh manifest new demo-hash-version 1]
+    set v2 [tclmesh manifest new demo-hash-version 2]
+    expr {[tclmesh manifest digest $v1] ne [tclmesh manifest digest $v2]}
+} -result 1
+
+test C-007a-empty-version-rejected {empty application versions cannot collide with omitted/ inactive sentinels} -body {
+    set manifest [tclmesh manifest new demo-empty-version {}]
+    set status [catch {tclmesh manifest validate $manifest} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH MANIFEST APPLICATION EMPTY version}}
+
+test C-008-explicit-activation {activation requires exact expected hash and controls default get} -body {
+    set v1 [tclmesh manifest new demo-active 1]
+    set v2 [tclmesh manifest new demo-active 2]
+
+    set d1 [tclmesh manifest install $v1]
+    set d2 [tclmesh manifest install $v2]
+
+    set before [catch {tclmesh manifest get demo-active} message beforeOptions]
+    set wrong [catch {
+        tclmesh manifest activate demo-active 2 deadbeef
+    } message wrongOptions]
+
+    tclmesh manifest activate         demo-active         2         [dict get $d2 manifest_hash]
+
+    list         $before         [dict get $beforeOptions -errorcode]         $wrong         [dict get $wrongOptions -errorcode]         [dict get [tclmesh manifest active demo-active] version]         [dict get [tclmesh manifest get demo-active] application version]
+} -result {1 {TCLMESH MANIFEST NOT_ACTIVE demo-active} 1 {TCLMESH MANIFEST HASH_MISMATCH demo-active 2} 2 2}
+
+proc ::tclmesh_test_double {value} {
+    expr {$value * 2}
+}
+
+test M-001-macro-expand {macro registry expands through declared command} -body {
+    tclmesh macro define double expression semantic ::tclmesh_test_double
+    tclmesh macro expand double 21
+} -result 42
+
+rename ::tclmesh_test_double {}
+
+cleanupTests
