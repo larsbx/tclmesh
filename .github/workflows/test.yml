@@ -34,3 +34,5 @@ jobs:
           rm -f tests/zz_exit_status_probe.test
       - name: Run conformance smoke tests
         run: tclsh tests/all.tcl
+      - name: Run release self-check
+        run: tclsh tools/release_check.tcl
