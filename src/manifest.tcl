@@ -162,7 +162,7 @@ proc ::tclmesh::manifest::canonical {manifest} {
         lappend output $section [_canonical_node_map [dict get $manifest $section]]
     }
 
-    lappend output provenance         [_canonical_scalar_map [dict get $manifest provenance]]
+    lappend output provenance         [_canonical_node [dict get $manifest provenance]]
 
     return $output
 }
