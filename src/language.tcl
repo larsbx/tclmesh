@@ -1,9 +1,49 @@
 namespace eval ::tclmesh::language {
     variable instances {}
     variable next_id 0
+    variable store {}
 
-    namespace export instantiate describe commands revoke delegate why-not list
+    namespace export instantiate describe commands revoke delegate why-not list use-store
     namespace ensemble create
+}
+
+proc ::tclmesh::language::_persist {} {
+    variable instances
+    variable next_id
+    variable store
+
+    if {$store ne ""} {
+        ::tclmesh::store put $store language.registry [dict create             instances $instances             next_id $next_id]
+    }
+}
+
+proc ::tclmesh::language::use-store {store_id} {
+    variable instances
+    variable next_id
+    variable store
+
+    if {$store_id eq ""} {
+        set store {}
+        return {}
+    }
+
+    ::tclmesh::store describe $store_id
+    set store $store_id
+
+    if {[::tclmesh::store exists $store language.registry]} {
+        set state [::tclmesh::store get $store language.registry]
+        foreach key {instances next_id} {
+            if {![dict exists $state $key]} {
+                return -code error                     -errorcode [::list TCLMESH LANGUAGE STORE INVALID_STATE $key]                     "language registry store is missing '$key'"
+            }
+        }
+        set instances [dict get $state instances]
+        set next_id [dict get $state next_id]
+    } else {
+        _persist
+    }
+
+    return $store
 }
 
 proc ::tclmesh::language::_require {id} {
@@ -50,6 +90,7 @@ proc ::tclmesh::language::_instantiate {package holder commands capabilities con
     set descriptor [dict create         id $id         package $package         holder $holder         parent $parent         commands [lsort -unique $commands]         capabilities [lsort -unique $capabilities]         context $context         generation 1         status active]
 
     dict set instances $id $descriptor
+    _persist
     return $id
 }
 
@@ -81,6 +122,7 @@ proc ::tclmesh::language::revoke {id} {
     dict set descriptor status revoked
     dict incr descriptor generation
     dict set instances $id $descriptor
+    _persist
     return $descriptor
 }
 
