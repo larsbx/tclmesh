@@ -188,6 +188,9 @@ proc ::tclmesh::manifest::install {manifest} {
     variable registry
 
     set manifest [validate $manifest]
+    if {[llength [info commands ::tclmesh::action::bind_manifest]]} {
+        set manifest [::tclmesh::action::bind_manifest $manifest]
+    }
     set id [dict get $manifest application id]
     set version [dict get $manifest application version]
 

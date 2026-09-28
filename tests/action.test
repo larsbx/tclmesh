@@ -7,16 +7,19 @@ namespace eval ::actiontest {
     variable state {}
     variable in_transaction 0
     variable switch_activation {}
+    variable transaction_count 0
 }
 
 proc ::actiontest::reset {new_state} {
     variable state
     variable in_transaction
     variable switch_activation
+    variable transaction_count
 
     set state $new_state
     set in_transaction 0
     set switch_activation {}
+    set transaction_count 0
 }
 
 proc ::actiontest::switch_on_next_transaction {application version hash} {
@@ -28,9 +31,11 @@ proc ::actiontest::adapter {operation args} {
     variable state
     variable in_transaction
     variable switch_activation
+    variable transaction_count
 
     switch -- $operation {
         transact {
+            incr transaction_count
             if {$in_transaction} {
                 error "nested transaction"
             }
@@ -93,6 +98,16 @@ proc ::actiontest::deontic {state request} {
     return {N}
 }
 
+proc ::actiontest::forbidden {state request} {
+    _assert_guard
+    return {H}
+}
+
+proc ::actiontest::conflicted {state request} {
+    _assert_guard
+    return {W H}
+}
+
 proc ::actiontest::validate_proposed {state request} {
     _assert_guard
     return [expr {[dict get $state status] eq "proposed"}]
@@ -118,9 +133,17 @@ proc ::actiontest::effects {state request} {
 proc ::actiontest::manifest {application version change_command} {
     set manifest [tclmesh manifest new $application $version]
 
-    dict set manifest actions Shipment::accept [dict create         kind update         authorize ::actiontest::authorize         deontic ::actiontest::deontic         validations [list ::actiontest::validate_proposed]         changes [list $change_command]         effects [list ::actiontest::effects]]
+    dict set manifest actions Shipment::accept [dict create         kind update         capability shipment:accept         authorize ::actiontest::authorize         deontic ::actiontest::deontic         validations [list ::actiontest::validate_proposed]         changes [list $change_command]         effects [list ::actiontest::effects]]
 
     return $manifest
+}
+
+proc ::actiontest::language {{capabilities {shipment:accept}}} {
+    return [tclmesh language instantiate \
+        Operator \
+        user:action-test \
+        {Shipment::accept} \
+        $capabilities]
 }
 
 test A-001-guarded-update {state-dependent action phases execute inside transaction} -body {
@@ -130,14 +153,14 @@ test A-001-guarded-update {state-dependent action phases execute inside transact
     set installed [tclmesh manifest install $manifest]
     tclmesh manifest activate         guarded-action         1         [dict get $installed manifest_hash]
 
-    set result [tclmesh action run         guarded-action         Shipment::accept         ::actiontest::adapter         [dict create object_id shipment-1]]
+    set result [tclmesh action run         [::actiontest::language]         guarded-action         Shipment::accept         ::actiontest::adapter         [dict create object_id shipment-1]]
 
     list         [dict get $result status]         [dict get $result manifest_version]         [dict get $result authorization decision]         [dict get $result deontic verdict]         [dict get $result result status]         [dict get [lindex [dict get $result effects proposed] 0] type]
 } -result {ok 1 permit N accepted audit}
 
 test A-002-reload-current-state {second transition observes persisted state and is rejected} -body {
     set status [catch {
-        tclmesh action run             guarded-action             Shipment::accept             ::actiontest::adapter             [dict create object_id shipment-1]
+        tclmesh action run             [::actiontest::language]             guarded-action             Shipment::accept             ::actiontest::adapter             [dict create object_id shipment-1]
     } message options]
 
     list $status [dict get $options -errorcode]
@@ -145,7 +168,7 @@ test A-002-reload-current-state {second transition observes persisted state and 
 
 test A-003-request-hash-pin {caller may require exact active manifest hash} -body {
     set status [catch {
-        tclmesh action run             guarded-action             Shipment::accept             ::actiontest::adapter             [dict create                 object_id shipment-1                 expected_manifest_hash deadbeef]
+        tclmesh action run             [::actiontest::language]             guarded-action             Shipment::accept             ::actiontest::adapter             [dict create                 object_id shipment-1                 expected_manifest_hash deadbeef]
     } message options]
 
     list $status [dict get $options -errorcode]
@@ -164,9 +187,82 @@ test A-004-start-pin-survives-reactivation {run uses manifest pinned before tran
 
     ::actiontest::switch_on_next_transaction         pin-action         2         [dict get $d2 manifest_hash]
 
-    set result [tclmesh action run         pin-action         Shipment::accept         ::actiontest::adapter         [dict create object_id shipment-2]]
+    set result [tclmesh action run         [::actiontest::language]         pin-action         Shipment::accept         ::actiontest::adapter         [dict create object_id shipment-2]]
 
     list         [dict get $result manifest_version]         [dict get $result result status]         [dict get [tclmesh manifest active pin-action] version]
 } -result {1 accepted 2}
+
+test A-005-callback-bound-at-install {redefining a callback cannot change installed semantics} -body {
+    ::actiontest::reset [dict create id shipment-3 status proposed]
+
+    proc ::actiontest::mutable_change {state request} {
+        _assert_guard
+        dict set state status installed
+        return $state
+    }
+    set manifest [::actiontest::manifest callback-pin 1 ::actiontest::mutable_change]
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate callback-pin 1 [dict get $installed manifest_hash]
+
+    proc ::actiontest::mutable_change {state request} {
+        _assert_guard
+        dict set state status redefined
+        return $state
+    }
+
+    set result [tclmesh action run \
+        [::actiontest::language] callback-pin Shipment::accept \
+        ::actiontest::adapter [dict create object_id shipment-3]]
+    dict get $result result status
+} -result installed
+
+test A-006-forbidden-deontic {omit-required judgment stops before mutation and persistence} -body {
+    ::actiontest::reset [dict create id shipment-4 status proposed]
+    set manifest [::actiontest::manifest forbidden-action 1 ::actiontest::accept]
+    dict set manifest actions Shipment::accept deontic ::actiontest::forbidden
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate forbidden-action 1 [dict get $installed manifest_hash]
+
+    set status [catch {
+        tclmesh action run [::actiontest::language] forbidden-action \
+            Shipment::accept ::actiontest::adapter [dict create object_id shipment-4]
+    } message options]
+    list $status [dict get $options -errorcode] [dict get $::actiontest::state status]
+} -result {1 {TCLMESH ACTION DEONTIC FORBIDDEN} proposed}
+
+test A-007-conflicted-deontic {conflicted judgment stops before mutation and persistence} -body {
+    ::actiontest::reset [dict create id shipment-5 status proposed]
+    set manifest [::actiontest::manifest conflict-action 1 ::actiontest::accept]
+    dict set manifest actions Shipment::accept deontic ::actiontest::conflicted
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate conflict-action 1 [dict get $installed manifest_hash]
+
+    set status [catch {
+        tclmesh action run [::actiontest::language] conflict-action \
+            Shipment::accept ::actiontest::adapter [dict create object_id shipment-5]
+    } message options]
+    list $status [dict get $options -errorcode] [dict get $::actiontest::state status]
+} -result {1 {TCLMESH ACTION DEONTIC CONFLICT} proposed}
+
+test A-008-ungranted-capability {ungranted capability is rejected before transaction} -body {
+    ::actiontest::reset [dict create id shipment-6 status proposed]
+    set language [::actiontest::language {}]
+    set status [catch {
+        tclmesh action run $language guarded-action Shipment::accept \
+            ::actiontest::adapter [dict create object_id shipment-6]
+    } message options]
+    list $status [dict get $options -errorcode] $::actiontest::transaction_count
+} -result {1 {TCLMESH ACTION CAPABILITY NOT_GRANTED shipment:accept} 0}
+
+test A-009-revoked-language {revoked language is rejected before transaction} -body {
+    ::actiontest::reset [dict create id shipment-7 status proposed]
+    set language [::actiontest::language]
+    tclmesh language revoke $language
+    set status [catch {
+        tclmesh action run $language guarded-action Shipment::accept \
+            ::actiontest::adapter [dict create object_id shipment-7]
+    } message options]
+    list $status [dict get $options -errorcode] $::actiontest::transaction_count
+} -result {1 {TCLMESH ACTION LANGUAGE INACTIVE} 0}
 
 cleanupTests
