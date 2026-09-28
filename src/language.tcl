@@ -125,6 +125,7 @@ proc ::tclmesh::language::list {} {
 
 proc ::tclmesh::language::revoke {id} {
     variable instances
+    variable next_id
 
     set descriptor [_require $id]
     dict set descriptor status revoked
