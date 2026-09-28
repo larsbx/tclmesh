@@ -65,7 +65,7 @@ Status after the first two v0.2 slices:
 - [x] crash reconciliation for uncertain effect execution;
 - [ ] first durable workflow state machine;
 - [ ] structured audit event stream;
-- [ ] richer canonical expression operators beyond the initial equality/boolean subset.
+- [x] richer canonical expression operators: numeric comparison, membership, and containment in addition to equality/boolean composition.
 
 ## v0.3
 
