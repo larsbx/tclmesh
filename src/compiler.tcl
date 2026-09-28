@@ -246,7 +246,7 @@ proc ::tclmesh::compiler::compile {script {options {}}} {
     _install_aliases $child $token
 
     interp limit $child command -value $max_commands
-    interp limit $child time -seconds $max_seconds
+    interp limit $child time -seconds [expr {[clock seconds] + $max_seconds}]
 
     try {
         interp eval $child $script
