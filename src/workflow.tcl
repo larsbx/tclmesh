@@ -3,18 +3,21 @@ namespace eval ::tclmesh::workflow {
     variable next_id 0
     variable store {}
 
-    namespace export use-store bind_manifest start describe list run-next retry
+    namespace export         use-store bind_manifest start describe list run-next retry recover
     namespace ensemble create
 }
 
-proc ::tclmesh::workflow::_persist {} {
+proc ::tclmesh::workflow::_commit {candidate_instances candidate_next_id} {
     variable instances
     variable next_id
     variable store
 
     if {$store ne ""} {
-        ::tclmesh::store put $store workflow.registry [dict create             instances $instances             next_id $next_id]
+        ::tclmesh::store put $store workflow.registry [dict create             instances $candidate_instances             next_id $candidate_next_id]
     }
+
+    set instances $candidate_instances
+    set next_id $candidate_next_id
 }
 
 proc ::tclmesh::workflow::use-store {store_id} {
@@ -28,22 +31,33 @@ proc ::tclmesh::workflow::use-store {store_id} {
     }
 
     ::tclmesh::store describe $store_id
-    set store $store_id
 
-    if {[::tclmesh::store exists $store workflow.registry]} {
-        set state [::tclmesh::store get $store workflow.registry]
+    if {[::tclmesh::store exists $store_id workflow.registry]} {
+        set state [::tclmesh::store get $store_id workflow.registry]
         foreach key {instances next_id} {
             if {![dict exists $state $key]} {
                 return -code error                     -errorcode [::list TCLMESH WORKFLOW STORE INVALID_STATE $key]                     "workflow registry store is missing '$key'"
             }
         }
-        set instances [dict get $state instances]
-        set next_id [dict get $state next_id]
+        set candidate_instances [dict get $state instances]
+        set candidate_next_id [dict get $state next_id]
     } else {
-        _persist
+        set candidate_instances $instances
+        set candidate_next_id $next_id
+        ::tclmesh::store put $store_id workflow.registry [dict create             instances $candidate_instances             next_id $candidate_next_id]
     }
 
+    set instances $candidate_instances
+    set next_id $candidate_next_id
+    set store $store_id
     return $store
+}
+
+proc ::tclmesh::workflow::_dependencies {step} {
+    if {[dict exists $step dependencies]} {
+        return [dict get $step dependencies]
+    }
+    return {}
 }
 
 proc ::tclmesh::workflow::_validate_descriptor {workflow_id descriptor} {
@@ -61,37 +75,32 @@ proc ::tclmesh::workflow::_validate_descriptor {workflow_id descriptor} {
             return -code error                 -errorcode [::list TCLMESH WORKFLOW STEP MISSING_OPERATION $workflow_id $step_id]                 "workflow step '$step_id' requires an operation"
         }
 
-        set dependencies {}
-        if {[dict exists $step dependencies]} {
-            set dependencies [dict get $step dependencies]
-        }
-
-        foreach dependency $dependencies {
+        foreach dependency [_dependencies $step] {
             if {$dependency eq $step_id} {
                 return -code error                     -errorcode [::list TCLMESH WORKFLOW STEP SELF_DEPENDENCY $workflow_id $step_id]                     "workflow step '$step_id' cannot depend on itself"
             }
             if {![dict exists $steps $dependency]} {
-                return -code error                     -errorcode [::list TCLMESH WORKFLOW STEP UNKNOWN_DEPENDENCY $workflow_id $step_id $dependency]                     "workflow step '$step_id' depends on unknown step '$dependency'"
+                return -code error                     -errorcode [::list TCLMESH WORKFLOW STEP UNKNOWN_DEPENDENCY                         $workflow_id $step_id $dependency]                     "workflow step '$step_id' depends on unknown step '$dependency'"
             }
+        }
+
+        if {[dict exists $step idempotent] &&
+            ![string is boolean -strict [dict get $step idempotent]]} {
+            return -code error                 -errorcode [::list TCLMESH WORKFLOW STEP INVALID_IDEMPOTENT                     $workflow_id $step_id]                 "workflow step '$step_id' idempotent must be boolean"
         }
     }
 
-    # Reject dependency cycles with a bounded topological elimination.
-    set remaining [dict keys $steps]
+    # Reject dependency cycles with deterministic topological elimination.
+    set remaining [lsort -dictionary [dict keys $steps]]
     set completed {}
+
     while {[llength $remaining] > 0} {
         set progressed 0
         set next {}
 
         foreach step_id $remaining {
-            set step [dict get $steps $step_id]
-            set dependencies [expr {
-                [dict exists $step dependencies] ?
-                [dict get $step dependencies] : {}
-            }]
-
             set ready 1
-            foreach dependency $dependencies {
+            foreach dependency [_dependencies [dict get $steps $step_id]] {
                 if {$dependency ni $completed} {
                     set ready 0
                     break
@@ -166,11 +175,7 @@ proc ::tclmesh::workflow::_step_states {steps} {
     set states {}
 
     dict for {step_id step} $steps {
-        set dependencies [expr {
-            [dict exists $step dependencies] ?
-            [dict get $step dependencies] : {}
-        }]
-
+        set dependencies [_dependencies $step]
         set status [expr {
             [llength $dependencies] == 0 ? "ready" : "pending"
         }]
@@ -179,6 +184,26 @@ proc ::tclmesh::workflow::_step_states {steps} {
     }
 
     return $states
+}
+
+proc ::tclmesh::workflow::_descriptor_for_instance {instance} {
+    set manifest [::tclmesh::manifest get         [dict get $instance application_id]         [dict get $instance manifest_version]]
+
+    if {[::tclmesh::manifest digest $manifest] ne
+        [dict get $instance manifest_hash]} {
+        return -code error             -errorcode [::list TCLMESH WORKFLOW MANIFEST_MISMATCH                 [dict get $instance id]]             "workflow pinned manifest no longer matches its hash"
+    }
+
+    set workflow_id [dict get $instance workflow_id]
+    if {![dict exists $manifest workflows $workflow_id]} {
+        return -code error             -errorcode [::list TCLMESH WORKFLOW DEFINITION_NOT_FOUND                 [dict get $instance application_id] $workflow_id]             "workflow '$workflow_id' is not defined"
+    }
+
+    return [dict get $manifest workflows $workflow_id]
+}
+
+proc ::tclmesh::workflow::_require_instance_language {instance descriptor} {
+    return [_require_language         [dict get $instance language_id]         [dict get $instance actor_id]         [dict get $instance workflow_id]         $descriptor]
 }
 
 proc ::tclmesh::workflow::start {
@@ -202,13 +227,14 @@ proc ::tclmesh::workflow::start {
     set descriptor [dict get $manifest workflows $workflow_id]
     _require_language         $language_id         [dict get $request actor_id]         $workflow_id         $descriptor
 
-    incr next_id
-    set id "workflow:$next_id"
+    set candidate_next_id [expr {$next_id + 1}]
+    set id "workflow:$candidate_next_id"
 
     set instance [dict create         id $id         status running         application_id $application_id         workflow_id $workflow_id         manifest_version [dict get $pin version]         manifest_hash [dict get $pin manifest_hash]         language_id $language_id         actor_id [dict get $request actor_id]         request $request         steps [_step_states [dict get $descriptor steps]]]
 
-    dict set instances $id $instance
-    _persist
+    set candidate_instances $instances
+    dict set candidate_instances $id $instance
+    _commit $candidate_instances $candidate_next_id
 
     ::tclmesh::audit append workflow.started         [dict create workflow_instance $id workflow $workflow_id]         [dict create             manifest_hash [dict get $pin manifest_hash]             actor_id [dict get $request actor_id]             language_id $language_id]
 
@@ -224,14 +250,8 @@ proc ::tclmesh::workflow::_ready_after_success {instance descriptor} {
             continue
         }
 
-        set step [dict get $steps $step_id]
-        set dependencies [expr {
-            [dict exists $step dependencies] ?
-            [dict get $step dependencies] : {}
-        }]
-
         set ready 1
-        foreach dependency $dependencies {
+        foreach dependency [_dependencies [dict get $steps $step_id]] {
             if {[dict get $states $dependency status] ne "succeeded"} {
                 set ready 0
                 break
@@ -256,25 +276,28 @@ proc ::tclmesh::workflow::_all_succeeded {states} {
     return 1
 }
 
-proc ::tclmesh::workflow::run-next {id executor} {
+proc ::tclmesh::workflow::_save_instance {instance} {
     variable instances
+    variable next_id
 
+    set candidate_instances $instances
+    dict set candidate_instances [dict get $instance id] $instance
+    _commit $candidate_instances $next_id
+    return $instance
+}
+
+proc ::tclmesh::workflow::_audit {type instance step_id} {
+    ::tclmesh::audit append $type         [dict create             workflow_instance [dict get $instance id]             step $step_id]         [dict create             manifest_hash [dict get $instance manifest_hash]             actor_id [dict get $instance actor_id]             language_id [dict get $instance language_id]]
+}
+
+proc ::tclmesh::workflow::run-next {id executor} {
     set instance [_require $id]
     if {[dict get $instance status] ne "running"} {
         return -code error             -errorcode [::list TCLMESH WORKFLOW INVALID_STATE $id]             "workflow '$id' is not running"
     }
 
-    set manifest [::tclmesh::manifest get         [dict get $instance application_id]         [dict get $instance manifest_version]]
-
-    if {[::tclmesh::manifest digest $manifest] ne
-        [dict get $instance manifest_hash]} {
-        return -code error             -errorcode [::list TCLMESH WORKFLOW MANIFEST_MISMATCH $id]             "workflow '$id' pinned manifest no longer matches its hash"
-    }
-
-    set descriptor [dict get $manifest workflows         [dict get $instance workflow_id]]
-
-    _require_language         [dict get $instance language_id]         [dict get $instance actor_id]         [dict get $instance workflow_id]         $descriptor
-
+    set descriptor [_descriptor_for_instance $instance]
+    _require_instance_language $instance $descriptor
     set states [dict get $instance steps]
 
     set ready {}
@@ -287,9 +310,7 @@ proc ::tclmesh::workflow::run-next {id executor} {
     if {[llength $ready] == 0} {
         if {[_all_succeeded $states]} {
             dict set instance status succeeded
-            dict set instances $id $instance
-            _persist
-            return $instance
+            return [_save_instance $instance]
         }
 
         return -code error             -errorcode [::list TCLMESH WORKFLOW NO_READY_STEP $id]             "workflow '$id' has no ready step"
@@ -300,10 +321,8 @@ proc ::tclmesh::workflow::run-next {id executor} {
 
     dict set instance steps $step_id status running
     dict incr instance steps $step_id attempts
-    dict set instances $id $instance
-    _persist
-
-    ::tclmesh::audit append workflow.step.started         [dict create workflow_instance $id step $step_id]         [dict create             manifest_hash [dict get $instance manifest_hash]             actor_id [dict get $instance actor_id]             language_id [dict get $instance language_id]]
+    set instance [_save_instance $instance]
+    _audit workflow.step.started $instance $step_id
 
     set execution_context [dict create         workflow_instance $id         workflow_id [dict get $instance workflow_id]         step $step_id         request [dict get $instance request]         manifest_hash [dict get $instance manifest_hash]         actor_id [dict get $instance actor_id]         language_id [dict get $instance language_id]]
 
@@ -317,17 +336,16 @@ proc ::tclmesh::workflow::run-next {id executor} {
             set errorcode [dict get $options -errorcode]
         }
 
+        set instance [_require $id]
         dict set instance status failed
         dict set instance steps $step_id status failed
         dict set instance steps $step_id error [dict create             message $result             errorcode $errorcode]
-        dict set instances $id $instance
-        _persist
-
-        ::tclmesh::audit append workflow.step.failed             [dict create workflow_instance $id step $step_id]             [dict create                 manifest_hash [dict get $instance manifest_hash]                 actor_id [dict get $instance actor_id]                 language_id [dict get $instance language_id]]
-
+        set instance [_save_instance $instance]
+        _audit workflow.step.failed $instance $step_id
         return $instance
     }
 
+    set instance [_require $id]
     dict set instance steps $step_id status succeeded
     dict set instance steps $step_id result $result
     set instance [_ready_after_success $instance $descriptor]
@@ -336,17 +354,12 @@ proc ::tclmesh::workflow::run-next {id executor} {
         dict set instance status succeeded
     }
 
-    dict set instances $id $instance
-    _persist
-
-    ::tclmesh::audit append workflow.step.succeeded         [dict create workflow_instance $id step $step_id]         [dict create             manifest_hash [dict get $instance manifest_hash]             actor_id [dict get $instance actor_id]             language_id [dict get $instance language_id]]
-
+    set instance [_save_instance $instance]
+    _audit workflow.step.succeeded $instance $step_id
     return $instance
 }
 
 proc ::tclmesh::workflow::retry {id step_id} {
-    variable instances
-
     set instance [_require $id]
     if {[dict get $instance status] ne "failed"} {
         return -code error             -errorcode [::list TCLMESH WORKFLOW RETRY INVALID_STATE $id]             "workflow '$id' is not failed"
@@ -357,14 +370,61 @@ proc ::tclmesh::workflow::retry {id step_id} {
         return -code error             -errorcode [::list TCLMESH WORKFLOW RETRY INVALID_STEP $id $step_id]             "workflow step '$step_id' is not failed"
     }
 
+    set descriptor [_descriptor_for_instance $instance]
+    _require_instance_language $instance $descriptor
+
     dict set instance status running
     dict set instance steps $step_id status ready
     dict set instance steps $step_id error {}
-    dict set instances $id $instance
-    _persist
+    set instance [_save_instance $instance]
+    _audit workflow.step.retry $instance $step_id
+    return $instance
+}
 
-    ::tclmesh::audit append workflow.step.retry         [dict create workflow_instance $id step $step_id]         [dict create             manifest_hash [dict get $instance manifest_hash]             actor_id [dict get $instance actor_id]             language_id [dict get $instance language_id]]
+proc ::tclmesh::workflow::recover {id step_id disposition {result {}}} {
+    set instance [_require $id]
 
+    if {![dict exists $instance steps $step_id] ||
+        [dict get $instance steps $step_id status] ne "running"} {
+        return -code error             -errorcode [::list TCLMESH WORKFLOW RECOVERY INVALID_STEP $id $step_id]             "workflow step '$step_id' is not in recovered running state"
+    }
+
+    set descriptor [_descriptor_for_instance $instance]
+    _require_instance_language $instance $descriptor
+    set step_descriptor [dict get $descriptor steps $step_id]
+
+    switch -- $disposition {
+        retry {
+            if {![dict exists $step_descriptor idempotent] ||
+                ![dict get $step_descriptor idempotent]} {
+                return -code error                     -errorcode [::list TCLMESH WORKFLOW RECOVERY IDEMPOTENCY_REQUIRED                         $id $step_id]                     "retry recovery requires an idempotent workflow step"
+            }
+            dict set instance status running
+            dict set instance steps $step_id status ready
+            dict set instance steps $step_id error {}
+        }
+        succeeded {
+            dict set instance steps $step_id status succeeded
+            dict set instance steps $step_id result $result
+            set instance [_ready_after_success $instance $descriptor]
+            if {[_all_succeeded [dict get $instance steps]]} {
+                dict set instance status succeeded
+            } else {
+                dict set instance status running
+            }
+        }
+        failed {
+            dict set instance status failed
+            dict set instance steps $step_id status failed
+            dict set instance steps $step_id error $result
+        }
+        default {
+            return -code error                 -errorcode [::list TCLMESH WORKFLOW RECOVERY INVALID_DISPOSITION                     $disposition]                 "workflow recovery disposition must be retry, succeeded, or failed"
+        }
+    }
+
+    set instance [_save_instance $instance]
+    _audit "workflow.step.recovered.$disposition" $instance $step_id
     return $instance
 }
 
