@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install TCL
-        run: sudo apt-get update && sudo apt-get install -y tcl8.6
+        run: sudo apt-get update && sudo apt-get install -y tcl8.6 tcllib
       - name: Verify failing tests propagate exit status
         run: |
           cat > tests/zz_exit_status_probe.test <<'EOF'
