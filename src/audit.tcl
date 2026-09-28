@@ -7,14 +7,17 @@ namespace eval ::tclmesh::audit {
     namespace ensemble create
 }
 
-proc ::tclmesh::audit::_persist {} {
+proc ::tclmesh::audit::_commit {candidate_events candidate_next_id} {
     variable events
     variable next_id
     variable store
 
     if {$store ne ""} {
-        ::tclmesh::store put $store audit.stream [dict create             events $events             next_id $next_id]
+        ::tclmesh::store put $store audit.stream [dict create             events $candidate_events             next_id $candidate_next_id]
     }
+
+    set events $candidate_events
+    set next_id $candidate_next_id
 }
 
 proc ::tclmesh::audit::use-store {store_id} {
@@ -28,31 +31,30 @@ proc ::tclmesh::audit::use-store {store_id} {
     }
 
     ::tclmesh::store describe $store_id
-    set store $store_id
 
-    if {[::tclmesh::store exists $store audit.stream]} {
-        set state [::tclmesh::store get $store audit.stream]
+    if {[::tclmesh::store exists $store_id audit.stream]} {
+        set state [::tclmesh::store get $store_id audit.stream]
         foreach key {events next_id} {
             if {![dict exists $state $key]} {
                 return -code error                     -errorcode [::list TCLMESH AUDIT STORE INVALID_STATE $key]                     "audit store is missing '$key'"
             }
         }
-        set events [dict get $state events]
-        set next_id [dict get $state next_id]
+        set candidate_events [dict get $state events]
+        set candidate_next_id [dict get $state next_id]
     } else {
-        _persist
+        set candidate_events $events
+        set candidate_next_id $next_id
+        ::tclmesh::store put $store_id audit.stream [dict create             events $candidate_events             next_id $candidate_next_id]
     }
 
+    set events $candidate_events
+    set next_id $candidate_next_id
+    set store $store_id
     return $store
 }
 
 proc ::tclmesh::audit::reset {} {
-    variable events
-    variable next_id
-
-    set events {}
-    set next_id 0
-    _persist
+    _commit {} 0
 }
 
 proc ::tclmesh::audit::append {type data {context {}}} {
@@ -63,13 +65,14 @@ proc ::tclmesh::audit::append {type data {context {}}} {
         return -code error             -errorcode {TCLMESH AUDIT EMPTY_TYPE}             "audit event type must not be empty"
     }
 
-    incr next_id
-    set id "audit:$next_id"
+    set candidate_next_id [expr {$next_id + 1}]
+    set id "audit:$candidate_next_id"
 
-    set event [dict create         id $id         sequence $next_id         type $type         data $data         context $context]
+    set event [dict create         id $id         sequence $candidate_next_id         type $type         data $data         context $context]
 
-    dict set events $id $event
-    _persist
+    set candidate_events $events
+    dict set candidate_events $id $event
+    _commit $candidate_events $candidate_next_id
     return $event
 }
 
