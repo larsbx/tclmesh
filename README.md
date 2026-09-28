@@ -1,49 +1,96 @@
 # TclMesh
 
-TclMesh is a TCL application fabric for building resource-oriented, macro-extensible, capability-scoped applications with fivefold deontic rules, task/user/agent-specific languages, supervised workflows, and privacy-preserving computation.
+TclMesh is a TCL reference kernel for building hash-bound application semantics with capability-scoped languages, canonical actions, fivefold deontic judgments, idempotent effects, and private-computation circuit IR.
 
-## Core thesis
+**Current release target:** v0.1.0 reference kernel.
 
-TCL may be highly dynamic while defining meaning; authoritative execution must depend on typed, canonical, versioned, hash-bound, capability-bounded, inspectable manifest data.
+TCL may be highly dynamic while defining meaning; authoritative execution is reduced to typed, canonical, versioned, hash-bound, capability-bounded manifest data.
 
-The project is organized around six hard boundaries:
+## What v0.1.0 ships
 
-1. TCL syntax vs. canonical semantics.
-2. Decision vs. effect.
-3. Deontic judgment vs. authorization.
-4. Language vocabulary vs. underlying authority.
-5. Encrypted computation vs. plaintext release.
-6. Extensible declaration layer vs. a small trusted runtime.
+- immutable, versioned manifest installation;
+- schema-aware canonical manifest hashing;
+- explicit hash-bound activation;
+- canonical action operations rather than mutable runtime callbacks;
+- transaction-guarded state transitions;
+- active-language and holder-bound capability enforcement;
+- attenuating user/agent language delegation;
+- W/N/M/K/H deontic resolution with explicit conflicts;
+- idempotent effect proposal, authorization, and execution lifecycle;
+- private-computation circuit IR construction and validation;
+- macro registry/expansion primitives;
+- executable end-to-end example and acceptance tests.
 
-## Architecture
+v0.1.0 does **not** claim FULL v1 conformance. Durable workflow/ceremony execution, process supervision, persistent registries, and cryptographic private-computation execution remain on the roadmap.
 
-```text
-TCL declarations and macros
-        |
-        v
-compiler and verifier
-        |
-        v
-canonical manifest
-        |
-        +--> resource/action runtime
-        +--> policy and deontic resolver
-        +--> language-instance runtime
-        +--> workflow and ceremony runtime
-        +--> private-computation runtime
-        +--> effect ledger and supervision
+## Install
+
+Requirements:
+
+- TCL 8.6 or newer;
+- Tcllib `sha256`.
+
+Add the repository root to `auto_path`:
+
+```tcl
+lappend auto_path /path/to/tclmesh
+package require tclmesh 0.1.0
 ```
 
-## Conformance profiles
+## Run the example
 
-- CORE — resources, types, actions, queries, manifests.
-- MACRO — declaration, expression, and semantic macros.
-- POLICY — capabilities and authorization.
-- DEONTIC — W/N/M/K/H judgments, conflicts, defeat, certificates.
-- LANGUAGE — language packages, instances, delegation, lifecycle.
-- WORKFLOW — durable workflows, retry, compensation.
-- PRIVATE — encrypted types, circuit IR, release policy and threshold release.
-- SUPERVISION — supervised runtime units and recovery.
-- FULL — all profiles.
+```text
+tclsh examples/shipment.tcl
+```
 
-See [docs/architecture.md](docs/architecture.md) and [docs/spec-v1.md](docs/spec-v1.md).
+Expected output:
+
+```text
+accepted|N|succeeded|private-ir-ok
+```
+
+The example demonstrates:
+
+1. canonical manifest definition;
+2. immutable installation and hash-bound activation;
+3. a holder-bound language instance;
+4. guarded action execution;
+5. fivefold deontic resolution;
+6. effect proposal and idempotent execution;
+7. private-circuit IR validation.
+
+## Test
+
+```text
+tclsh tests/all.tcl
+```
+
+The top-level test runner propagates failures to the process exit status. CI also injects an intentional failing test to verify that invariant.
+
+## Core boundaries
+
+TclMesh preserves six boundaries:
+
+1. TCL syntax vs. canonical semantics.
+2. Decision vs. external effect.
+3. Deontic judgment vs. authorization/execution.
+4. Language vocabulary vs. underlying authority.
+5. Private-computation IR vs. plaintext release.
+6. Extensible declaration logic vs. a small authoritative runtime.
+
+## Documentation
+
+- [Quickstart](docs/quickstart.md)
+- [Architecture](docs/architecture.md)
+- [Normative v1 target](docs/spec-v1.md)
+- [Roadmap and v0.1 scope](docs/roadmap.md)
+- [Security](SECURITY.md)
+- [Changelog](CHANGELOG.md)
+
+## Release status
+
+v0.1.0 is suitable as a **reference-kernel/source release** and for controlled integrations that provide appropriate durable storage and trusted adapters.
+
+The in-memory registries are intentionally reference implementations. Applications requiring crash durability, multi-process authority, or distributed consistency must supply durable deployment boundaries before treating those registries as production authorities.
+
+The repository currently does not declare an open-source license; publication of a tag or source archive does not by itself grant additional reuse rights.
