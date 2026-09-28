@@ -43,4 +43,9 @@ test AU-002-reopen-sequence {audit stream restores events and sequence from file
     }
 } -result {{audit:1 audit:2 audit:3} audit:3 3}
 
+test AU-003-public-stream-is-append-only {public audit ensemble exposes no reset operation} -body {
+    set status [catch {tclmesh audit reset} message options]
+    list $status [string match {*unknown or ambiguous subcommand*} $message]
+} -result {1 1}
+
 cleanupTests
