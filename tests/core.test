@@ -81,6 +81,18 @@ test C-006b-circuit-node-map-is-canonical-but-operation-order-is-semantic {node-
     list         [expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}]         [expr {[tclmesh manifest digest $a] ne [tclmesh manifest digest $c]}]
 } -result {1 1}
 
+test C-006c-provenance-nested-maps-are-canonical {nested provenance map insertion order does not change digest} -body {
+    set a [tclmesh manifest new demo-provenance 1]
+    dict set a provenance compiler [dict create z 9 a 1]
+    dict set a provenance runtime [dict create mode strict version 1]
+
+    set b [tclmesh manifest new demo-provenance 1]
+    dict set b provenance runtime [dict create version 1 mode strict]
+    dict set b provenance compiler [dict create a 1 z 9]
+
+    expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}
+} -result 1
+
 test C-007-manifest-hash-binds-version {manifest version contributes to hash identity} -body {
     set v1 [tclmesh manifest new demo-hash-version 1]
     set v2 [tclmesh manifest new demo-hash-version 2]
