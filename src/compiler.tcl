@@ -235,6 +235,12 @@ proc ::tclmesh::compiler::_install_aliases {child token} {
 
     interp alias $child eq {} ::tclmesh::compiler::_binary eq
     interp alias $child neq {} ::tclmesh::compiler::_binary neq
+    interp alias $child lt {} ::tclmesh::compiler::_binary lt
+    interp alias $child lte {} ::tclmesh::compiler::_binary lte
+    interp alias $child gt {} ::tclmesh::compiler::_binary gt
+    interp alias $child gte {} ::tclmesh::compiler::_binary gte
+    interp alias $child member {} ::tclmesh::compiler::_binary in
+    interp alias $child contains {} ::tclmesh::compiler::_binary contains
     interp alias $child all {} ::tclmesh::compiler::_variadic and
     interp alias $child any {} ::tclmesh::compiler::_variadic or
     interp alias $child not {} ::tclmesh::compiler::_not
