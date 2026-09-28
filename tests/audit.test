@@ -9,7 +9,7 @@ proc ::audittest_path {name} {
 
 test AU-001-structured-event {audit stream assigns ordered immutable event descriptors} -body {
     tclmesh audit use-store {}
-    tclmesh audit reset
+    ::tclmesh::audit::_reset
 
     set event [tclmesh audit append action.completed         [dict create action Shipment::accept result accepted]         [dict create manifest_hash abc actor_id user:alice]]
 
@@ -21,7 +21,7 @@ test AU-002-reopen-sequence {audit stream restores events and sequence from file
     try {
         set first [tclmesh store create file $path]
         tclmesh audit use-store $first
-        tclmesh audit reset
+        ::tclmesh::audit::_reset
 
         tclmesh audit append one [dict create n 1]
         tclmesh audit append two [dict create n 2]
