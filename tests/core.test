@@ -19,6 +19,28 @@ test C-002-manifest-install {manifest registry installs and retrieves by applica
     dict get [tclmesh manifest get demo-install] application id
 } -result demo-install
 
+test C-003-manifest-missing-root-errorcode {missing root field retains TclMesh error code} -body {
+    set m [tclmesh manifest new demo-missing-root 1]
+    dict unset m resources
+    set status [catch {tclmesh manifest validate $m} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH MANIFEST MISSING resources}}
+
+test C-004-manifest-missing-application-errorcode {missing application field retains TclMesh error code} -body {
+    set m [tclmesh manifest new demo-missing-app 1]
+    dict unset m application version
+    set status [catch {tclmesh manifest validate $m} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH MANIFEST APPLICATION MISSING version}}
+
+test C-005-manifest-install-is-immutable {duplicate application id cannot replace installed manifest} -body {
+    set original [tclmesh manifest new demo-immutable 1]
+    set replacement [tclmesh manifest new demo-immutable 2]
+    tclmesh manifest install $original
+    set status [catch {tclmesh manifest install $replacement} message options]
+    list         $status         [dict get $options -errorcode]         [dict get [tclmesh manifest get demo-immutable] application version]
+} -result {1 {TCLMESH MANIFEST ALREADY_INSTALLED demo-immutable} 1}
+
 proc ::tclmesh_test_double {value} {
     expr {$value * 2}
 }
