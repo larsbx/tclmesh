@@ -40,7 +40,7 @@ proc ::tclmesh::language::_narrow_context {parent_context child_context} {
     return $effective
 }
 
-proc ::tclmesh::language::instantiate {package holder commands capabilities {context {}} {parent {}}} {
+proc ::tclmesh::language::_instantiate {package holder commands capabilities context parent} {
     variable instances
     variable next_id
 
@@ -51,6 +51,14 @@ proc ::tclmesh::language::instantiate {package holder commands capabilities {con
 
     dict set instances $id $descriptor
     return $id
+}
+
+proc ::tclmesh::language::instantiate {package holder commands capabilities {context {}} {parent {}}} {
+    if {$parent ne ""} {
+        return -code error             -errorcode {TCLMESH LANGUAGE PARENT_REQUIRES_DELEGATE}             "parent lineage may only be created through language delegate"
+    }
+
+    return [_instantiate $package $holder $commands $capabilities $context {}]
 }
 
 proc ::tclmesh::language::describe {id} {
@@ -93,7 +101,7 @@ proc ::tclmesh::language::delegate {parent holder commands capabilities {context
 
     set effective_context [_narrow_context         [dict get $source context]         $context]
 
-    return [instantiate         [dict get $source package]         $holder         $commands         $capabilities         $effective_context         $parent]
+    return [_instantiate         [dict get $source package]         $holder         $commands         $capabilities         $effective_context         $parent]
 }
 
 proc ::tclmesh::language::why-not {id command} {
