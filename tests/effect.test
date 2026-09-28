@@ -1,0 +1,81 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1.0
+
+namespace eval ::effecttest {
+    variable executions 0
+}
+
+proc ::effecttest::adapter {operation effect context} {
+    variable executions
+
+    if {$operation ne "execute"} {
+        error "unexpected effect adapter operation '$operation'"
+    }
+
+    incr executions
+    return [dict create delivered true type [dict get $effect type]]
+}
+
+proc ::effecttest::reset {} {
+    variable executions
+    set executions 0
+    tclmesh effect reset
+}
+
+test E-001-lifecycle {effect proposal, authorization, and execution produce terminal result} -body {
+    ::effecttest::reset
+
+    set proposal [tclmesh effect propose         [dict create type audit status accepted]         [dict create             manifest_hash abc123             action Shipment::accept             actor_id user:alice             idempotency_key shipment-1:accept:audit]]
+
+    set authorized [tclmesh effect authorize [dict get $proposal id] permit]
+    set completed [tclmesh effect execute [dict get $proposal id] ::effecttest::adapter]
+
+    list         [dict get $proposal status]         [dict get $authorized status]         [dict get $completed status]         [dict get $completed result delivered]         $::effecttest::executions
+} -result {proposed authorized succeeded true 1}
+
+test E-002-idempotent-replay {same idempotency key and proposal return the existing effect} -body {
+    ::effecttest::reset
+
+    set spec [dict create type audit status accepted]
+    set context [dict create         manifest_hash abc123         action Shipment::accept         actor_id user:alice         idempotency_key replay-key]
+
+    set first [tclmesh effect propose $spec $context]
+    tclmesh effect authorize [dict get $first id] permit
+    tclmesh effect execute [dict get $first id] ::effecttest::adapter
+
+    set replay [tclmesh effect propose $spec $context]
+
+    list         [dict get $first id]         [dict get $replay id]         [dict get $replay status]         $::effecttest::executions
+} -match glob -result {effect:* effect:* succeeded 1}
+
+test E-003-idempotency-conflict {same key cannot name a different effect} -body {
+    ::effecttest::reset
+
+    set context [dict create         manifest_hash abc123         action Shipment::accept         actor_id user:alice         idempotency_key conflict-key]
+
+    tclmesh effect propose [dict create type audit status accepted] $context
+
+    set status [catch {
+        tclmesh effect propose [dict create type audit status cancelled] $context
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH EFFECT IDEMPOTENCY_CONFLICT conflict-key}}
+
+test E-004-denied-not-executable {denied effect cannot execute} -body {
+    ::effecttest::reset
+
+    set proposal [tclmesh effect propose         [dict create type audit]         [dict create             manifest_hash abc123             action Shipment::accept             actor_id user:alice]]
+
+    tclmesh effect authorize [dict get $proposal id] deny
+
+    set status [catch {
+        tclmesh effect execute [dict get $proposal id] ::effecttest::adapter
+    } message options]
+
+    list $status [dict get $options -errorcode] $::effecttest::executions
+} -match glob -result {1 {TCLMESH EFFECT INVALID_STATE effect:*} 0}
+
+cleanupTests
