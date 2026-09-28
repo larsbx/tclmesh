@@ -24,6 +24,8 @@ Authoritative execution MUST depend on a canonical installed manifest and explic
 
 Installed manifests SHALL be immutable. A semantic change requires compilation of a new manifest, verification, comparison, authorization, and activation.
 
+A registry keyed only by application identifier SHALL reject a second installation under an already-installed identifier. An implementation that supports multiple versions SHALL retain versioned/hash-bound manifest entries and use a distinct activation operation; installation SHALL NOT silently replace an installed manifest.
+
 Canonical serialization SHALL define deterministic key ordering, scalar normalization, identifier normalization, and semantic list ordering. It SHALL NOT depend on ambient hash iteration order, undeclared timestamps, or undeclared randomness.
 
 ## Action lifecycle
@@ -38,18 +40,21 @@ An authoritative action SHALL execute in this order:
 6. bind context;
 7. cast arguments;
 8. construct query or changeset;
-9. evaluate authorization preconditions;
-10. evaluate deontic rules;
-11. execute validations;
-12. calculate changes;
-13. calculate effect proposals;
-14. establish transaction boundary;
-15. persist state changes;
-16. commit;
-17. authorize post-commit effects;
-18. execute effects;
-19. emit outcome events;
-20. return a structured result.
+9. establish the transaction boundary, or establish an equivalent atomic version/predicate guard, before any state-dependent authorization, deontic evaluation, validation, or change calculation that can affect a mutation;
+10. load or reload the authoritative current state inside that boundary;
+11. evaluate state-dependent authorization preconditions;
+12. evaluate state-dependent deontic rules;
+13. execute state-dependent validations;
+14. calculate changes from the guarded state;
+15. calculate effect proposals;
+16. persist state changes using the same transaction or atomic guard;
+17. commit;
+18. authorize post-commit effects;
+19. execute effects;
+20. emit outcome events;
+21. return a structured result.
+
+A mutating read-modify-write action SHALL NOT rely solely on state observed before the transaction boundary. If any state-dependent check is performed as a preflight optimization, it MUST be repeated against the authoritative state inside the transaction, or persistence MUST atomically compare the exact version or predicate assumed by that check.
 
 ## Structured errors
 
@@ -91,6 +96,8 @@ child authority subset-of parent authority
 ```
 
 A child MAY narrow scope, shorten expiry, lower usage count, add restrictions, remove commands, remove delegation, and lower delegation depth. It SHALL NOT broaden authority.
+
+Delegation SHALL preserve every parent context binding. A child MAY add context bindings that make the context strictly narrower, or repeat an inherited binding with the same value. It SHALL NOT remove or replace an inherited binding with a different value. Implementations with richer context predicates MUST establish that the child context denotes a subset of the parent context before delegation succeeds.
 
 One-use capabilities SHALL transition through durable active/reserved/consumed or active/reserved/released states.
 
