@@ -2,9 +2,52 @@ namespace eval ::tclmesh::effect {
     variable ledger {}
     variable idempotency {}
     variable next_id 0
+    variable store {}
 
-    namespace export propose authorize execute get list reset
+    namespace export propose authorize execute get list reset use-store
     namespace ensemble create
+}
+
+proc ::tclmesh::effect::_persist {} {
+    variable ledger
+    variable idempotency
+    variable next_id
+    variable store
+
+    if {$store ne ""} {
+        ::tclmesh::store put $store effect.registry [dict create             ledger $ledger             idempotency $idempotency             next_id $next_id]
+    }
+}
+
+proc ::tclmesh::effect::use-store {store_id} {
+    variable ledger
+    variable idempotency
+    variable next_id
+    variable store
+
+    if {$store_id eq ""} {
+        set store {}
+        return {}
+    }
+
+    ::tclmesh::store describe $store_id
+    set store $store_id
+
+    if {[::tclmesh::store exists $store effect.registry]} {
+        set state [::tclmesh::store get $store effect.registry]
+        foreach key {ledger idempotency next_id} {
+            if {![dict exists $state $key]} {
+                return -code error                     -errorcode [::list TCLMESH EFFECT STORE INVALID_STATE $key]                     "effect registry store is missing '$key'"
+            }
+        }
+        set ledger [dict get $state ledger]
+        set idempotency [dict get $state idempotency]
+        set next_id [dict get $state next_id]
+    } else {
+        _persist
+    }
+
+    return $store
 }
 
 proc ::tclmesh::effect::_require {effect_id} {
@@ -34,6 +77,7 @@ proc ::tclmesh::effect::reset {} {
     set ledger {}
     set idempotency {}
     set next_id 0
+    _persist
 }
 
 proc ::tclmesh::effect::propose {effect context} {
@@ -77,6 +121,7 @@ proc ::tclmesh::effect::propose {effect context} {
         dict set idempotency $key $id
     }
 
+    _persist
     return $descriptor
 }
 
@@ -101,6 +146,7 @@ proc ::tclmesh::effect::authorize {effect_id decision} {
     }
 
     dict set ledger $effect_id $descriptor
+    _persist
     return $descriptor
 }
 
@@ -118,6 +164,7 @@ proc ::tclmesh::effect::execute {effect_id adapter} {
 
     dict set descriptor status executing
     dict set ledger $effect_id $descriptor
+    _persist
 
     set code [catch {
         {*}$adapter execute             [dict get $descriptor effect]             [dict get $descriptor context]
@@ -127,6 +174,7 @@ proc ::tclmesh::effect::execute {effect_id adapter} {
         dict set descriptor status failed
         dict set descriptor result [dict create             class execution             message $result]
         dict set ledger $effect_id $descriptor
+        _persist
 
         return -options $options             -errorcode [::list TCLMESH EFFECT EXECUTION FAILED $effect_id]             $result
     }
@@ -134,6 +182,7 @@ proc ::tclmesh::effect::execute {effect_id adapter} {
     dict set descriptor status succeeded
     dict set descriptor result $result
     dict set ledger $effect_id $descriptor
+    _persist
     return $descriptor
 }
 
