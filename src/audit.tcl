@@ -3,7 +3,7 @@ namespace eval ::tclmesh::audit {
     variable next_id 0
     variable store {}
 
-    namespace export use-store append get list reset
+    namespace export use-store append get list
     namespace ensemble create
 }
 
@@ -53,7 +53,7 @@ proc ::tclmesh::audit::use-store {store_id} {
     return $store
 }
 
-proc ::tclmesh::audit::reset {} {
+proc ::tclmesh::audit::_reset {} {
     _commit {} 0
 }
 
