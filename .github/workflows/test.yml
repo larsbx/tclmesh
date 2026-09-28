@@ -1,0 +1,17 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  tcltest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TCL
+        run: sudo apt-get update && sudo apt-get install -y tcl8.6
+      - name: Run conformance smoke tests
+        run: tclsh tests/all.tcl
