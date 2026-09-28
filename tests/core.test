@@ -68,6 +68,19 @@ test C-006a-semantic-list-order-is-preserved {ordered semantic lists remain hash
     expr {[tclmesh manifest digest $a] ne [tclmesh manifest digest $b]}
 } -result 1
 
+test C-006b-circuit-node-map-is-canonical-but-operation-order-is-semantic {node-table insertion order is ignored while operation list order is preserved} -body {
+    set a [tclmesh manifest new demo-circuit-order 1]
+    dict set a circuits score [dict create         outputs {}         nodes [dict create             n2 {add n1 n0}             n1 {input x}]         inputs {}]
+
+    set b [tclmesh manifest new demo-circuit-order 1]
+    dict set b circuits score [dict create         inputs {}         nodes [dict create             n1 {input x}             n2 {add n1 n0}]         outputs {}]
+
+    set c [tclmesh manifest new demo-circuit-order 1]
+    dict set c circuits score [dict create         inputs {}         nodes [dict create             n1 {input x}             n2 {add n0 n1}]         outputs {}]
+
+    list         [expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}]         [expr {[tclmesh manifest digest $a] ne [tclmesh manifest digest $c]}]
+} -result {1 1}
+
 test C-007-manifest-hash-binds-version {manifest version contributes to hash identity} -body {
     set v1 [tclmesh manifest new demo-hash-version 1]
     set v2 [tclmesh manifest new demo-hash-version 2]
