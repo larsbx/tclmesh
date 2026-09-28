@@ -1,0 +1,33 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1
+
+test C-001-manifest-new {new manifest has required root fields} -body {
+    set m [tclmesh manifest new demo 1]
+    expr {
+        [dict exists $m manifest_version] &&
+        [dict exists $m application id] &&
+        [dict exists $m resources] &&
+        [dict exists $m capabilities]
+    }
+} -result 1
+
+test C-002-manifest-install {manifest registry installs and retrieves by application id} -body {
+    set m [tclmesh manifest new demo-install 1]
+    tclmesh manifest install $m
+    dict get [tclmesh manifest get demo-install] application id
+} -result demo-install
+
+proc ::tclmesh_test_double {value} {
+    expr {$value * 2}
+}
+
+test M-001-macro-expand {macro registry expands through declared command} -body {
+    tclmesh macro define double expression semantic ::tclmesh_test_double
+    tclmesh macro expand double 21
+} -result 42
+
+rename ::tclmesh_test_double {}
+
+cleanupTests
