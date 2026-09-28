@@ -1,0 +1,25 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TCL
+        run: sudo apt-get update && sudo apt-get install -y tcl8.6 tcllib
+      - name: Verify tag matches VERSION
+        run: |
+          expected="v$(tr -d '\n\r ' < VERSION)"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "tag $GITHUB_REF_NAME does not match VERSION ($expected)"
+            exit 1
+          fi
+      - name: Run test suite
+        run: tclsh tests/all.tcl
+      - name: Run release self-check
+        run: tclsh tools/release_check.tcl

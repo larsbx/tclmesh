@@ -1,0 +1,12 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+
+set here [file dirname [file normalize [info script]]]
+set root [file dirname $here]
+
+test SHIP-001-end-to-end {reference kernel executes the documented shipping scenario} -body {
+    string trim [exec tclsh [file join $root examples shipment.tcl]]
+} -result {accepted|N|succeeded|private-ir-ok}
+
+cleanupTests
