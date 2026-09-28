@@ -11,4 +11,4 @@ if {$root ni $::auto_path} {
 }
 
 configure -testdir $here -singleproc 1
-runAllTests
+exit [runAllTests]
