@@ -14,6 +14,41 @@ proc ::tclmesh::store::_require {id} {
     return [dict get $stores $id]
 }
 
+proc ::tclmesh::store::_read_file {path} {
+    if {![file exists $path]} {
+        return {}
+    }
+
+    set channel [open $path RDONLY]
+    try {
+        chan configure $channel -encoding utf-8 -translation lf
+        set data [read $channel]
+    } finally {
+        close $channel
+    }
+
+    if {$data eq ""} {
+        return {}
+    }
+
+    if {[catch {dict size $data}]} {
+        return -code error             -errorcode [::list TCLMESH STORE CORRUPT $path]             "file store '$path' does not contain a valid Tcl dictionary"
+    }
+
+    return $data
+}
+
+proc ::tclmesh::store::_refresh {id descriptor} {
+    variable stores
+
+    if {[dict get $descriptor type] eq "file"} {
+        dict set descriptor data [_read_file [dict get $descriptor path]]
+        dict set stores $id $descriptor
+    }
+
+    return $descriptor
+}
+
 proc ::tclmesh::store::_persist {id descriptor} {
     variable stores
 
@@ -60,22 +95,7 @@ proc ::tclmesh::store::create {type args} {
         set path [file normalize [lindex $args 0]]
         dict set descriptor path $path
 
-        if {[file exists $path]} {
-            set channel [open $path RDONLY]
-            try {
-                chan configure $channel -encoding utf-8 -translation lf
-                set data [read $channel]
-            } finally {
-                close $channel
-            }
-
-            if {$data ne ""} {
-                if {[catch {dict size $data}]} {
-                    return -code error                         -errorcode [::list TCLMESH STORE CORRUPT $path]                         "file store '$path' does not contain a valid Tcl dictionary"
-                }
-                dict set descriptor data $data
-            }
-        }
+        dict set descriptor data [_read_file $path]
     } elseif {[llength $args] != 0} {
         return -code error             -errorcode {TCLMESH STORE MEMORY UNEXPECTED_ARGUMENTS}             "memory store takes no additional arguments"
     }
@@ -85,7 +105,7 @@ proc ::tclmesh::store::create {type args} {
 }
 
 proc ::tclmesh::store::get {id key {default __TCLMESH_NO_DEFAULT__}} {
-    set descriptor [_require $id]
+    set descriptor [_refresh $id [_require $id]]
     set data [dict get $descriptor data]
 
     if {[dict exists $data $key]} {
@@ -100,7 +120,7 @@ proc ::tclmesh::store::get {id key {default __TCLMESH_NO_DEFAULT__}} {
 }
 
 proc ::tclmesh::store::put {id key value} {
-    set descriptor [_require $id]
+    set descriptor [_refresh $id [_require $id]]
     set data [dict get $descriptor data]
     dict set data $key $value
     dict set descriptor data $data
@@ -109,17 +129,17 @@ proc ::tclmesh::store::put {id key value} {
 }
 
 proc ::tclmesh::store::exists {id key} {
-    set descriptor [_require $id]
+    set descriptor [_refresh $id [_require $id]]
     return [dict exists [dict get $descriptor data] $key]
 }
 
 proc ::tclmesh::store::keys {id} {
-    set descriptor [_require $id]
+    set descriptor [_refresh $id [_require $id]]
     return [lsort -dictionary [dict keys [dict get $descriptor data]]]
 }
 
 proc ::tclmesh::store::delete {id key} {
-    set descriptor [_require $id]
+    set descriptor [_refresh $id [_require $id]]
     set data [dict get $descriptor data]
 
     if {[dict exists $data $key]} {
