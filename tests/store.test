@@ -79,12 +79,15 @@ test ST-004-language-registry-restores-next-id {language state and id counter su
 
         set next [tclmesh language instantiate             Operator user:bob {inspect} {read}]
 
-        list             [dict get [tclmesh language describe $child] parent]             $next
+        scan $child "language:%d" child_number
+        scan $next "language:%d" next_number
+
+        list             [expr {[dict get [tclmesh language describe $child] parent] eq $parent}]             [expr {$next_number == $child_number + 1}]
     } finally {
         tclmesh language use-store {}
         ::storetest_cleanup $path
     }
-} -match glob -result {language:1 language:3}
+} -result {1 1}
 
 test ST-005-effect-idempotency-restores {reopened effect registry retains terminal effect and replay key} -body {
     set path [::storetest_path effect]
