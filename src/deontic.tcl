@@ -9,20 +9,28 @@ proc ::tclmesh::deontic::semantics {verdict} {
     variable semantics
 
     if {![dict exists $semantics $verdict]} {
-        return -code error -errorcode {TCLMESH DEONTIC INVALID_VERDICT}             "unknown deontic verdict '$verdict'"
+        return -code error             -errorcode {TCLMESH DEONTIC INVALID_VERDICT}             "unknown deontic verdict '$verdict'"
     }
 
     return [dict get $semantics $verdict]
 }
 
-proc ::tclmesh::deontic::_conflict_class {verdicts} {
+proc ::tclmesh::deontic::_conflict_classes {verdicts} {
+    set conflicts {}
+
     if {"W" in $verdicts && "H" in $verdicts} {
-        return hard-admissibility
+        lappend conflicts hard-admissibility
     }
+
     if {"N" in $verdicts && "K" in $verdicts} {
-        return preference
+        lappend conflicts preference
     }
-    return unresolved
+
+    if {[llength $conflicts] == 0} {
+        lappend conflicts unresolved
+    }
+
+    return $conflicts
 }
 
 proc ::tclmesh::deontic::resolve {verdicts} {
@@ -44,5 +52,5 @@ proc ::tclmesh::deontic::resolve {verdicts} {
         return [dict create             status determinate             verdict $verdict             semantics [semantics $verdict]             conflicts {}]
     }
 
-    return [dict create         status conflicted         verdict {}         support $normalized         conflicts [list [_conflict_class $normalized]]]
+    return [dict create         status conflicted         verdict {}         support $normalized         conflicts [_conflict_classes $normalized]]
 }
