@@ -212,7 +212,7 @@ test WF-007-running-success-reconciliation {recovered running step may be marked
     set instance [tclmesh workflow start         $language workflow-success-reconcile ShipmentFlow         [dict create actor_id user:workflow object_id shipment-7]]
 
     dict set instance steps prepare status running
-    dict incr instance steps prepare attempts
+    dict set instance steps prepare attempts         [expr {[dict get $instance steps prepare attempts] + 1}]
     ::tclmesh::workflow::_save_instance $instance
 
     set reconciled [tclmesh workflow recover         [dict get $instance id]         prepare         succeeded         [dict create externally_confirmed true]]
