@@ -1,0 +1,37 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1
+
+test L-001-instantiate {language instance records holder and commands} -body {
+    set id [tclmesh language instantiate Operator user:1 {inspect approve} {read approve}]
+    set d [tclmesh language describe $id]
+    list [dict get $d holder] [tclmesh language commands $id]
+} -result {user:1 {approve inspect}}
+
+test L-009-delegate {delegation may attenuate parent commands and capabilities} -body {
+    set parent [tclmesh language instantiate Operator user:2 {inspect approve delegate} {read approve delegate}]
+    set child [tclmesh language delegate $parent agent:7 {inspect} {read}]
+    set d [tclmesh language describe $child]
+    list [dict get $d parent] [dict get $d commands] [dict get $d capabilities]
+} -match glob -result {language:* inspect read}
+
+test L-010-no-authority-amplification {delegation rejects a command absent from parent} -body {
+    set parent [tclmesh language instantiate Operator user:3 {inspect} {read}]
+    tclmesh language delegate $parent agent:8 {inspect approve} {read}
+} -returnCodes error -match glob -result {*exceed parent authority*}
+
+test L-012-why-not {why-not explains unavailable command} -body {
+    set id [tclmesh language instantiate Reviewer user:4 {inspect} {read}]
+    set result [tclmesh language why-not $id approve]
+    list         [dict get $result available]         [dict get [lindex [dict get $result blockers] 0] kind]
+} -result {false command-not-granted}
+
+test L-014-revoked-language {revocation changes state and why-not reports it} -body {
+    set id [tclmesh language instantiate Reviewer user:5 {inspect} {read}]
+    tclmesh language revoke $id
+    set result [tclmesh language why-not $id inspect]
+    list         [dict get $result available]         [dict get [lindex [dict get $result blockers] 0] state]
+} -result {false revoked}
+
+cleanupTests
