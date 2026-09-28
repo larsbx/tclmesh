@@ -1,6 +1,27 @@
 namespace eval ::tclmesh::manifest {
     variable registry {}
 
+    # Fields whose values are maps from names to canonical node descriptors.
+    variable node_map_fields {
+        types resources actions policies rules circuits workflows ceremonies
+        languages capabilities attributes relationships identities calculations
+        aggregates inputs outputs nodes steps phases
+    }
+
+    # Fields whose values are ordinary maps. Their keys are canonicalized, while
+    # values remain scalar unless their enclosing node schema says otherwise.
+    variable scalar_map_fields {
+        application constraints metadata context packing threshold
+        provenance compiler runtime
+    }
+
+    # Ordered semantic sequences. Order is preserved exactly.
+    variable sequence_fields {
+        values accepts validations changes preparations effects commands
+        defeats defeated_by participants requested_outputs completed ready
+        failed compensations
+    }
+
     namespace export         new validate canonical digest install get describe versions         activate active list
     namespace ensemble create
 }
@@ -36,6 +57,10 @@ proc ::tclmesh::manifest::validate {manifest} {
         }
     }
 
+    if {[dict get $manifest application version] eq ""} {
+        return -code error             -errorcode {TCLMESH MANIFEST APPLICATION EMPTY version}             "manifest application version must not be empty"
+    }
+
     if {[dict get $manifest manifest_version] != 1} {
         return -code error             -errorcode {TCLMESH MANIFEST VERSION UNSUPPORTED}             "unsupported manifest version"
     }
@@ -43,7 +68,7 @@ proc ::tclmesh::manifest::validate {manifest} {
     return $manifest
 }
 
-proc ::tclmesh::manifest::_canonical_map {value} {
+proc ::tclmesh::manifest::_canonical_scalar_map {value} {
     set output {}
 
     foreach key [lsort -dictionary [dict keys $value]] {
@@ -53,10 +78,56 @@ proc ::tclmesh::manifest::_canonical_map {value} {
     return $output
 }
 
+proc ::tclmesh::manifest::_canonical_node_map {value} {
+    set output {}
+
+    foreach key [lsort -dictionary [dict keys $value]] {
+        lappend output $key [_canonical_node [dict get $value $key]]
+    }
+
+    return $output
+}
+
+proc ::tclmesh::manifest::_canonical_sequence {value} {
+    # Sequence order is semantic. Rebuild the list only to ensure a single Tcl
+    # list representation without sorting or treating even-length lists as maps.
+    set output {}
+    foreach item $value {
+        lappend output $item
+    }
+    return $output
+}
+
+proc ::tclmesh::manifest::_canonical_node {node} {
+    variable node_map_fields
+    variable scalar_map_fields
+    variable sequence_fields
+
+    set output {}
+
+    foreach key [lsort -dictionary [dict keys $node]] {
+        set value [dict get $node $key]
+
+        if {$key in $node_map_fields} {
+            set value [_canonical_node_map $value]
+        } elseif {$key in $scalar_map_fields} {
+            set value [_canonical_scalar_map $value]
+        } elseif {$key in $sequence_fields} {
+            set value [_canonical_sequence $value]
+        }
+
+        lappend output $key $value
+    }
+
+    return $output
+}
+
 proc ::tclmesh::manifest::canonical {manifest} {
+    variable node_map_fields
+
     set manifest [validate $manifest]
 
-    set output [::list         manifest_version [dict get $manifest manifest_version]         application [_canonical_map [dict get $manifest application]]]
+    set output [::list         manifest_version [dict get $manifest manifest_version]         application [_canonical_scalar_map [dict get $manifest application]]]
 
     foreach section {
         types
@@ -69,10 +140,11 @@ proc ::tclmesh::manifest::canonical {manifest} {
         ceremonies
         languages
         capabilities
-        provenance
     } {
-        lappend output $section [_canonical_map [dict get $manifest $section]]
+        lappend output $section [_canonical_node_map [dict get $manifest $section]]
     }
+
+    lappend output provenance         [_canonical_scalar_map [dict get $manifest provenance]]
 
     return $output
 }
@@ -148,6 +220,10 @@ proc ::tclmesh::manifest::versions {application_id} {
 
 proc ::tclmesh::manifest::activate {application_id version expected_hash} {
     variable registry
+
+    if {$version eq ""} {
+        return -code error             -errorcode {TCLMESH MANIFEST APPLICATION EMPTY version}             "manifest application version must not be empty"
+    }
 
     set descriptor [_descriptor $application_id $version]
     set actual [dict get $descriptor manifest_hash]
