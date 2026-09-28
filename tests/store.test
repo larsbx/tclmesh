@@ -1,0 +1,203 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1.0
+
+proc ::storetest_path {name} {
+    return [file join [temporaryDirectory]         "tclmesh-$name-[pid]-[clock clicks].dict"]
+}
+
+proc ::storetest_cleanup {path} {
+    catch {file delete -force $path}
+}
+
+test ST-001-memory-store {memory store supports put/get/list} -body {
+    set store [tclmesh store create memory]
+    tclmesh store put $store alpha 1
+    tclmesh store put $store beta 2
+    list         [tclmesh store get $store alpha]         [tclmesh store keys $store]
+} -result {1 {alpha beta}}
+
+test ST-002-file-reopen {file store survives creation of a fresh store handle} -body {
+    set path [::storetest_path reopen]
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh store put $first state [dict create count 7 label durable]
+
+        set second [tclmesh store create file $path]
+        set state [tclmesh store get $second state]
+
+        list [dict get $state count] [dict get $state label]
+    } finally {
+        ::storetest_cleanup $path
+    }
+} -result {7 durable}
+
+test ST-003-manifest-registry-restores {manifest install and activation restore from file store} -body {
+    set path [::storetest_path manifest]
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh manifest use-store $first
+
+        set manifest [tclmesh manifest new persisted-manifest 1]
+        set installed [tclmesh manifest install $manifest]
+        tclmesh manifest activate             persisted-manifest 1 [dict get $installed manifest_hash]
+
+        namespace eval ::tclmesh::manifest {
+            set registry {}
+            set store {}
+        }
+
+        set second [tclmesh store create file $path]
+        tclmesh manifest use-store $second
+
+        set active [tclmesh manifest active persisted-manifest]
+        list             [dict get $active version]             [dict get [tclmesh manifest get persisted-manifest] application id]
+    } finally {
+        tclmesh manifest use-store {}
+        ::storetest_cleanup $path
+    }
+} -result {1 persisted-manifest}
+
+test ST-004-language-registry-restores-next-id {language state and id counter survive reopen} -body {
+    set path [::storetest_path language]
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh language use-store $first
+
+        set parent [tclmesh language instantiate             Operator user:alice {inspect delegate} {read delegate}]
+        set child [tclmesh language delegate             $parent agent:one {inspect} {read}]
+
+        namespace eval ::tclmesh::language {
+            set instances {}
+            set next_id 0
+            set store {}
+        }
+
+        set second [tclmesh store create file $path]
+        tclmesh language use-store $second
+
+        set next [tclmesh language instantiate             Operator user:bob {inspect} {read}]
+
+        scan $child "language:%d" child_number
+        scan $next "language:%d" next_number
+
+        list             [expr {[dict get [tclmesh language describe $child] parent] eq $parent}]             [expr {$next_number == $child_number + 1}]
+    } finally {
+        tclmesh language use-store {}
+        ::storetest_cleanup $path
+    }
+} -result {1 1}
+
+test ST-005-effect-idempotency-restores {reopened effect registry retains terminal effect and replay key} -body {
+    set path [::storetest_path effect]
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh effect use-store $first
+        tclmesh effect reset
+
+        set spec [dict create type audit status accepted]
+        set context [dict create             manifest_hash abc             action Shipment::accept             actor_id user:alice             idempotency_key durable-effect]
+
+        set proposed [tclmesh effect propose $spec $context]
+        tclmesh effect authorize [dict get $proposed id] permit
+
+        namespace eval ::tclmesh::effect {
+            set ledger {}
+            set idempotency {}
+            set next_id 0
+            set store {}
+        }
+
+        set second [tclmesh store create file $path]
+        tclmesh effect use-store $second
+        set replay [tclmesh effect propose $spec $context]
+
+        list             [dict get $replay id]             [dict get $replay status]
+    } finally {
+        tclmesh effect use-store {}
+        ::storetest_cleanup $path
+    }
+} -match glob -result {effect:1 authorized}
+
+test ST-006-stale-handles-merge {separate handles do not erase each other's later keys} -body {
+    set path [::storetest_path stale]
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh store put $first alpha 1
+
+        set second [tclmesh store create file $path]
+        tclmesh store put $first beta 2
+        tclmesh store put $second gamma 3
+
+        set reopened [tclmesh store create file $path]
+        list             [tclmesh store keys $reopened]             [tclmesh store get $reopened beta]             [tclmesh store get $reopened gamma]
+    } finally {
+        ::storetest_cleanup $path
+    }
+} -result {{alpha beta gamma} 2 3}
+
+test ST-007-invalid-store-switch-is-atomic {malformed registry store does not replace active store} -body {
+    namespace eval ::tclmesh::language {
+        set instances {}
+        set next_id 0
+        set store {}
+    }
+
+    set good [tclmesh store create memory]
+    tclmesh language use-store $good
+    set first [tclmesh language instantiate Operator user:a {inspect} {read}]
+
+    set bad [tclmesh store create memory]
+    tclmesh store put $bad language.registry [dict create instances {}]
+
+    set status [catch {
+        tclmesh language use-store $bad
+    } message options]
+
+    set second [tclmesh language instantiate Operator user:b {inspect} {read}]
+    set durable [tclmesh store get $good language.registry]
+
+    list         $status         [dict get $options -errorcode]         [dict exists $durable instances $first]         [dict exists $durable instances $second]
+} -result {1 {TCLMESH LANGUAGE STORE INVALID_STATE next_id} 1 1}
+
+test ST-008-persistence-failure-rolls-back {failed durable write does not publish language state} -body {
+    namespace eval ::tclmesh::language {
+        set instances {}
+        set next_id 0
+        set store {}
+    }
+
+    set root [file join [temporaryDirectory]         "tclmesh-blocked-[pid]-[clock clicks]"]
+    set path [file join $root registry.dict]
+
+    try {
+        file mkdir $root
+        set durable [tclmesh store create file $path]
+        tclmesh language use-store $durable
+        set first [tclmesh language instantiate Operator user:a {inspect} {read}]
+
+        file delete -force $path
+        file delete -force $root
+        set blocker [open $root {WRONLY CREAT TRUNC}]
+        close $blocker
+
+        set status [catch {
+            tclmesh language instantiate Operator user:b {inspect} {read}
+        } message options]
+
+        set visible [tclmesh language list]
+        tclmesh language use-store {}
+        set next [tclmesh language instantiate Operator user:c {inspect} {read}]
+
+        scan $first "language:%d" first_number
+        scan $next "language:%d" next_number
+
+        list             $status             [llength $visible]             [expr {$next_number == $first_number + 1}]
+    } finally {
+        tclmesh language use-store {}
+        catch {file delete -force $root}
+    }
+} -result {1 1 1}
+
+cleanupTests
