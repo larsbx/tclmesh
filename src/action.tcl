@@ -125,35 +125,153 @@ proc ::tclmesh::action::_authorization {spec state request} {
     }
 }
 
+
+proc ::tclmesh::action::_noncanonical {action_id field message} {
+    return -code error         -errorcode [::list TCLMESH ACTION NON_CANONICAL $action_id $field]         "action '$action_id' $message"
+}
+
+proc ::tclmesh::action::_validate_value_spec {action_id field value} {
+    if {[llength $value] == 0} {
+        _noncanonical $action_id $field "contains an empty value expression"
+    }
+
+    set op [lindex $value 0]
+    switch -- $op {
+        literal {
+            if {[llength $value] != 2} {
+                _noncanonical $action_id $field                     "literal value expressions require exactly one argument"
+            }
+        }
+        field -
+        request {
+            if {[llength $value] < 2} {
+                _noncanonical $action_id $field                     "$op value expressions require a nonempty path"
+            }
+        }
+        default {
+            _noncanonical $action_id $field                 "contains unknown value operation '$op'"
+        }
+    }
+}
+
+proc ::tclmesh::action::_validate_predicate_spec {action_id field predicate} {
+    if {[llength $predicate] == 0} {
+        _noncanonical $action_id $field "contains an empty predicate"
+    }
+
+    set op [lindex $predicate 0]
+    switch -- $op {
+        true -
+        false {
+            if {[llength $predicate] != 1} {
+                _noncanonical $action_id $field                     "predicate '$op' takes no arguments"
+            }
+        }
+        eq -
+        neq {
+            if {[llength $predicate] != 3} {
+                _noncanonical $action_id $field                     "predicate '$op' requires two value expressions"
+            }
+            _validate_value_spec $action_id $field [lindex $predicate 1]
+            _validate_value_spec $action_id $field [lindex $predicate 2]
+        }
+        and -
+        or {
+            if {[llength $predicate] < 2} {
+                _noncanonical $action_id $field                     "predicate '$op' requires at least one child"
+            }
+            foreach child [lrange $predicate 1 end] {
+                _validate_predicate_spec $action_id $field $child
+            }
+        }
+        not {
+            if {[llength $predicate] != 2} {
+                _noncanonical $action_id $field                     "predicate 'not' requires one child"
+            }
+            _validate_predicate_spec $action_id $field [lindex $predicate 1]
+        }
+        default {
+            _noncanonical $action_id $field                 "contains unknown predicate operation '$op'"
+        }
+    }
+}
+
+proc ::tclmesh::action::_validate_authorization_spec {action_id spec} {
+    if {[llength $spec] == 0} {
+        _noncanonical $action_id authorize             "authorize field contains an empty specification"
+    }
+
+    set op [lindex $spec 0]
+    switch -- $op {
+        permit -
+        deny {
+            if {[llength $spec] != 1} {
+                _noncanonical $action_id authorize                     "authorization '$op' takes no arguments"
+            }
+        }
+        permit-if {
+            if {[llength $spec] != 2} {
+                _noncanonical $action_id authorize                     "authorization 'permit-if' requires one predicate"
+            }
+            _validate_predicate_spec $action_id authorize [lindex $spec 1]
+        }
+        default {
+            _noncanonical $action_id authorize                 "contains unknown authorization operation '$op'"
+        }
+    }
+}
+
 proc ::tclmesh::action::_validate_descriptor {action_id descriptor} {
     if {[dict exists $descriptor authorize]} {
-        set op [lindex [dict get $descriptor authorize] 0]
-        if {$op ni {permit deny permit-if}} {
-            return -code error                 -errorcode [::list TCLMESH ACTION NON_CANONICAL $action_id authorize]                 "action '$action_id' authorize field must use canonical operations"
-        }
+        _validate_authorization_spec             $action_id [dict get $descriptor authorize]
     }
 
     if {[dict exists $descriptor deontic]} {
-        foreach verdict [dict get $descriptor deontic] {
+        set verdicts [dict get $descriptor deontic]
+        if {[llength $verdicts] == 0} {
+            _noncanonical $action_id deontic                 "deontic field must contain at least one verdict"
+        }
+        foreach verdict $verdicts {
             ::tclmesh::deontic semantics $verdict
         }
     }
 
-    foreach validation [expr {[dict exists $descriptor validations] ? [dict get $descriptor validations] : {}}] {
-        if {[lindex $validation 0] ne "assert"} {
-            return -code error                 -errorcode [::list TCLMESH ACTION NON_CANONICAL $action_id validations]                 "action '$action_id' validation must use canonical assert nodes"
+    if {[dict exists $descriptor validations]} {
+        foreach validation [dict get $descriptor validations] {
+            if {[llength $validation] != 2 ||
+                [lindex $validation 0] ne "assert"} {
+                _noncanonical $action_id validations                     "validation must be {assert predicate}"
+            }
+            _validate_predicate_spec                 $action_id validations [lindex $validation 1]
         }
     }
 
-    foreach change [expr {[dict exists $descriptor changes] ? [dict get $descriptor changes] : {}}] {
-        if {[lindex $change 0] ne "set" || [llength $change] != 3} {
-            return -code error                 -errorcode [::list TCLMESH ACTION NON_CANONICAL $action_id changes]                 "action '$action_id' change must use canonical set nodes"
+    if {[dict exists $descriptor changes]} {
+        foreach change [dict get $descriptor changes] {
+            if {[llength $change] != 3 ||
+                [lindex $change 0] ne "set" ||
+                [lindex $change 1] eq ""} {
+                _noncanonical $action_id changes                     "change must be {set field value-expression}"
+            }
+            _validate_value_spec                 $action_id changes [lindex $change 2]
         }
     }
 
-    foreach effect [expr {[dict exists $descriptor effects] ? [dict get $descriptor effects] : {}}] {
-        if {[lindex $effect 0] ne "emit" || [llength $effect] < 2} {
-            return -code error                 -errorcode [::list TCLMESH ACTION NON_CANONICAL $action_id effects]                 "action '$action_id' effect must use canonical emit nodes"
+    if {[dict exists $descriptor effects]} {
+        foreach effect [dict get $descriptor effects] {
+            if {[llength $effect] < 2 ||
+                [lindex $effect 0] ne "emit" ||
+                [lindex $effect 1] eq "" ||
+                (([llength $effect] - 2) % 2) != 0} {
+                _noncanonical $action_id effects                     "effect must be {emit type ?field value-expression ...?}"
+            }
+
+            foreach {name value} [lrange $effect 2 end] {
+                if {$name eq ""} {
+                    _noncanonical $action_id effects                         "effect field names must not be empty"
+                }
+                _validate_value_spec $action_id effects $value
+            }
         }
     }
 
