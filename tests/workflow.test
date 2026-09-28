@@ -171,7 +171,7 @@ test WF-005-running-step-recovery {idempotent running step can be reconciled to 
     set instance [tclmesh workflow start         $language workflow-running-recovery ShipmentFlow         [dict create actor_id user:workflow object_id shipment-5]]
 
     dict set instance steps prepare status running
-    dict incr instance steps prepare attempts
+    dict set instance steps prepare attempts         [expr {[dict get $instance steps prepare attempts] + 1}]
     ::tclmesh::workflow::_save_instance $instance
 
     set recovered [tclmesh workflow recover         [dict get $instance id] prepare retry]
@@ -194,7 +194,7 @@ test WF-006-running-retry-requires-idempotency {non-idempotent running step cann
     set instance [tclmesh workflow start         $language workflow-non-idempotent ShipmentFlow         [dict create actor_id user:workflow object_id shipment-6]]
 
     dict set instance steps only status running
-    dict incr instance steps only attempts
+    dict set instance steps only attempts         [expr {[dict get $instance steps only attempts] + 1}]
     ::tclmesh::workflow::_save_instance $instance
 
     set status [catch {
