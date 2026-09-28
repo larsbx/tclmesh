@@ -78,4 +78,77 @@ test E-004-denied-not-executable {denied effect cannot execute} -body {
     list $status [dict get $options -errorcode] $::effecttest::executions
 } -match glob -result {1 {TCLMESH EFFECT INVALID_STATE effect:*} 0}
 
+proc ::effecttest_path {name} {
+    return [file join [temporaryDirectory]         "tclmesh-effect-$name-[pid]-[clock clicks].dict"]
+}
+
+test E-005-executing-recovery {executing effect survives reopen and can be reconciled to retry} -body {
+    ::effecttest::reset
+    set path [::effecttest_path recovery]
+
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh effect use-store $first
+        tclmesh effect reset
+
+        set proposal [tclmesh effect propose             [dict create type audit status accepted]             [dict create                 manifest_hash abc123                 action Shipment::accept                 actor_id user:alice                 idempotency_key recoverable-effect]]
+
+        set effect_id [dict get $proposal id]
+        tclmesh effect authorize $effect_id permit
+        set ::effecttest::recover_id $effect_id
+
+        namespace eval ::tclmesh::effect {
+            set descriptor [dict get $ledger $::effecttest::recover_id]
+            dict set descriptor status executing
+            dict incr descriptor attempts
+            set candidate $ledger
+            dict set candidate $::effecttest::recover_id $descriptor
+            _commit $candidate $idempotency $next_id
+
+            set ledger {}
+            set idempotency {}
+            set next_id 0
+            set store {}
+        }
+
+        set second [tclmesh store create file $path]
+        tclmesh effect use-store $second
+
+        set recovered [tclmesh effect recover $effect_id retry]
+        set completed [tclmesh effect execute $effect_id ::effecttest::adapter]
+
+        list             [dict get $recovered status]             [dict get $recovered recoveries]             [dict get $completed status]             [dict get $completed attempts]             $::effecttest::executions
+    } finally {
+        tclmesh effect use-store {}
+        catch {unset ::effecttest::recover_id}
+        catch {file delete -force $path}
+    }
+} -result {authorized 1 succeeded 2 1}
+
+test E-006-recovery-retry-needs-idempotency {uncertain execution cannot be blindly retried without idempotency} -body {
+    tclmesh effect use-store {}
+    ::effecttest::reset
+
+    set proposal [tclmesh effect propose         [dict create type audit]         [dict create             manifest_hash abc123             action Shipment::accept             actor_id user:alice]]
+
+    set effect_id [dict get $proposal id]
+    tclmesh effect authorize $effect_id permit
+    set ::effecttest::recover_id $effect_id
+
+    namespace eval ::tclmesh::effect {
+        set descriptor [dict get $ledger $::effecttest::recover_id]
+        dict set descriptor status executing
+        set candidate $ledger
+        dict set candidate $::effecttest::recover_id $descriptor
+        _commit $candidate $idempotency $next_id
+    }
+
+    set status [catch {
+        tclmesh effect recover $effect_id retry
+    } message options]
+
+    catch {unset ::effecttest::recover_id}
+    list $status [dict get $options -errorcode]
+} -match glob -result {1 {TCLMESH EFFECT RECOVERY IDEMPOTENCY_REQUIRED effect:*}}
+
 cleanupTests
