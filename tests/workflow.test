@@ -57,7 +57,7 @@ proc ::workflowtest_path {name} {
 test WF-001-linear-workflow {ready steps advance deterministically to success} -body {
     ::workflowtest::reset
     tclmesh audit use-store {}
-    tclmesh audit reset
+    ::tclmesh::audit::_reset
 
     ::workflowtest::install workflow-linear
     set language [::workflowtest::language]
@@ -116,7 +116,7 @@ test WF-004-full-registry-recovery {manifest, language, workflow, and audit stat
         tclmesh language use-store $first
         tclmesh workflow use-store $first
         tclmesh audit use-store $first
-        tclmesh audit reset
+        ::tclmesh::audit::_reset
 
         ::workflowtest::install workflow-recovery
         set language [::workflowtest::language]
