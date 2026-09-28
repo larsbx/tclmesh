@@ -5,6 +5,7 @@ namespace eval ::tclmesh {
 set ::tclmesh::here [file dirname [info script]]
 foreach file {
     manifest.tcl
+    action.tcl
     macro.tcl
     deontic.tcl
     language.tcl
@@ -17,6 +18,7 @@ unset ::tclmesh::here
 namespace eval ::tclmesh {
     namespace ensemble create -command ::tclmesh -map {
         manifest ::tclmesh::manifest
+        action   ::tclmesh::action
         macro    ::tclmesh::macro
         deontic  ::tclmesh::deontic
         language ::tclmesh::language
