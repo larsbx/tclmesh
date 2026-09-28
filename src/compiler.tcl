@@ -51,6 +51,11 @@ proc ::tclmesh::compiler::_action {token name body} {
         return -code error             -errorcode {TCLMESH COMPILER ACTION INVALID_NAME}             "action name must not be empty"
     }
 
+    set manifest [_state_get $token manifest]
+    if {[dict exists $manifest actions $name]} {
+        return -code error             -errorcode [list TCLMESH COMPILER ACTION DUPLICATE $name]             "action '$name' is already declared"
+    }
+
     _state_set $token current_action $name
     _state_set $token action_descriptor [dict create kind update]
 
@@ -187,6 +192,25 @@ proc ::tclmesh::compiler::_gensym {token base} {
     return "${base}#g${counter}"
 }
 
+proc ::tclmesh::compiler::_restrict_core {child} {
+    # A safe interpreter removes ambient authority, but still contains
+    # nondeterministic primitives such as clock and expression-level random
+    # functions. The compiler uses a deterministic command whitelist instead.
+    set allowed {
+        append break catch concat continue dict error foreach format incr
+        lappend lassign lindex linsert list llength lmap lrange lreplace
+        lreverse lsearch lset lsort proc regexp regsub return set split
+        string subst switch throw try unset variable
+    }
+
+    set commands [interp eval $child {info commands}]
+    foreach command $commands {
+        if {$command ni $allowed} {
+            catch {interp hide $child $command}
+        }
+    }
+}
+
 proc ::tclmesh::compiler::_install_aliases {child token} {
     foreach {name target} {
         application _application
@@ -240,6 +264,8 @@ proc ::tclmesh::compiler::compile {script {options {}}} {
     incr next_id
     set token "compile:$next_id"
     set child [interp create -safe]
+
+    _restrict_core $child
 
     dict set states $token [dict create         interpreter $child         manifest {}         current_action {}         action_descriptor {}         gensym 0]
 
