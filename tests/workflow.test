@@ -34,7 +34,7 @@ proc ::workflowtest::executor {operation step_id descriptor context} {
 proc ::workflowtest::manifest {application version} {
     set manifest [tclmesh manifest new $application $version]
 
-    dict set manifest workflows ShipmentFlow [dict create         capability workflow:shipment         steps [dict create             prepare [dict create                 operation prepare                 dependencies {}]             finish [dict create                 operation finish                 dependencies {prepare}]]]
+    dict set manifest workflows ShipmentFlow [dict create         capability workflow:shipment         steps [dict create             prepare [dict create                 operation prepare                 dependencies {}                 idempotent true]             finish [dict create                 operation finish                 dependencies {prepare}                 idempotent true]]]
 
     return $manifest
 }
@@ -162,5 +162,62 @@ test WF-004-full-registry-recovery {manifest, language, workflow, and audit stat
         catch {file delete -force $path}
     }
 } -result {1 user:workflow succeeded ready succeeded 5}
+
+test WF-005-running-step-recovery {idempotent running step can be reconciled to retry} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-running-recovery
+    set language [::workflowtest::language]
+
+    set instance [tclmesh workflow start         $language workflow-running-recovery ShipmentFlow         [dict create actor_id user:workflow object_id shipment-5]]
+
+    dict set instance steps prepare status running
+    dict incr instance steps prepare attempts
+    ::tclmesh::workflow::_save_instance $instance
+
+    set recovered [tclmesh workflow recover         [dict get $instance id] prepare retry]
+
+    set completed [tclmesh workflow run-next         [dict get $instance id] ::workflowtest::executor]
+
+    list         [dict get $recovered steps prepare status]         [dict get $completed steps prepare status]         [dict get $completed steps prepare attempts]         [dict get $completed steps finish status]
+} -result {ready succeeded 2 ready}
+
+test WF-006-running-retry-requires-idempotency {non-idempotent running step cannot be automatically retried} -body {
+    ::workflowtest::reset
+
+    set manifest [tclmesh manifest new workflow-non-idempotent 1]
+    dict set manifest workflows ShipmentFlow [dict create         capability workflow:shipment         steps [dict create             only [dict create operation only dependencies {} idempotent false]]]
+
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate         workflow-non-idempotent 1 [dict get $installed manifest_hash]
+
+    set language [::workflowtest::language]
+    set instance [tclmesh workflow start         $language workflow-non-idempotent ShipmentFlow         [dict create actor_id user:workflow object_id shipment-6]]
+
+    dict set instance steps only status running
+    dict incr instance steps only attempts
+    ::tclmesh::workflow::_save_instance $instance
+
+    set status [catch {
+        tclmesh workflow recover [dict get $instance id] only retry
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -match glob -result {1 {TCLMESH WORKFLOW RECOVERY IDEMPOTENCY_REQUIRED workflow:* only}}
+
+test WF-007-running-success-reconciliation {recovered running step may be marked succeeded with result} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-success-reconcile
+    set language [::workflowtest::language]
+
+    set instance [tclmesh workflow start         $language workflow-success-reconcile ShipmentFlow         [dict create actor_id user:workflow object_id shipment-7]]
+
+    dict set instance steps prepare status running
+    dict incr instance steps prepare attempts
+    ::tclmesh::workflow::_save_instance $instance
+
+    set reconciled [tclmesh workflow recover         [dict get $instance id]         prepare         succeeded         [dict create externally_confirmed true]]
+
+    list         [dict get $reconciled status]         [dict get $reconciled steps prepare status]         [dict get $reconciled steps prepare result externally_confirmed]         [dict get $reconciled steps finish status]
+} -result {running succeeded true ready}
 
 cleanupTests
