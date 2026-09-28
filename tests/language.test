@@ -42,6 +42,14 @@ test L-011b-delegation-cannot-replace-context {delegation cannot replace inherit
     list $status [dict get $options -errorcode]
 } -result {1 {TCLMESH LANGUAGE CONTEXT_AMPLIFICATION tenant}}
 
+test L-011c-parent-lineage-requires-delegate {public instantiate cannot forge parent lineage} -body {
+    set parent [tclmesh language instantiate Operator user:parent {inspect} {read}]
+    set status [catch {
+        tclmesh language instantiate Operator user:child {admin} {root} {} $parent
+    } message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH LANGUAGE PARENT_REQUIRES_DELEGATE}}
+
 test L-012-why-not {why-not explains unavailable command} -body {
     set id [tclmesh language instantiate Reviewer user:4 {inspect} {read}]
     set result [tclmesh language why-not $id approve]
