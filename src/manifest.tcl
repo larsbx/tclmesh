@@ -26,18 +26,18 @@ proc ::tclmesh::manifest::validate {manifest} {
         provenance
     } {
         if {![dict exists $manifest $key]} {
-            return -code error -errorcode [list TCLMESH MANIFEST MISSING $key]                 "manifest is missing required field '$key'"
+            return -code error                 -errorcode [::list TCLMESH MANIFEST MISSING $key]                 "manifest is missing required field '$key'"
         }
     }
 
     foreach key {id version} {
         if {![dict exists $manifest application $key]} {
-            return -code error -errorcode [list TCLMESH MANIFEST APPLICATION MISSING $key]                 "manifest application is missing required field '$key'"
+            return -code error                 -errorcode [::list TCLMESH MANIFEST APPLICATION MISSING $key]                 "manifest application is missing required field '$key'"
         }
     }
 
     if {[dict get $manifest manifest_version] != 1} {
-        return -code error -errorcode {TCLMESH MANIFEST VERSION UNSUPPORTED}             "unsupported manifest version"
+        return -code error             -errorcode {TCLMESH MANIFEST VERSION UNSUPPORTED}             "unsupported manifest version"
     }
 
     return $manifest
@@ -48,6 +48,11 @@ proc ::tclmesh::manifest::install {manifest} {
 
     set manifest [validate $manifest]
     set id [dict get $manifest application id]
+
+    if {[dict exists $registry $id]} {
+        return -code error             -errorcode [::list TCLMESH MANIFEST ALREADY_INSTALLED $id]             "manifest '$id' is already installed; installed manifests are immutable"
+    }
+
     dict set registry $id $manifest
     return $id
 }
@@ -56,7 +61,7 @@ proc ::tclmesh::manifest::get {application_id} {
     variable registry
 
     if {![dict exists $registry $application_id]} {
-        return -code error -errorcode {TCLMESH MANIFEST NOT_FOUND}             "manifest '$application_id' is not installed"
+        return -code error             -errorcode {TCLMESH MANIFEST NOT_FOUND}             "manifest '$application_id' is not installed"
     }
 
     return [dict get $registry $application_id]
