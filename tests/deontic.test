@@ -18,4 +18,9 @@ test D-007-preference-conflict {N and K remain an explicit preference conflict} 
     list         [dict get $result status]         [lindex [dict get $result conflicts] 0]
 } -result {conflicted preference}
 
+test D-008-multiple-conflict-classes {all simultaneously applicable conflict classes are retained} -body {
+    set result [tclmesh deontic resolve {W H N K}]
+    dict get $result conflicts
+} -result {hard-admissibility preference}
+
 cleanupTests
