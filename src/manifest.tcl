@@ -5,7 +5,12 @@ namespace eval ::tclmesh::manifest {
     variable node_map_fields {
         types resources actions policies rules circuits workflows ceremonies
         languages capabilities attributes relationships identities calculations
-        aggregates inputs outputs nodes steps phases
+        aggregates inputs outputs steps phases
+    }
+
+    # Fields whose values are maps from names to ordered semantic sequences.
+    variable sequence_map_fields {
+        nodes
     }
 
     # Fields whose values are ordinary maps. Their keys are canonicalized, while
@@ -98,8 +103,19 @@ proc ::tclmesh::manifest::_canonical_sequence {value} {
     return $output
 }
 
+proc ::tclmesh::manifest::_canonical_sequence_map {value} {
+    set output {}
+
+    foreach key [lsort -dictionary [dict keys $value]] {
+        lappend output $key [_canonical_sequence [dict get $value $key]]
+    }
+
+    return $output
+}
+
 proc ::tclmesh::manifest::_canonical_node {node} {
     variable node_map_fields
+    variable sequence_map_fields
     variable scalar_map_fields
     variable sequence_fields
 
@@ -110,6 +126,8 @@ proc ::tclmesh::manifest::_canonical_node {node} {
 
         if {$key in $node_map_fields} {
             set value [_canonical_node_map $value]
+        } elseif {$key in $sequence_map_fields} {
+            set value [_canonical_sequence_map $value]
         } elseif {$key in $scalar_map_fields} {
             set value [_canonical_scalar_map $value]
         } elseif {$key in $sequence_fields} {
