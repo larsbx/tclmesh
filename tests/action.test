@@ -1,0 +1,172 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1
+
+namespace eval ::actiontest {
+    variable state {}
+    variable in_transaction 0
+    variable switch_activation {}
+}
+
+proc ::actiontest::reset {new_state} {
+    variable state
+    variable in_transaction
+    variable switch_activation
+
+    set state $new_state
+    set in_transaction 0
+    set switch_activation {}
+}
+
+proc ::actiontest::switch_on_next_transaction {application version hash} {
+    variable switch_activation
+    set switch_activation [list $application $version $hash]
+}
+
+proc ::actiontest::adapter {operation args} {
+    variable state
+    variable in_transaction
+    variable switch_activation
+
+    switch -- $operation {
+        transact {
+            if {$in_transaction} {
+                error "nested transaction"
+            }
+
+            set callback [lindex $args 0]
+            set in_transaction 1
+
+            try {
+                if {$switch_activation ne ""} {
+                    lassign $switch_activation application version hash
+                    set switch_activation {}
+                    tclmesh manifest activate $application $version $hash
+                }
+
+                set result [uplevel #0 $callback]
+            } finally {
+                set in_transaction 0
+            }
+
+            return $result
+        }
+
+        load {
+            if {!$in_transaction} {
+                error "state load occurred outside transaction"
+            }
+            return $state
+        }
+
+        persist {
+            if {!$in_transaction} {
+                error "state persistence occurred outside transaction"
+            }
+
+            set state [lindex $args 1]
+            return $state
+        }
+
+        default {
+            error "unknown adapter operation '$operation'"
+        }
+    }
+}
+
+proc ::actiontest::_assert_guard {} {
+    variable in_transaction
+
+    if {!$in_transaction} {
+        error "state-dependent callback occurred outside transaction"
+    }
+}
+
+proc ::actiontest::authorize {state request} {
+    _assert_guard
+    return [dict create decision permit]
+}
+
+proc ::actiontest::deontic {state request} {
+    _assert_guard
+    return {N}
+}
+
+proc ::actiontest::validate_proposed {state request} {
+    _assert_guard
+    return [expr {[dict get $state status] eq "proposed"}]
+}
+
+proc ::actiontest::accept {state request} {
+    _assert_guard
+    dict set state status accepted
+    return $state
+}
+
+proc ::actiontest::cancel {state request} {
+    _assert_guard
+    dict set state status cancelled
+    return $state
+}
+
+proc ::actiontest::effects {state request} {
+    _assert_guard
+    return [list [dict create type audit status [dict get $state status]]]
+}
+
+proc ::actiontest::manifest {application version change_command} {
+    set manifest [tclmesh manifest new $application $version]
+
+    dict set manifest actions Shipment::accept [dict create         kind update         authorize ::actiontest::authorize         deontic ::actiontest::deontic         validations [list ::actiontest::validate_proposed]         changes [list $change_command]         effects [list ::actiontest::effects]]
+
+    return $manifest
+}
+
+test A-001-guarded-update {state-dependent action phases execute inside transaction} -body {
+    ::actiontest::reset [dict create id shipment-1 status proposed]
+
+    set manifest [::actiontest::manifest guarded-action 1 ::actiontest::accept]
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate         guarded-action         1         [dict get $installed manifest_hash]
+
+    set result [tclmesh action run         guarded-action         Shipment::accept         ::actiontest::adapter         [dict create object_id shipment-1]]
+
+    list         [dict get $result status]         [dict get $result manifest_version]         [dict get $result authorization decision]         [dict get $result deontic verdict]         [dict get $result result status]         [dict get [lindex [dict get $result effects proposed] 0] type]
+} -result {ok 1 permit N accepted audit}
+
+test A-002-reload-current-state {second transition observes persisted state and is rejected} -body {
+    set status [catch {
+        tclmesh action run             guarded-action             Shipment::accept             ::actiontest::adapter             [dict create object_id shipment-1]
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH ACTION VALIDATION FAILED}}
+
+test A-003-request-hash-pin {caller may require exact active manifest hash} -body {
+    set status [catch {
+        tclmesh action run             guarded-action             Shipment::accept             ::actiontest::adapter             [dict create                 object_id shipment-1                 expected_manifest_hash deadbeef]
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH ACTION MANIFEST_MISMATCH guarded-action Shipment::accept}}
+
+test A-004-start-pin-survives-reactivation {run uses manifest pinned before transaction begins} -body {
+    ::actiontest::reset [dict create id shipment-2 status proposed]
+
+    set v1 [::actiontest::manifest pin-action 1 ::actiontest::accept]
+    set v2 [::actiontest::manifest pin-action 2 ::actiontest::cancel]
+
+    set d1 [tclmesh manifest install $v1]
+    set d2 [tclmesh manifest install $v2]
+
+    tclmesh manifest activate         pin-action         1         [dict get $d1 manifest_hash]
+
+    ::actiontest::switch_on_next_transaction         pin-action         2         [dict get $d2 manifest_hash]
+
+    set result [tclmesh action run         pin-action         Shipment::accept         ::actiontest::adapter         [dict create object_id shipment-2]]
+
+    list         [dict get $result manifest_version]         [dict get $result result status]         [dict get [tclmesh manifest active pin-action] version]
+} -result {1 accepted 2}
+
+cleanupTests
