@@ -78,3 +78,6 @@ Status after the first three v0.2 slices:
 ## v1.0
 
 v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable workflows, ceremonies, private release, supervision, and the full integrated acceptance scenario.
+
+
+> Verification note: workflow/audit v0.2 was re-opened on a fresh branch after the original retargeted pull request stopped receiving new Actions runs. This note exists only to force an exact-head CI synchronization check.
