@@ -1,0 +1,112 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1.0
+
+test CMP-001-basic-compile {safe DSL lowers an action to canonical manifest nodes} -body {
+    set manifest [tclmesh compiler compile {
+        application compiled-demo 1
+
+        action Shipment::accept {
+            capability shipment:accept
+            authorize permit
+            deontic N
+
+            validate [assert                 [eq [field status] [literal proposed]]]
+
+            change [set-field status [literal accepted]]
+
+            effect [emit audit                 status [field status]]
+        }
+    }]
+
+    set action [dict get $manifest actions Shipment::accept]
+
+    list         [dict get $manifest application id]         [dict get $action capability]         [dict get $action authorize]         [dict get $action deontic]         [lindex [lindex [dict get $action changes] 0] 0]         [lindex [lindex [dict get $action effects] 0] 0]
+} -result {compiled-demo shipment:accept permit N set emit}
+
+test CMP-002-safe-interpreter {compiler scripts cannot open files} -body {
+    set status [catch {
+        tclmesh compiler compile {
+            application sandbox-demo 1
+            open /tmp/tclmesh-should-not-exist w
+        }
+    } message options]
+
+    list $status [string match {*invalid command name "open"*} $message]
+} -result {1 1}
+
+test CMP-003-macro-like-procedures {safe Tcl procedures can generate canonical declarations} -body {
+    set manifest [tclmesh compiler compile {
+        application macro-demo 1
+
+        proc transition {name capabilityName from to} {
+            action $name {
+                capability $capabilityName
+                authorize permit
+                deontic M
+                validate [assert [eq [field status] [literal $from]]]
+                change [set-field status [literal $to]]
+            }
+        }
+
+        transition Shipment::accept shipment:accept proposed accepted
+    }]
+
+    dict get $manifest actions Shipment::accept changes
+} -result {{{set status {literal accepted}}}}
+
+test CMP-004-hygienic-gensym {generated symbols are local and deterministic within one compilation} -body {
+    set manifest [tclmesh compiler compile {
+        application gensym-demo 1
+
+        set first [gensym generated]
+        set second [gensym generated]
+
+        action $first {
+            authorize permit
+            deontic M
+        }
+
+        action $second {
+            authorize permit
+            deontic M
+        }
+    }]
+
+    lsort [dict keys [dict get $manifest actions]]
+} -result {generated#g1 generated#g2}
+
+test CMP-005-gensym-resets {each compilation receives an independent generated-symbol scope} -body {
+    set a [tclmesh compiler compile {
+        application gensym-a 1
+        action [gensym local] {
+            authorize permit
+            deontic M
+        }
+    }]
+
+    set b [tclmesh compiler compile {
+        application gensym-b 1
+        action [gensym local] {
+            authorize permit
+            deontic M
+        }
+    }]
+
+    list         [lindex [dict keys [dict get $a actions]] 0]         [lindex [dict keys [dict get $b actions]] 0]
+} -result {local#g1 local#g1}
+
+test CMP-006-command-budget {compiler command budget terminates runaway generation} -body {
+    set status [catch {
+        tclmesh compiler compile {
+            application budget-demo 1
+            proc recur {} { recur }
+            recur
+        } [dict create max_commands 100 max_seconds 1]
+    } message options]
+
+    expr {$status == 1}
+} -result 1
+
+cleanupTests
