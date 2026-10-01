@@ -150,13 +150,26 @@ test R-008-store-recovery {release quorum state survives registry reopen} -body 
 
 test R-009-combining-recovery {uncertain combine can return to quorum for idempotent backend} -body {
     tclmesh release use-store {}
+
     set request [tclmesh release request         [::releasetest_handle 31]         purpose-i         1         {holder:a}]
     set id [dict get $request id]
     tclmesh release contribute $id holder:a share-a
 
+    set ::releasetest_id $id
     namespace eval ::tclmesh::release {
-        set descriptor [dict get $requests $::id]
+        set descriptor [dict get $requests $::releasetest_id]
+        dict set descriptor status combining
+        dict incr descriptor attempts
+        set candidate $requests
+        dict set candidate $::releasetest_id $descriptor
+        _commit $candidate $next_id
     }
-} -constraints knownBug
+
+    set recovered [tclmesh release recover $id retry]
+    set released [tclmesh release combine $id]
+    unset ::releasetest_id
+
+    list         [dict get $recovered status]         [dict get $recovered recoveries]         [dict get $released status]         [dict get $released attempts]         [dict get $released result]
+} -result {quorum-reached 1 released 2 31}
 
 cleanupTests
