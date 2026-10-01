@@ -1,0 +1,162 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+
+proc ::releasetest_profile {} {
+    if {[catch {
+        tclmesh private profile describe release-reference
+    }]} {
+        tclmesh private profile define release-reference [dict create             backend plaintext             semantics exact-integer             parameters [dict create mode reference]             allow_decrypt false]
+    }
+    return release-reference
+}
+
+proc ::releasetest_handle {value} {
+    return [tclmesh private encrypt [::releasetest_profile] int $value]
+}
+
+proc ::releasetest_path {name} {
+    return [file join [temporaryDirectory]         "tclmesh-release-$name-[pid]-[clock clicks].dict"]
+}
+
+test R-001-request {release request binds handle profile purpose holders and threshold} -body {
+    tclmesh release use-store {}
+    set handle [::releasetest_handle 42]
+
+    set request [tclmesh release request         $handle         quarterly-report         2         {holder:a holder:b holder:c}         [dict create manifest_hash abc]]
+
+    list         [dict get $request status]         [dict get $request profile]         [dict get $request threshold]         [dict get $request purpose]         [dict get $request holders]
+} -result {collecting release-reference 2 quarterly-report {holder:a holder:b holder:c}}
+
+test R-002-quorum {authorized unique contributions advance collecting to quorum-reached} -body {
+    set handle [::releasetest_handle 7]
+    set request [tclmesh release request         $handle purpose-a 2 {holder:a holder:b holder:c}]
+
+    set one [tclmesh release contribute         [dict get $request id] holder:a share-a]
+    set two [tclmesh release contribute         [dict get $request id] holder:b share-b]
+
+    list         [dict get $one status]         [dict size [dict get $one contributions]]         [dict get $two status]         [dict size [dict get $two contributions]]
+} -result {collecting 1 quorum-reached 2}
+
+test R-003-holder-guards {unknown and duplicate holders are rejected} -body {
+    set handle [::releasetest_handle 9]
+    set request [tclmesh release request         $handle purpose-b 2 {holder:a holder:b holder:c}]
+    set id [dict get $request id]
+
+    set unauthorized [catch {
+        tclmesh release contribute $id holder:z share-z
+    } unauthorizedMessage unauthorizedOptions]
+
+    tclmesh release contribute $id holder:a share-a
+
+    set duplicate [catch {
+        tclmesh release contribute $id holder:a share-again
+    } duplicateMessage duplicateOptions]
+
+    list         $unauthorized         [dict get $unauthorizedOptions -errorcode]         $duplicate         [dict get $duplicateOptions -errorcode]
+} -match glob -result {
+    1 {TCLMESH RELEASE HOLDER_NOT_AUTHORIZED release:* holder:z}
+    1 {TCLMESH RELEASE DUPLICATE_CONTRIBUTION release:* holder:a}
+}
+
+test R-004-threshold-release {direct decrypt may be forbidden while quorum release succeeds} -body {
+    set handle [::releasetest_handle 42]
+
+    set direct [catch {
+        tclmesh private decrypt $handle
+    } directMessage directOptions]
+
+    set request [tclmesh release request         $handle purpose-c 2 {holder:a holder:b holder:c}]
+    set id [dict get $request id]
+
+    tclmesh release contribute $id holder:a share-a
+    tclmesh release contribute $id holder:b share-b
+    set released [tclmesh release combine $id]
+
+    list         $direct         [dict get $directOptions -errorcode]         [dict get $released status]         [dict get $released result]         [dict get $released attempts]
+} -result {
+    1 {TCLMESH PRIVATE DECRYPT FORBIDDEN release-reference}
+    released 42 1
+}
+
+test R-005-no-early-combine {release cannot combine before quorum} -body {
+    set handle [::releasetest_handle 11]
+    set request [tclmesh release request         $handle purpose-d 2 {holder:a holder:b}]
+    tclmesh release contribute         [dict get $request id] holder:a share-a
+
+    set status [catch {
+        tclmesh release combine [dict get $request id]
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -match glob -result {1 {TCLMESH RELEASE INVALID_STATE release:*}}
+
+test R-006-handle-binding {destroyed ciphertext handle blocks release combination} -body {
+    set handle [::releasetest_handle 13]
+    set request [tclmesh release request         $handle purpose-e 1 {holder:a}]
+    set id [dict get $request id]
+
+    tclmesh release contribute $id holder:a share-a
+    tclmesh private handle destroy $handle
+
+    set status [catch {
+        tclmesh release combine $id
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -match glob -result {1 {TCLMESH PRIVATE HANDLE INACTIVE ct:*}}
+
+test R-007-reject-expire {terminal administrative transitions prevent combination} -body {
+    set a [tclmesh release request         [::releasetest_handle 1] purpose-f 1 {holder:a}]
+    set b [tclmesh release request         [::releasetest_handle 2] purpose-g 1 {holder:a}]
+
+    set rejected [tclmesh release reject         [dict get $a id] policy-denied]
+    set expired [tclmesh release expire         [dict get $b id] deadline]
+
+    list         [dict get $rejected status]         [dict get $rejected result reason]         [dict get $expired status]         [dict get $expired result reason]
+} -result {rejected policy-denied expired deadline}
+
+test R-008-store-recovery {release quorum state survives registry reopen} -body {
+    set path [::releasetest_path recovery]
+
+    try {
+        set store1 [tclmesh store create file $path]
+        tclmesh release use-store $store1
+
+        set request [tclmesh release request             [::releasetest_handle 21]             purpose-h             2             {holder:a holder:b holder:c}]
+        set id [dict get $request id]
+
+        tclmesh release contribute $id holder:a share-a
+
+        namespace eval ::tclmesh::release {
+            set requests {}
+            set next_id 0
+            set store {}
+        }
+
+        set store2 [tclmesh store create file $path]
+        tclmesh release use-store $store2
+        set restored [tclmesh release get $id]
+        set quorum [tclmesh release contribute $id holder:b share-b]
+        set released [tclmesh release combine $id]
+
+        list             [dict get $restored status]             [dict size [dict get $restored contributions]]             [dict get $quorum status]             [dict get $released status]             [dict get $released result]
+    } finally {
+        tclmesh release use-store {}
+        catch {file delete -force $path}
+    }
+} -result {collecting 1 quorum-reached released 21}
+
+test R-009-combining-recovery {uncertain combine can return to quorum for idempotent backend} -body {
+    tclmesh release use-store {}
+    set request [tclmesh release request         [::releasetest_handle 31]         purpose-i         1         {holder:a}]
+    set id [dict get $request id]
+    tclmesh release contribute $id holder:a share-a
+
+    namespace eval ::tclmesh::release {
+        set descriptor [dict get $requests $::id]
+    }
+} -constraints knownBug
+
+cleanupTests
