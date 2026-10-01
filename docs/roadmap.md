@@ -69,15 +69,29 @@ Status after all v0.2 slices:
 
 ## v0.3
 
-- private-computation backend protocol;
-- parameter-profile registry;
-- ciphertext-handle lifecycle;
-- plaintext/private differential execution;
-- threshold-release state machine.
+Status after all v0.3 reference slices:
+
+- [x] private-computation backend protocol;
+- [x] immutable parameter-profile registry;
+- [x] opaque ciphertext-handle lifecycle with backend/profile/type binding;
+- [x] stronger executable private-circuit graph validation;
+- [x] plaintext reference backend for deterministic development only;
+- [x] plaintext/backend differential execution;
+- [x] profile-gated direct decryption;
+- [x] threshold-release state machine with fixed holder sets, quorum, purpose binding, persistence, and uncertain-combine reconciliation.
+
+The v0.3 built-in plaintext backend is explicitly non-confidential. A homomorphic or otherwise confidential backend is an integration target, not a property of the reference backend.
+
+## v0.4
+
+- process-supervision runtime and restart policies;
+- ceremony engine built on durable workflow primitives;
+- first-class keyset lifecycle and holder rotation;
+- backend conformance suite for real confidential/private-computation plugins;
+- persistent or externally resolvable ciphertext-handle strategy across process restart;
+- multi-process/distributed registry adapter contract;
+- compensation/deadline policy completion for workflows.
 
 ## v1.0
 
 v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable workflows, ceremonies, private release, supervision, and the full integrated acceptance scenario.
-
-
-> Verification note: workflow/audit v0.2 was re-opened on a fresh branch after the original retargeted pull request stopped receiving new Actions runs. This note exists only to force an exact-head CI synchronization check.
