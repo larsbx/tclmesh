@@ -114,4 +114,47 @@ test X-005-compiler-expression-aliases {compiler emits all richer predicate node
     }
 } -result {lt lte gt gte in contains}
 
+test X-006-nan-negated-predicates {NaN cannot authorize or pass validation through not} -body {
+    set outcomes {}
+    foreach op {lt lte gt gte} {
+        foreach source {field request} {
+            foreach side {left right} {
+                foreach nan {NaN nan NAN +NaN -NaN NaN(1)} {
+                    foreach gate {authorize validations} {
+                        set manifest [tclmesh manifest new nan-$op-$source-$side-$nan-$gate 1]
+                        set operand [list $source score]
+                        set bound [list literal 80]
+                        if {$side eq "left"} {
+                            set comparison [list $op $operand $bound]
+                        } else {
+                            set comparison [list $op $bound $operand]
+                        }
+                        set predicate [list not $comparison]
+                        set descriptor [dict create capability score:nan deontic M]
+                        if {$gate eq "authorize"} {
+                            dict set descriptor authorize [list permit-if $predicate]
+                        } else {
+                            dict set descriptor validations [list [list assert $predicate]]
+                        }
+                        dict set manifest actions Score::nan $descriptor
+                        set installed [tclmesh manifest install $manifest]
+                        set app [dict get $manifest application id]
+                        tclmesh manifest activate $app 1 [dict get $installed manifest_hash]
+                        set language [tclmesh language instantiate NanUser user:expr {Score::nan} {score:nan}]
+                        ::expressiontest::reset [dict create score $nan]
+                        set code [catch {
+                            tclmesh action run $language $app Score::nan ::expressiontest::adapter \
+                                [dict create actor_id user:expr score $nan]
+                        } message options]
+                        lappend outcomes [expr {$code == 1 &&
+                            [dict get $options -errorcode] eq [list TCLMESH ACTION PREDICATE NON_NUMERIC $op] &&
+                            $::expressiontest::persists == 0}]
+                    }
+                }
+            }
+        }
+    }
+    list [llength $outcomes] [lsort -unique $outcomes]
+} -result {192 1}
+
 cleanupTests

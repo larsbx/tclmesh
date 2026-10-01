@@ -1,4 +1,4 @@
-# TclMesh v0.1.0 Quickstart
+# TclMesh v0.2.0 Quickstart
 
 ## Requirements
 
@@ -9,7 +9,7 @@ Add the repository root to `auto_path` and load the package:
 
 ```tcl
 lappend auto_path /path/to/tclmesh
-package require tclmesh 0.1.0
+package require tclmesh 0.2.0
 ```
 
 ## Define and install a manifest
@@ -96,11 +96,11 @@ tclmesh effect authorize [dict get $proposed id] permit
 tclmesh effect execute [dict get $proposed id] ::myapp::effect_driver
 ```
 
-The reference effect ledger enforces lifecycle and idempotency. It is memory-backed in v0.1.0; production deployments should persist the ledger behind their application boundary.
+The reference effect ledger enforces lifecycle and idempotency. It defaults to memory storage; v0.2.0 provides pluggable persistent registries and a single-process atomic file adapter. Production deployments must supply appropriate durability and concurrency boundaries.
 
 ## Private-computation IR
 
-v0.1.0 validates private-computation circuit IR but does not include a cryptographic execution backend.
+v0.2.0 validates private-computation circuit IR but does not include a cryptographic execution backend.
 
 ```tcl
 set circuit [tclmesh private circuit score \
@@ -125,3 +125,20 @@ Expected output:
 ```text
 accepted|N|succeeded|private-ir-ok
 ```
+
+## Workflow retry and reconciliation
+
+`tclmesh workflow retry $id $step` requires the pinned step descriptor to declare
+`idempotent true`. A failed executor may already have completed an external
+operation; failure alone is not evidence that replay is safe. Missing or false
+idempotency leaves the failed state and attempts unchanged.
+
+For an interrupted `running` or `failed` step, verify its external outcome first,
+then use `tclmesh workflow recover $id $step succeeded $receipt` to record success
+without executing again, or `... failed $evidence` to retain failure. The
+`recover ... retry` disposition also requires idempotency. Reconciliation is a
+trusted caller assertion, not an automatic proof of the external outcome.
+
+Ordered predicates (`lt`, `lte`, `gt`, `gte`) reject nonnumeric and NaN operands
+with an error, including when nested under `not`; authorization and validation
+stop before persistence.

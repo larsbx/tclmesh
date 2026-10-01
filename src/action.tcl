@@ -74,9 +74,14 @@ proc ::tclmesh::action::_eval_predicate {expr state request} {
             set left [_eval_value [lindex $expr 1] $state $request]
             set right [_eval_value [lindex $expr 2] $state $request]
 
+            # Tcl recognizes signed/payload NaN spellings as doubles, but
+            # conversion rejects them. A false comparison must not let `not`
+            # turn malformed numeric input into permission.
             if {![string is double -strict $left] ||
-                ![string is double -strict $right]} {
-                return -code error                     -errorcode [::list TCLMESH ACTION PREDICATE NON_NUMERIC $op]                     "predicate '$op' requires numeric operands"
+                ![string is double -strict $right] ||
+                [catch {expr {double($left)}}] ||
+                [catch {expr {double($right)}}]} {
+                return -code error                     -errorcode [::list TCLMESH ACTION PREDICATE NON_NUMERIC $op]                     "predicate '$op' requires numeric operands other than NaN"
             }
 
             switch -- $op {

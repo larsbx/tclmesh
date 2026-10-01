@@ -55,17 +55,17 @@ Deferred beyond v0.1.0:
 
 ## v0.2
 
-Status after the first two v0.2 slices:
+Status after all v0.2 slices:
 
 - [x] safe compiler interpreter with deterministic command surface and resource limits;
 - [x] compilation-local hygienic `gensym`;
 - [x] recursive canonical action/value/predicate validation;
-- [x] pluggable persistent registries for manifests, languages, and effects;
+- [x] pluggable persistent registries for manifests, languages, effects, workflows, and audit;
 - [x] single-process atomic file-store reference adapter with stale-handle merge protection;
 - [x] crash reconciliation for uncertain effect execution;
-- [ ] first durable workflow state machine;
-- [ ] structured audit event stream;
-- [x] richer canonical expression operators: numeric comparison, membership, and containment in addition to equality/boolean composition.
+- [x] durable workflow state machine with pinned manifests, step dependencies, idempotency-gated retry, and explicit reconciliation of interrupted or failed steps;
+- [x] append-only structured audit event stream with persistent monotonic sequence numbers and no public reset operation;
+- [x] richer canonical expression operators: numeric comparison, membership, and containment in addition to equality/boolean composition, rejecting NaN numeric operands.
 
 ## v0.3
 
@@ -78,3 +78,6 @@ Status after the first two v0.2 slices:
 ## v1.0
 
 v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable workflows, ceremonies, private release, supervision, and the full integrated acceptance scenario.
+
+
+> Verification note: workflow/audit v0.2 was re-opened on a fresh branch after the original retargeted pull request stopped receiving new Actions runs. This note exists only to force an exact-head CI synchronization check.

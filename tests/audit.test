@@ -1,0 +1,51 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1.0
+
+proc ::audittest_path {name} {
+    return [file join [temporaryDirectory]         "tclmesh-audit-$name-[pid]-[clock clicks].dict"]
+}
+
+test AU-001-structured-event {audit stream assigns ordered immutable event descriptors} -body {
+    tclmesh audit use-store {}
+    ::tclmesh::audit::_reset
+
+    set event [tclmesh audit append action.completed         [dict create action Shipment::accept result accepted]         [dict create manifest_hash abc actor_id user:alice]]
+
+    list         [dict get $event id]         [dict get $event sequence]         [dict get $event type]         [dict get $event data result]         [dict get $event context actor_id]
+} -result {audit:1 1 action.completed accepted user:alice}
+
+test AU-002-reopen-sequence {audit stream restores events and sequence from file store} -body {
+    set path [::audittest_path reopen]
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh audit use-store $first
+        ::tclmesh::audit::_reset
+
+        tclmesh audit append one [dict create n 1]
+        tclmesh audit append two [dict create n 2]
+
+        namespace eval ::tclmesh::audit {
+            set events {}
+            set next_id 0
+            set store {}
+        }
+
+        set second [tclmesh store create file $path]
+        tclmesh audit use-store $second
+        set third [tclmesh audit append three [dict create n 3]]
+
+        list             [tclmesh audit list]             [dict get $third id]             [dict get $third sequence]
+    } finally {
+        tclmesh audit use-store {}
+        catch {file delete -force $path}
+    }
+} -result {{audit:1 audit:2 audit:3} audit:3 3}
+
+test AU-003-public-stream-is-append-only {public audit ensemble exposes no reset operation} -body {
+    set status [catch {tclmesh audit reset} message options]
+    list $status [string match {*unknown or ambiguous subcommand*} $message]
+} -result {1 1}
+
+cleanupTests

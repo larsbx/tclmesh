@@ -1,0 +1,283 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1.0
+
+namespace eval ::workflowtest {
+    variable fail_step {}
+    variable calls {}
+}
+
+proc ::workflowtest::reset {} {
+    variable fail_step
+    variable calls
+    set fail_step {}
+    set calls {}
+}
+
+proc ::workflowtest::executor {operation step_id descriptor context} {
+    variable fail_step
+    variable calls
+
+    if {$operation ne "execute"} {
+        error "unknown workflow executor operation '$operation'"
+    }
+
+    if {$fail_step eq $step_id} {
+        error "forced workflow failure at $step_id"
+    }
+
+    lappend calls $step_id
+    return [dict create         ok true         operation [dict get $descriptor operation]         manifest_hash [dict get $context manifest_hash]]
+}
+
+proc ::workflowtest::manifest {application version} {
+    set manifest [tclmesh manifest new $application $version]
+
+    dict set manifest workflows ShipmentFlow [dict create         capability workflow:shipment         steps [dict create             prepare [dict create                 operation prepare                 dependencies {}                 idempotent true]             finish [dict create                 operation finish                 dependencies {prepare}                 idempotent true]]]
+
+    return $manifest
+}
+
+proc ::workflowtest::install {application} {
+    set manifest [::workflowtest::manifest $application 1]
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate         $application 1 [dict get $installed manifest_hash]
+    return $installed
+}
+
+proc ::workflowtest::language {{holder user:workflow}} {
+    return [tclmesh language instantiate         WorkflowOperator         $holder         {ShipmentFlow}         {workflow:shipment}]
+}
+
+proc ::workflowtest_path {name} {
+    return [file join [temporaryDirectory]         "tclmesh-workflow-$name-[pid]-[clock clicks].dict"]
+}
+
+test WF-001-linear-workflow {ready steps advance deterministically to success} -body {
+    ::workflowtest::reset
+    tclmesh audit use-store {}
+    ::tclmesh::audit::_reset
+
+    ::workflowtest::install workflow-linear
+    set language [::workflowtest::language]
+
+    set instance [tclmesh workflow start         $language workflow-linear ShipmentFlow         [dict create actor_id user:workflow object_id shipment-1]]
+
+    set first [tclmesh workflow run-next         [dict get $instance id] ::workflowtest::executor]
+    set second [tclmesh workflow run-next         [dict get $instance id] ::workflowtest::executor]
+
+    list         [dict get $first steps prepare status]         [dict get $first steps finish status]         [dict get $second status]         $::workflowtest::calls         [llength [tclmesh audit list]]
+} -result {succeeded ready succeeded {prepare finish} 5}
+
+test WF-002-failure-retry {failed workflow step can be explicitly retried} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-retry
+    set language [::workflowtest::language]
+
+    set instance [tclmesh workflow start         $language workflow-retry ShipmentFlow         [dict create actor_id user:workflow object_id shipment-2]]
+
+    tclmesh workflow run-next         [dict get $instance id] ::workflowtest::executor
+
+    set ::workflowtest::fail_step finish
+    set failed [tclmesh workflow run-next         [dict get $instance id] ::workflowtest::executor]
+
+    set retried [tclmesh workflow retry         [dict get $instance id] finish]
+
+    set ::workflowtest::fail_step {}
+    set completed [tclmesh workflow run-next         [dict get $instance id] ::workflowtest::executor]
+
+    list         [dict get $failed status]         [dict get $failed steps finish status]         [dict get $retried status]         [dict get $retried steps finish status]         [dict get $completed status]         [dict get $completed steps finish attempts]
+} -result {failed failed running ready succeeded 2}
+
+test WF-003-revocation-stops-next-step {revoked language blocks continuing workflow authority} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-revoke
+    set language [::workflowtest::language]
+
+    set instance [tclmesh workflow start         $language workflow-revoke ShipmentFlow         [dict create actor_id user:workflow object_id shipment-3]]
+
+    tclmesh language revoke $language
+
+    set status [catch {
+        tclmesh workflow run-next             [dict get $instance id] ::workflowtest::executor
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH WORKFLOW LANGUAGE INACTIVE}}
+
+test WF-004-full-registry-recovery {manifest, language, workflow, and audit state survive reopen} -body {
+    ::workflowtest::reset
+    set path [::workflowtest_path recovery]
+
+    try {
+        set first [tclmesh store create file $path]
+        tclmesh manifest use-store $first
+        tclmesh language use-store $first
+        tclmesh workflow use-store $first
+        tclmesh audit use-store $first
+        ::tclmesh::audit::_reset
+
+        ::workflowtest::install workflow-recovery
+        set language [::workflowtest::language]
+        set instance [tclmesh workflow start             $language workflow-recovery ShipmentFlow             [dict create actor_id user:workflow object_id shipment-4]]
+
+        tclmesh workflow run-next             [dict get $instance id] ::workflowtest::executor
+
+        namespace eval ::tclmesh::manifest {
+            set registry {}
+            set store {}
+        }
+        namespace eval ::tclmesh::language {
+            set instances {}
+            set next_id 0
+            set store {}
+        }
+        namespace eval ::tclmesh::workflow {
+            set instances {}
+            set next_id 0
+            set store {}
+        }
+        namespace eval ::tclmesh::audit {
+            set events {}
+            set next_id 0
+            set store {}
+        }
+
+        set second [tclmesh store create file $path]
+        tclmesh manifest use-store $second
+        tclmesh language use-store $second
+        tclmesh workflow use-store $second
+        tclmesh audit use-store $second
+
+        set recovered [tclmesh workflow describe [dict get $instance id]]
+        set completed [tclmesh workflow run-next             [dict get $instance id] ::workflowtest::executor]
+
+        list             [dict get [tclmesh manifest active workflow-recovery] version]             [dict get [tclmesh language describe $language] holder]             [dict get $recovered steps prepare status]             [dict get $recovered steps finish status]             [dict get $completed status]             [llength [tclmesh audit list]]
+    } finally {
+        tclmesh manifest use-store {}
+        tclmesh language use-store {}
+        tclmesh workflow use-store {}
+        tclmesh audit use-store {}
+        catch {file delete -force $path}
+    }
+} -result {1 user:workflow succeeded ready succeeded 5}
+
+test WF-005-running-step-recovery {idempotent running step can be reconciled to retry} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-running-recovery
+    set language [::workflowtest::language]
+
+    set instance [tclmesh workflow start         $language workflow-running-recovery ShipmentFlow         [dict create actor_id user:workflow object_id shipment-5]]
+
+    dict set instance steps prepare status running
+    dict set instance steps prepare attempts         [expr {[dict get $instance steps prepare attempts] + 1}]
+    ::tclmesh::workflow::_save_instance $instance
+
+    set recovered [tclmesh workflow recover         [dict get $instance id] prepare retry]
+
+    set completed [tclmesh workflow run-next         [dict get $instance id] ::workflowtest::executor]
+
+    list         [dict get $recovered steps prepare status]         [dict get $completed steps prepare status]         [dict get $completed steps prepare attempts]         [dict get $completed steps finish status]
+} -result {ready succeeded 2 ready}
+
+test WF-006-running-retry-requires-idempotency {non-idempotent running step cannot be automatically retried} -body {
+    ::workflowtest::reset
+
+    set manifest [tclmesh manifest new workflow-non-idempotent 1]
+    dict set manifest workflows ShipmentFlow [dict create         capability workflow:shipment         steps [dict create             only [dict create operation only dependencies {} idempotent false]]]
+
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate         workflow-non-idempotent 1 [dict get $installed manifest_hash]
+
+    set language [::workflowtest::language]
+    set instance [tclmesh workflow start         $language workflow-non-idempotent ShipmentFlow         [dict create actor_id user:workflow object_id shipment-6]]
+
+    dict set instance steps only status running
+    dict set instance steps only attempts         [expr {[dict get $instance steps only attempts] + 1}]
+    ::tclmesh::workflow::_save_instance $instance
+
+    set status [catch {
+        tclmesh workflow recover [dict get $instance id] only retry
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -match glob -result {1 {TCLMESH WORKFLOW RECOVERY IDEMPOTENCY_REQUIRED workflow:* only}}
+
+test WF-007-running-success-reconciliation {recovered running step may be marked succeeded with result} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-success-reconcile
+    set language [::workflowtest::language]
+
+    set instance [tclmesh workflow start         $language workflow-success-reconcile ShipmentFlow         [dict create actor_id user:workflow object_id shipment-7]]
+
+    dict set instance steps prepare status running
+    dict set instance steps prepare attempts         [expr {[dict get $instance steps prepare attempts] + 1}]
+    ::tclmesh::workflow::_save_instance $instance
+
+    set reconciled [tclmesh workflow recover         [dict get $instance id]         prepare         succeeded         [dict create externally_confirmed true]]
+
+    list         [dict get $reconciled status]         [dict get $reconciled steps prepare status]         [dict get $reconciled steps prepare result externally_confirmed]         [dict get $reconciled steps finish status]
+} -result {running succeeded true ready}
+
+proc ::workflowtest::uncertain_executor {operation step_id descriptor context} {
+    # The external operation happens before the response is lost.
+    lappend ::workflowtest::calls $step_id
+    error "external operation completed but response timed out"
+}
+
+test WF-008-failed-non-idempotent {uncertain failed operation cannot execute twice, including after reopen} -body {
+    set outcomes {}
+    foreach declaration {false omitted} {
+        ::workflowtest::reset
+        set path [::workflowtest_path failed-$declaration]
+        try {
+            set store [tclmesh store create file $path]
+            tclmesh workflow use-store $store
+            set app workflow-failed-$declaration
+            set manifest [tclmesh manifest new $app 1]
+            set step [dict create operation payment dependencies {}]
+            if {$declaration ne "omitted"} {dict set step idempotent $declaration}
+            dict set manifest workflows ShipmentFlow [dict create capability workflow:shipment steps [dict create only $step]]
+            set installed [tclmesh manifest install $manifest]
+            tclmesh manifest activate $app 1 [dict get $installed manifest_hash]
+            set instance [tclmesh workflow start [::workflowtest::language] $app ShipmentFlow [dict create actor_id user:workflow]]
+            set id [dict get $instance id]
+            set failed [tclmesh workflow run-next $id ::workflowtest::uncertain_executor]
+            tclmesh workflow use-store [tclmesh store create file $path]
+            set before [tclmesh workflow describe $id]
+            set audit_before [tclmesh audit list]
+            set code [catch {tclmesh workflow retry $id only} message options]
+            lappend outcomes [expr {$code == 1 && [dict get $options -errorcode] eq
+                [list TCLMESH WORKFLOW RETRY IDEMPOTENCY_REQUIRED $id only]}]
+            lappend outcomes [expr {[tclmesh workflow describe $id] eq $before && [tclmesh audit list] eq $audit_before}]
+            lappend outcomes [catch {tclmesh workflow run-next $id ::workflowtest::uncertain_executor}]
+            lappend outcomes [catch {tclmesh workflow recover $id only retry}]
+            set reconciled [tclmesh workflow recover $id only succeeded [dict create receipt payment-confirmed]]
+            lappend outcomes [expr {[dict get $reconciled status] eq "succeeded" &&
+                [dict get $reconciled steps only attempts] == 1 &&
+                [dict get $reconciled steps only result receipt] eq "payment-confirmed" &&
+                $::workflowtest::calls eq "only"}]
+        } finally {
+            tclmesh workflow use-store {}
+            catch {file delete -force $path}
+        }
+    }
+    set outcomes
+} -result {1 1 1 1 1 1 1 1 1 1}
+
+test WF-009-idempotent-uncertain-retry {declared idempotency permits retry after a lost response} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-idempotent-uncertain
+    set instance [tclmesh workflow start [::workflowtest::language] \
+        workflow-idempotent-uncertain ShipmentFlow [dict create actor_id user:workflow]]
+    set id [dict get $instance id]
+    tclmesh workflow run-next $id ::workflowtest::uncertain_executor
+    set retried [tclmesh workflow retry $id prepare]
+    set completed [tclmesh workflow run-next $id ::workflowtest::executor]
+    list [dict get $retried steps prepare status] \
+        [dict get $completed steps prepare status] \
+        [dict get $completed steps prepare attempts] $::workflowtest::calls
+} -result {ready succeeded 2 {prepare prepare}}
+
+cleanupTests
