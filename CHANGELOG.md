@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0
+
+- private-computation backend registration and capability protocol;
+- immutable backend parameter profiles;
+- opaque ciphertext handles with explicit destruction and profile/type checks;
+- recursive private-circuit arity/reference/cycle/output validation;
+- plaintext reference backend for deterministic development and tests;
+- exact/tolerance-aware differential execution against backend results;
+- profile-gated direct decryption;
+- threshold-release requests bound to one handle/profile, purpose, holder set, and quorum;
+- persistent release request state, terminal rejection/expiry, and uncertain-combine reconciliation;
+- reference threshold-release backend path with idempotent retry support.
+
+Security note: the built-in plaintext backend provides no confidentiality and its threshold contributions are not cryptographic shares. Confidentiality requires a separate backend with appropriate cryptographic guarantees.
+
 ## 0.2.0
 
 - safe compiler interpreters, resource limits, and hygienic `gensym`;
