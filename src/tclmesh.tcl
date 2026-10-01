@@ -15,6 +15,7 @@ foreach file {
     language.tcl
     workflow.tcl
     private.tcl
+    release.tcl
 } {
     source [file join $::tclmesh::here $file]
 }
@@ -33,6 +34,7 @@ namespace eval ::tclmesh {
         language ::tclmesh::language
         workflow ::tclmesh::workflow
         private  ::tclmesh::private
+        release  ::tclmesh::release
     }
 }
 
