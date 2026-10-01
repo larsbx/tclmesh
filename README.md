@@ -2,11 +2,11 @@
 
 TclMesh is a TCL reference kernel for building hash-bound application semantics with capability-scoped languages, canonical actions, fivefold deontic judgments, idempotent effects, and private-computation circuit IR.
 
-**Current release target:** v0.1.0 reference kernel.
+**Current release target:** v0.2.0 reference kernel.
 
 TCL may be highly dynamic while defining meaning; authoritative execution is reduced to typed, canonical, versioned, hash-bound, capability-bounded manifest data.
 
-## What v0.1.0 ships
+## What v0.2.0 ships
 
 - immutable, versioned manifest installation;
 - schema-aware canonical manifest hashing;
@@ -18,10 +18,15 @@ TCL may be highly dynamic while defining meaning; authoritative execution is red
 - W/N/M/K/H deontic resolution with explicit conflicts;
 - idempotent effect proposal, authorization, and execution lifecycle;
 - private-computation circuit IR construction and validation;
+- safe, resource-limited compiler and hygienic `gensym`;
+- numeric comparison, membership, containment, and boolean predicates;
+- pluggable persistent registries and single-process atomic file storage;
+- durable manifest-pinned workflows with idempotency-gated retry and reconciliation;
+- append-only structured audit stream;
 - macro registry/expansion primitives;
 - executable end-to-end example and acceptance tests.
 
-v0.1.0 does **not** claim FULL v1 conformance. Durable workflow/ceremony execution, process supervision, persistent registries, and cryptographic private-computation execution remain on the roadmap.
+v0.2.0 does **not** claim FULL v1 conformance. Ceremony execution, process supervision, and cryptographic private-computation execution remain on the roadmap.
 
 ## Install
 
@@ -34,7 +39,7 @@ Add the repository root to `auto_path`:
 
 ```tcl
 lappend auto_path /path/to/tclmesh
-package require tclmesh 0.1.0
+package require tclmesh 0.2.0
 ```
 
 ## Run the example
@@ -83,13 +88,13 @@ TclMesh preserves six boundaries:
 - [Quickstart](docs/quickstart.md)
 - [Architecture](docs/architecture.md)
 - [Normative v1 target](docs/spec-v1.md)
-- [Roadmap and v0.1 scope](docs/roadmap.md)
+- [Roadmap and release scope](docs/roadmap.md)
 - [Security](SECURITY.md)
 - [Changelog](CHANGELOG.md)
 
 ## Release status
 
-v0.1.0 is suitable as a **reference-kernel/source release** and for controlled integrations that provide appropriate durable storage and trusted adapters.
+v0.2.0 is suitable as a **reference-kernel/source release** and for controlled integrations that provide appropriate durable storage and trusted adapters.
 
 The in-memory registries are intentionally reference implementations. Applications requiring crash durability, multi-process authority, or distributed consistency must supply durable deployment boundaries before treating those registries as production authorities.
 

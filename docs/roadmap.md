@@ -55,7 +55,7 @@ Deferred beyond v0.1.0:
 
 ## v0.2
 
-Status after the first three v0.2 slices:
+Status after all v0.2 slices:
 
 - [x] safe compiler interpreter with deterministic command surface and resource limits;
 - [x] compilation-local hygienic `gensym`;
@@ -63,9 +63,9 @@ Status after the first three v0.2 slices:
 - [x] pluggable persistent registries for manifests, languages, effects, workflows, and audit;
 - [x] single-process atomic file-store reference adapter with stale-handle merge protection;
 - [x] crash reconciliation for uncertain effect execution;
-- [x] durable workflow state machine with pinned manifests, step dependencies, retry, and explicit reconciliation of interrupted `running` steps;
+- [x] durable workflow state machine with pinned manifests, step dependencies, idempotency-gated retry, and explicit reconciliation of interrupted or failed steps;
 - [x] append-only structured audit event stream with persistent monotonic sequence numbers and no public reset operation;
-- [ ] richer canonical expression operators beyond the initial equality/boolean subset.
+- [x] richer canonical expression operators: numeric comparison, membership, and containment in addition to equality/boolean composition, rejecting NaN numeric operands.
 
 ## v0.3
 

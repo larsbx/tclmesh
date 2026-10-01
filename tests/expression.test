@@ -1,0 +1,160 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.1.0
+
+namespace eval ::expressiontest {
+    variable state {}
+    variable persists 0
+}
+
+proc ::expressiontest::reset {value} {
+    variable state
+    variable persists
+    set state $value
+    set persists 0
+}
+
+proc ::expressiontest::adapter {operation args} {
+    variable state
+    variable persists
+
+    switch -- $operation {
+        transact {
+            return [uplevel #0 [lindex $args 0]]
+        }
+        load {
+            return $state
+        }
+        persist {
+            incr persists
+            set state [lindex $args 1]
+            return $state
+        }
+        default {
+            error "unknown adapter operation '$operation'"
+        }
+    }
+}
+
+proc ::expressiontest::install {} {
+    set manifest [tclmesh manifest new expression-runtime 1]
+
+    dict set manifest actions Score::approve [dict create         capability score:approve         authorize [list permit-if [list and             [list gte [list field score] [list literal 80]]             [list lt [list request attempts] [list literal 3]]             [list in [list field region] [list literal {north east}]]             [list contains [list field note] [list literal ok]]]]         deontic {M}]
+
+    dict set manifest actions Score::range [dict create         capability score:range         authorize [list permit-if [list and             [list gt [list field score] [list literal 79]]             [list lte [list field score] [list literal 100]]]]         deontic {M}]
+
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate         expression-runtime 1 [dict get $installed manifest_hash]
+}
+
+proc ::expressiontest::language {} {
+    return [tclmesh language instantiate         ExpressionUser user:expr         {Score::approve Score::range}         {score:approve score:range}]
+}
+
+test X-001-richer-predicates-execute {comparison membership and containment predicates authorize} -body {
+    ::expressiontest::reset [dict create         score 85         region north         note "review ok"]
+
+    ::expressiontest::install
+    set language [::expressiontest::language]
+
+    set result [tclmesh action run         $language         expression-runtime         Score::approve         ::expressiontest::adapter         [dict create actor_id user:expr attempts 2]]
+
+    list         [dict get $result authorization decision]         [dict get $result deontic verdict]         $::expressiontest::persists
+} -result {permit M 1}
+
+test X-002-failed-membership-denies {membership failure denies before persistence} -body {
+    ::expressiontest::reset [dict create         score 85         region west         note "review ok"]
+
+    set language [::expressiontest::language]
+
+    set status [catch {
+        tclmesh action run             $language             expression-runtime             Score::approve             ::expressiontest::adapter             [dict create actor_id user:expr attempts 2]
+    } message options]
+
+    list         $status         [dict get $options -errorcode]         $::expressiontest::persists
+} -result {1 {TCLMESH ACTION AUTHORIZATION DENIED} 0}
+
+test X-003-gt-lte-range {greater-than and less-than-or-equal predicates execute} -body {
+    ::expressiontest::reset [dict create         score 100         region east         note ok]
+
+    set language [::expressiontest::language]
+    set result [tclmesh action run         $language         expression-runtime         Score::range         ::expressiontest::adapter         [dict create actor_id user:expr]]
+
+    dict get $result authorization decision
+} -result permit
+
+test X-004-numeric-comparison-rejects-nonnumeric {numeric comparison fails closed on nonnumeric input} -body {
+    ::expressiontest::reset [dict create         score excellent         region north         note ok]
+
+    set language [::expressiontest::language]
+
+    set status [catch {
+        tclmesh action run             $language             expression-runtime             Score::range             ::expressiontest::adapter             [dict create actor_id user:expr]
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH ACTION PREDICATE NON_NUMERIC gt}}
+
+test X-005-compiler-expression-aliases {compiler emits all richer predicate nodes} -body {
+    set manifest [tclmesh compiler compile {
+        application expression-compiler 1
+
+        action Compare::all {
+            capability compare:all
+            authorize [list permit-if [all                 [lt [field a] [literal 10]]                 [lte [field b] [literal 20]]                 [gt [field c] [literal 0]]                 [gte [field d] [literal 1]]                 [member [field region] [literal {north east}]]                 [contains [field text] [literal token]]]]
+            deontic M
+        }
+    }]
+
+    set predicate [lindex         [dict get $manifest actions Compare::all authorize] 1]
+
+    lmap child [lrange $predicate 1 end] {
+        lindex $child 0
+    }
+} -result {lt lte gt gte in contains}
+
+test X-006-nan-negated-predicates {NaN cannot authorize or pass validation through not} -body {
+    set outcomes {}
+    foreach op {lt lte gt gte} {
+        foreach source {field request} {
+            foreach side {left right} {
+                foreach nan {NaN nan NAN +NaN -NaN NaN(1)} {
+                    foreach gate {authorize validations} {
+                        set manifest [tclmesh manifest new nan-$op-$source-$side-$nan-$gate 1]
+                        set operand [list $source score]
+                        set bound [list literal 80]
+                        if {$side eq "left"} {
+                            set comparison [list $op $operand $bound]
+                        } else {
+                            set comparison [list $op $bound $operand]
+                        }
+                        set predicate [list not $comparison]
+                        set descriptor [dict create capability score:nan deontic M]
+                        if {$gate eq "authorize"} {
+                            dict set descriptor authorize [list permit-if $predicate]
+                        } else {
+                            dict set descriptor validations [list [list assert $predicate]]
+                        }
+                        dict set manifest actions Score::nan $descriptor
+                        set installed [tclmesh manifest install $manifest]
+                        set app [dict get $manifest application id]
+                        tclmesh manifest activate $app 1 [dict get $installed manifest_hash]
+                        set language [tclmesh language instantiate NanUser user:expr {Score::nan} {score:nan}]
+                        ::expressiontest::reset [dict create score $nan]
+                        set code [catch {
+                            tclmesh action run $language $app Score::nan ::expressiontest::adapter \
+                                [dict create actor_id user:expr score $nan]
+                        } message options]
+                        lappend outcomes [expr {$code == 1 &&
+                            [dict get $options -errorcode] eq [list TCLMESH ACTION PREDICATE NON_NUMERIC $op] &&
+                            $::expressiontest::persists == 0}]
+                    }
+                }
+            }
+        }
+    }
+    list [llength $outcomes] [lsort -unique $outcomes]
+} -result {192 1}
+
+cleanupTests

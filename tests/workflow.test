@@ -220,4 +220,64 @@ test WF-007-running-success-reconciliation {recovered running step may be marked
     list         [dict get $reconciled status]         [dict get $reconciled steps prepare status]         [dict get $reconciled steps prepare result externally_confirmed]         [dict get $reconciled steps finish status]
 } -result {running succeeded true ready}
 
+proc ::workflowtest::uncertain_executor {operation step_id descriptor context} {
+    # The external operation happens before the response is lost.
+    lappend ::workflowtest::calls $step_id
+    error "external operation completed but response timed out"
+}
+
+test WF-008-failed-non-idempotent {uncertain failed operation cannot execute twice, including after reopen} -body {
+    set outcomes {}
+    foreach declaration {false omitted} {
+        ::workflowtest::reset
+        set path [::workflowtest_path failed-$declaration]
+        try {
+            set store [tclmesh store create file $path]
+            tclmesh workflow use-store $store
+            set app workflow-failed-$declaration
+            set manifest [tclmesh manifest new $app 1]
+            set step [dict create operation payment dependencies {}]
+            if {$declaration ne "omitted"} {dict set step idempotent $declaration}
+            dict set manifest workflows ShipmentFlow [dict create capability workflow:shipment steps [dict create only $step]]
+            set installed [tclmesh manifest install $manifest]
+            tclmesh manifest activate $app 1 [dict get $installed manifest_hash]
+            set instance [tclmesh workflow start [::workflowtest::language] $app ShipmentFlow [dict create actor_id user:workflow]]
+            set id [dict get $instance id]
+            set failed [tclmesh workflow run-next $id ::workflowtest::uncertain_executor]
+            tclmesh workflow use-store [tclmesh store create file $path]
+            set before [tclmesh workflow describe $id]
+            set audit_before [tclmesh audit list]
+            set code [catch {tclmesh workflow retry $id only} message options]
+            lappend outcomes [expr {$code == 1 && [dict get $options -errorcode] eq
+                [list TCLMESH WORKFLOW RETRY IDEMPOTENCY_REQUIRED $id only]}]
+            lappend outcomes [expr {[tclmesh workflow describe $id] eq $before && [tclmesh audit list] eq $audit_before}]
+            lappend outcomes [catch {tclmesh workflow run-next $id ::workflowtest::uncertain_executor}]
+            lappend outcomes [catch {tclmesh workflow recover $id only retry}]
+            set reconciled [tclmesh workflow recover $id only succeeded [dict create receipt payment-confirmed]]
+            lappend outcomes [expr {[dict get $reconciled status] eq "succeeded" &&
+                [dict get $reconciled steps only attempts] == 1 &&
+                [dict get $reconciled steps only result receipt] eq "payment-confirmed" &&
+                $::workflowtest::calls eq "only"}]
+        } finally {
+            tclmesh workflow use-store {}
+            catch {file delete -force $path}
+        }
+    }
+    set outcomes
+} -result {1 1 1 1 1 1 1 1 1 1}
+
+test WF-009-idempotent-uncertain-retry {declared idempotency permits retry after a lost response} -body {
+    ::workflowtest::reset
+    ::workflowtest::install workflow-idempotent-uncertain
+    set instance [tclmesh workflow start [::workflowtest::language] \
+        workflow-idempotent-uncertain ShipmentFlow [dict create actor_id user:workflow]]
+    set id [dict get $instance id]
+    tclmesh workflow run-next $id ::workflowtest::uncertain_executor
+    set retried [tclmesh workflow retry $id prepare]
+    set completed [tclmesh workflow run-next $id ::workflowtest::executor]
+    list [dict get $retried steps prepare status] \
+        [dict get $completed steps prepare status] \
+        [dict get $completed steps prepare attempts] $::workflowtest::calls
+} -result {ready succeeded 2 {prepare prepare}}
+
 cleanupTests

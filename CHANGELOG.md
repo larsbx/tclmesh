@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0
+
+- safe compiler interpreters, resource limits, and hygienic `gensym`;
+- richer canonical comparisons, membership, and containment;
+- persistent manifest, language, effect, workflow, and audit registries;
+- single-process atomic file storage and uncertain-effect reconciliation;
+- durable manifest-pinned workflows and append-only audit events;
+- reject NaN ordered operands even under negation;
+- require declared idempotency for failed-step retry; permit explicit external
+  success/failure reconciliation without replay.
+
+Reference-kernel release only: no distributed consistency, cryptographic private
+execution, ceremony engine, or process supervision conformance claim.
+
 ## 0.1.0
 
 Initial TclMesh reference-kernel release.

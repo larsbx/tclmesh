@@ -374,6 +374,14 @@ proc ::tclmesh::workflow::retry {id step_id} {
     set descriptor [_descriptor_for_instance $instance]
     _require_instance_language $instance $descriptor
 
+    set step_descriptor [dict get $descriptor steps $step_id]
+    if {![dict exists $step_descriptor idempotent] ||
+        ![dict get $step_descriptor idempotent]} {
+        return -code error \
+            -errorcode [::list TCLMESH WORKFLOW RETRY IDEMPOTENCY_REQUIRED $id $step_id] \
+            "retry requires an idempotent workflow step; reconcile its external outcome instead"
+    }
+
     dict set instance status running
     dict set instance steps $step_id status ready
     dict set instance steps $step_id error {}
@@ -386,8 +394,8 @@ proc ::tclmesh::workflow::recover {id step_id disposition {result {}}} {
     set instance [_require $id]
 
     if {![dict exists $instance steps $step_id] ||
-        [dict get $instance steps $step_id status] ne "running"} {
-        return -code error             -errorcode [::list TCLMESH WORKFLOW RECOVERY INVALID_STEP $id $step_id]             "workflow step '$step_id' is not in recovered running state"
+        [dict get $instance steps $step_id status] ni {running failed}} {
+        return -code error             -errorcode [::list TCLMESH WORKFLOW RECOVERY INVALID_STEP $id $step_id]             "workflow step '$step_id' is not running or failed"
     }
 
     set descriptor [_descriptor_for_instance $instance]

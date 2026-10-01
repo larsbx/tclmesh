@@ -63,6 +63,52 @@ proc ::tclmesh::action::_eval_predicate {expr state request} {
                 [_eval_value [lindex $expr 2] $state $request]
             }]
         }
+        lt -
+        lte -
+        gt -
+        gte {
+            if {[llength $expr] != 3} {
+                return -code error -errorcode {TCLMESH ACTION PREDICATE INVALID}                     "$op predicate requires two numeric value expressions"
+            }
+
+            set left [_eval_value [lindex $expr 1] $state $request]
+            set right [_eval_value [lindex $expr 2] $state $request]
+
+            # Tcl recognizes signed/payload NaN spellings as doubles, but
+            # conversion rejects them. A false comparison must not let `not`
+            # turn malformed numeric input into permission.
+            if {![string is double -strict $left] ||
+                ![string is double -strict $right] ||
+                [catch {expr {double($left)}}] ||
+                [catch {expr {double($right)}}]} {
+                return -code error                     -errorcode [::list TCLMESH ACTION PREDICATE NON_NUMERIC $op]                     "predicate '$op' requires numeric operands other than NaN"
+            }
+
+            switch -- $op {
+                lt  { return [expr {$left < $right}] }
+                lte { return [expr {$left <= $right}] }
+                gt  { return [expr {$left > $right}] }
+                gte { return [expr {$left >= $right}] }
+            }
+        }
+        in {
+            if {[llength $expr] != 3} {
+                return -code error -errorcode {TCLMESH ACTION PREDICATE INVALID}                     "in predicate requires a value and a list value"
+            }
+
+            set needle [_eval_value [lindex $expr 1] $state $request]
+            set haystack [_eval_value [lindex $expr 2] $state $request]
+            return [expr {$needle in $haystack}]
+        }
+        contains {
+            if {[llength $expr] != 3} {
+                return -code error -errorcode {TCLMESH ACTION PREDICATE INVALID}                     "contains predicate requires two string values"
+            }
+
+            set haystack [_eval_value [lindex $expr 1] $state $request]
+            set needle [_eval_value [lindex $expr 2] $state $request]
+            return [expr {[string first $needle $haystack] >= 0}]
+        }
         and {
             foreach child [lrange $expr 1 end] {
                 if {![_eval_predicate $child $state $request]} {
@@ -168,7 +214,13 @@ proc ::tclmesh::action::_validate_predicate_spec {action_id field predicate} {
             }
         }
         eq -
-        neq {
+        neq -
+        lt -
+        lte -
+        gt -
+        gte -
+        in -
+        contains {
             if {[llength $predicate] != 3} {
                 _noncanonical $action_id $field                     "predicate '$op' requires two value expressions"
             }

@@ -1,5 +1,5 @@
 namespace eval ::tclmesh {
-    variable version 0.1.0
+    variable version 0.2.0
 }
 
 set ::tclmesh::here [file dirname [info script]]
@@ -36,4 +36,4 @@ namespace eval ::tclmesh {
     }
 }
 
-package provide tclmesh 0.1.0
+package provide tclmesh 0.2.0
