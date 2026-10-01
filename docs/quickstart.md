@@ -1,4 +1,4 @@
-# TclMesh v0.2.0 Quickstart
+# TclMesh v0.3.0 Quickstart
 
 ## Requirements
 
@@ -9,7 +9,7 @@ Add the repository root to `auto_path` and load the package:
 
 ```tcl
 lappend auto_path /path/to/tclmesh
-package require tclmesh 0.2.0
+package require tclmesh 0.3.0
 ```
 
 ## Define and install a manifest
@@ -100,7 +100,7 @@ The reference effect ledger enforces lifecycle and idempotency. It defaults to m
 
 ## Private-computation IR
 
-v0.2.0 validates private-computation circuit IR but does not include a cryptographic execution backend.
+v0.3.0 includes a private-backend protocol and a built-in plaintext reference backend. The plaintext backend is for deterministic testing and differential execution only; it does not provide confidentiality.
 
 ```tcl
 set circuit [tclmesh private circuit score \
@@ -142,3 +142,47 @@ trusted caller assertion, not an automatic proof of the external outcome.
 Ordered predicates (`lt`, `lte`, `gt`, `gte`) reject nonnumeric and NaN operands
 with an error, including when nested under `not`; authorization and validation
 stop before persistence.
+
+## Private backend profiles and differential execution
+
+Define a decrypt-enabled reference profile:
+
+    tclmesh private profile define reference [dict create \
+        backend plaintext \
+        semantics exact-integer \
+        allow_decrypt true]
+
+Executable private circuits require metadata output_nodes so each declared output is bound to a canonical node. Use private differential to compare reference semantics against the selected backend.
+
+    set result [tclmesh private differential reference $circuit [dict create x 41]]
+    dict get $result match
+
+The runtime exposes ciphertext values only through opaque ct:* handles. private handle describe omits the backend token.
+
+## Threshold-governed release
+
+A profile may forbid direct decrypt while still permitting release through the backend threshold-release protocol:
+
+    tclmesh private profile define sealed [dict create \
+        backend plaintext \
+        semantics exact-integer \
+        allow_decrypt false]
+
+    set handle [tclmesh private encrypt sealed int 42]
+    set request [tclmesh release request \
+        $handle report 2 {holder:a holder:b holder:c}]
+
+    set id [dict get $request id]
+    tclmesh release contribute $id holder:a share-a
+    tclmesh release contribute $id holder:b share-b
+    set released [tclmesh release combine $id]
+
+The built-in plaintext backend treats contributions as reference acknowledgments, not cryptographic partial decryptions. A confidential deployment must supply a real threshold-capable backend.
+
+Run the complete private example:
+
+    tclsh examples/private_release.tcl
+
+Expected:
+
+    differential:true|released:42
