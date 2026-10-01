@@ -1,15 +1,111 @@
 package require Tcl 8.6
 package require tcltest 2
 namespace import ::tcltest::*
-package require tclmesh 0.1
+package require tclmesh 0.2.0
 
-test H-004-circuit-validate {known circuit nodes validate} -body {
-    set c [tclmesh private circuit eligibility         {age {cipher uint8}}         {eligible {cipher bool}}         [dict create             n1 [tclmesh private node input age]             n2 [tclmesh private node constant 18]             n3 [tclmesh private node greater-than n1 n2]]]
-    dict get [tclmesh private validate $c] name
-} -result eligibility
+proc ::privatetest_circuit {} {
+    return [tclmesh private circuit arithmetic         [dict create             x {cipher int}             y {cipher int}             bias {public int}]         [dict create             total {cipher int}             positive {cipher bool}]         [dict create             nx [tclmesh private node input x]             ny [tclmesh private node input y]             nb [tclmesh private node input bias]             sum [tclmesh private node add nx ny]             total [tclmesh private node add sum nb]             zero [tclmesh private node constant 0]             positive [tclmesh private node greater-than total zero]]         [dict create output_nodes [dict create             total total             positive positive]]]
+}
 
-test H-unknown-node-rejected {unknown private-circuit operation is rejected} -body {
+test H-004-circuit-validate {known circuit nodes and output mappings validate} -body {
+    dict get [tclmesh private validate [::privatetest_circuit]] name
+} -result arithmetic
+
+test H-005-unknown-node-rejected {unknown private-circuit operation is rejected} -body {
     tclmesh private node arbitrary-exec x
 } -returnCodes error -match glob -result {*unsupported private-circuit operation*}
+
+test H-006-unknown-reference-rejected {circuit node references must resolve} -body {
+    set c [tclmesh private circuit broken         [dict create x {cipher int}]         [dict create y {cipher int}]         [dict create             x [tclmesh private node input x]             y [tclmesh private node add x missing]]         [dict create output_nodes [dict create y y]]]
+
+    set status [catch {tclmesh private validate $c} message options]
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH PRIVATE CIRCUIT UNKNOWN_REFERENCE missing}}
+
+test H-007-cycle-rejected {circuit dependency cycles are rejected} -body {
+    set c [tclmesh private circuit cycle         {}         [dict create y {cipher int}]         [dict create             a [list add b b]             b [list add a a]]         [dict create output_nodes [dict create y a]]]
+
+    set status [catch {tclmesh private validate $c} message options]
+    list $status [dict get $options -errorcode]
+} -match glob -result {1 {TCLMESH PRIVATE CIRCUIT CYCLE *}}
+
+test H-008-profile-definition {profile binds backend and semantics immutably} -body {
+    tclmesh private profile define reference-exact [dict create         backend plaintext         semantics exact-integer         parameters [dict create mode reference]         allow_decrypt true]
+
+    set duplicate [catch {
+        tclmesh private profile define reference-exact [dict create             backend plaintext             semantics exact-integer]
+    } message options]
+
+    set p [tclmesh private profile describe reference-exact]
+    list         [dict get $p backend]         [dict get $p semantics]         [dict get $p allow_decrypt]         $duplicate         [dict get $options -errorcode]
+} -result {plaintext exact-integer true 1 {TCLMESH PRIVATE PROFILE ALREADY_DEFINED reference-exact}}
+
+test H-009-opaque-handle {ciphertext handle does not expose backend token} -body {
+    set handle [tclmesh private encrypt reference-exact int 42]
+    set descriptor [tclmesh private handle describe $handle]
+
+    list         [string match {ct:*} $handle]         [dict exists $descriptor token]         [dict get $descriptor profile]         [dict get $descriptor type]         [tclmesh private decrypt $handle]
+} -result {1 0 reference-exact int 42}
+
+test H-010-handle-destroy {destroyed handle cannot be used or decrypted} -body {
+    set handle [tclmesh private encrypt reference-exact int 7]
+    set destroyed [tclmesh private handle destroy $handle]
+
+    set status [catch {
+        tclmesh private decrypt $handle
+    } message options]
+
+    list         [dict get $destroyed status]         $status         [dict get $options -errorcode]
+} -match glob -result {destroyed 1 {TCLMESH PRIVATE HANDLE INACTIVE ct:*}}
+
+test H-011-backend-evaluation {runtime evaluates circuit through opaque handles} -body {
+    set x [tclmesh private encrypt reference-exact int 4]
+    set y [tclmesh private encrypt reference-exact int 5]
+
+    set outputs [tclmesh private evaluate         reference-exact         [::privatetest_circuit]         [dict create x $x y $y bias 3]]
+
+    list         [tclmesh private decrypt [dict get $outputs total]]         [tclmesh private decrypt [dict get $outputs positive]]
+} -result {12 1}
+
+test H-012-profile-mismatch {ciphertext inputs are bound to their profile} -body {
+    tclmesh private profile define reference-other [dict create         backend plaintext         semantics exact-integer         allow_decrypt true]
+
+    set x [tclmesh private encrypt reference-other int 4]
+    set y [tclmesh private encrypt reference-exact int 5]
+
+    set status [catch {
+        tclmesh private evaluate             reference-exact             [::privatetest_circuit]             [dict create x $x y $y bias 3]
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH PRIVATE HANDLE PROFILE_MISMATCH x}}
+
+test H-013-decrypt-policy {profile can prohibit direct decryption} -body {
+    tclmesh private profile define opaque-reference [dict create         backend plaintext         semantics exact-integer         allow_decrypt false]
+
+    set handle [tclmesh private encrypt opaque-reference int 9]
+    set status [catch {
+        tclmesh private decrypt $handle
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH PRIVATE DECRYPT FORBIDDEN opaque-reference}}
+
+test H-014-differential-execution {reference and backend execution match exactly} -body {
+    set result [tclmesh private differential         reference-exact         [::privatetest_circuit]         [dict create x 10 y -2 bias 5]]
+
+    list         [dict get $result match]         [dict get $result reference total]         [dict get $result backend total]         [dict get $result reference positive]         [dict get $result backend positive]
+} -result {true 13 13 1 1}
+
+test H-015-output-node-required {backend evaluation requires explicit output mapping} -body {
+    set c [tclmesh private circuit no-output-map         [dict create x {cipher int}]         [dict create y {cipher int}]         [dict create             x [tclmesh private node input x]             y [tclmesh private node add x x]]]
+
+    set x [tclmesh private encrypt reference-exact int 2]
+    set status [catch {
+        tclmesh private evaluate reference-exact $c [dict create x $x]
+    } message options]
+
+    list $status [dict get $options -errorcode]
+} -result {1 {TCLMESH PRIVATE EVALUATE OUTPUT_NODES_REQUIRED}}
 
 cleanupTests
