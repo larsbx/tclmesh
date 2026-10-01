@@ -55,10 +55,7 @@ test R-003-holder-guards {unknown and duplicate holders are rejected} -body {
     } duplicateMessage duplicateOptions]
 
     list         $unauthorized         [dict get $unauthorizedOptions -errorcode]         $duplicate         [dict get $duplicateOptions -errorcode]
-} -match glob -result {
-    1 {TCLMESH RELEASE HOLDER_NOT_AUTHORIZED release:* holder:z}
-    1 {TCLMESH RELEASE DUPLICATE_CONTRIBUTION release:* holder:a}
-}
+} -match glob -result {1 {TCLMESH RELEASE HOLDER_NOT_AUTHORIZED release:* holder:z} 1 {TCLMESH RELEASE DUPLICATE_CONTRIBUTION release:* holder:a}}
 
 test R-004-threshold-release {direct decrypt may be forbidden while quorum release succeeds} -body {
     set handle [::releasetest_handle 42]
@@ -75,10 +72,7 @@ test R-004-threshold-release {direct decrypt may be forbidden while quorum relea
     set released [tclmesh release combine $id]
 
     list         $direct         [dict get $directOptions -errorcode]         [dict get $released status]         [dict get $released result]         [dict get $released attempts]
-} -result {
-    1 {TCLMESH PRIVATE DECRYPT FORBIDDEN release-reference}
-    released 42 1
-}
+} -result {1 {TCLMESH PRIVATE DECRYPT FORBIDDEN release-reference} released 42 1}
 
 test R-005-no-early-combine {release cannot combine before quorum} -body {
     set handle [::releasetest_handle 11]
