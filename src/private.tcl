@@ -606,6 +606,13 @@ proc ::tclmesh::private::_plaintext_backend {operation args} {
             lassign $args profile type token
             return [dict get $token value]
         }
+        combine-release {
+            lassign $args profile type token contributions context
+            if {[dict size $contributions] == 0} {
+                return -code error                     -errorcode {TCLMESH PRIVATE PLAINTEXT RELEASE EMPTY_CONTRIBUTIONS}                     "reference threshold release requires contributions"
+            }
+            return [dict get $token value]
+        }
         destroy {
             return
         }
@@ -689,4 +696,4 @@ namespace eval ::tclmesh::private {
     }
 }
 
-::tclmesh::private::backend::register     plaintext     ::tclmesh::private::_plaintext_backend     {decrypt destroy reference}
+::tclmesh::private::backend::register     plaintext     ::tclmesh::private::_plaintext_backend     {decrypt destroy reference threshold-release idempotent-release}
