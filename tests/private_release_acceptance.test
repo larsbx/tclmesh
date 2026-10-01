@@ -1,0 +1,12 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+
+set here [file dirname [file normalize [info script]]]
+set root [file dirname $here]
+
+test SHIP-002-private-release {v0.3 private backend and threshold release example is executable} -body {
+    string trim [exec tclsh [file join $root examples private_release.tcl]]
+} -result {differential:true|released:42}
+
+cleanupTests
