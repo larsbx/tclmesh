@@ -267,8 +267,8 @@ the handle and request; PB-008 verifies the backend receives the original manife
 pin after a fresh process. Older requests/handles with no binding retain an empty
 binding and gain no retroactive provenance.
 
-This API establishes provenance, not authorization. The next slice must enforce
-manifest-declared release policy and holder/language authority. Backends must still
+The evaluation API establishes provenance; the release-policy layer below
+enforces manifest-declared holder/language authority for governed outputs. Backends must still
 verify cryptographic contribution scope and consumption; the plaintext reference
 backend checks only the reference quorum lifecycle.
 
@@ -277,3 +277,68 @@ was consulted for this slice. `src/` remains
 the sole runtime implementation; `tests/` supplies conformance evidence and
 `docs/spec-v1.md` the normative target. TclMesh is not an estate-template adopter,
 and this change introduces no new layout or authority migration.
+
+
+### Governed threshold-release policy
+
+Declare a ceremony with `kind threshold-release`, then set the producing circuit's
+`metadata release_policy` to its ceremony ID and `metadata profile` to its profile.
+Installation validates the complete policy; unknown fields, duplicate/empty
+members, invalid quorum, missing circuit/output, or a mismatched circuit link fail
+closed. The only accepted policy fields are:
+
+| Fields | Meaning |
+| --- | --- |
+| `kind`, `circuit`, `output`, `profile`, `purpose` | Exact producing circuit/output and release purpose |
+| `quorum`, `holders` | Positive threshold and fixed unique contributor actor set |
+| `requesters`, `combiners`, `recoverers` | Fixed actor sets for the other roles |
+| `request_capability`, `contribute_capability`, `combine_capability`, `recover_capability` | Required role-specific language grants |
+| `context` | Required exact context bindings |
+
+Membership sets are sorted in canonical policy hashing. This new schema does not
+change the canonicalization rules of existing manifest node kinds. `quorum` is an
+integer; the existing generic `threshold` field retains its map schema.
+
+Each authorized call supplies a language ID and an authenticated actor ID from the
+trusted adapter. The language holder must match that actor, its command set must
+contain `release:<ceremony-id>`, and it must hold the role capability. Policy and
+language context bindings must match the request context. The language and every
+ancestor must remain active. These APIs do not authenticate a caller merely because
+it supplied an actor ID.
+
+```tcl
+set request [tclmesh release request-authorized $operatorLanguage $outputHandle \
+    operator [dict create tenant example]]
+set id [dict get $request id]
+tclmesh release contribute-authorized $holderALanguage $id a $shareA
+tclmesh release contribute-authorized $holderBLanguage $id b $shareB
+tclmesh release combine-authorized $operatorLanguage $id operator
+```
+
+`request-authorized` selects policy from the handle's installed circuit; the caller
+cannot replace its purpose, threshold, holders, or output. Each later transition
+revalidates the original requester and existing contributor receipts against live
+language authority. A change of active manifest version/hash blocks continuation;
+there is no automatic policy migration. This strict boundary can leave an uncertain
+request blocked after revocation or activation changes and requires explicit
+operator reconciliation outside this reference API.
+
+`recover-authorized`, `reject-authorized`, and `expire-authorized` require the
+recovery role. Recovery preserves the existing idempotency check. Explicit
+`released` reconciliation remains an assertion by an authorized trusted operator;
+it is not a backend attestation. Private transition/combination audit integration
+remains a later milestone.
+
+Governed outputs reject public raw request calls and direct decrypt. Governed
+requests reject raw contribution, combination, recovery, rejection, and expiry.
+Legacy ungoverned outputs/requests keep their trusted-adapter APIs and gain no
+retroactive application authorization. Public APIs never expose backend tokens.
+The backend combination context contains the pinned policy/requester receipt and
+per-holder contribution authority receipts, in addition to circuit/output binding.
+
+For restart, attach the same durable manifest and language stores, register the
+same profiles/backends, then reopen release state. RP-010 through RP-012 exercise
+fresh-process quorum/retry and contributor revocation. Cryptographic share scope,
+keyset/context verification, cross-request replay protection, deadlines/one-shot
+language consumption, and distributed authority remain open. Policy checks run in
+the existing trusted single-process reference runtime, not a distributed transaction.

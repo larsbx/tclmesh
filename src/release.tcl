@@ -100,13 +100,13 @@ proc ::tclmesh::release::_assert_bound_handle {descriptor} {
     return $handle
 }
 
-proc ::tclmesh::release::request {
-    handle_id
-    purpose
-    threshold
-    holders
-    {context {}}
-} {
+proc ::tclmesh::release::request {handle_id purpose threshold holders {context {}}} {
+    set handle [::tclmesh::private::_require_handle $handle_id]
+    if {[_handle_policy $handle] ne ""} {_policy_error AUTHORIZATION_REQUIRED}
+    return [_request $handle_id $purpose $threshold $holders $context {}]
+}
+
+proc ::tclmesh::release::_request {handle_id purpose threshold holders context authorization} {
     variable requests
     variable next_id
 
@@ -144,6 +144,8 @@ proc ::tclmesh::release::request {
 
     set descriptor [dict create         id $id         status collecting         handle $handle_id         profile $profile         backend $backend         type $type         purpose $purpose         threshold $threshold         holders $unique_holders         contributions {}         context $context         binding [_binding $handle]         attempts 0         recoveries 0         result {}]
 
+    dict set descriptor authorization $authorization
+    dict set descriptor contribution_authority {}
     set candidate_requests $requests
     dict set candidate_requests $id $descriptor
     _commit $candidate_requests $candidate_next_id
@@ -151,6 +153,11 @@ proc ::tclmesh::release::request {
 }
 
 proc ::tclmesh::release::contribute {id holder share} {
+    _managed_guard [_require $id]
+    return [_contribute $id $holder $share {}]
+}
+
+proc ::tclmesh::release::_contribute {id holder share authority} {
     variable requests
     variable next_id
 
@@ -172,6 +179,7 @@ proc ::tclmesh::release::contribute {id holder share} {
     }
 
     dict set descriptor contributions $holder $share
+    dict set descriptor contribution_authority $holder $authority
 
     if {[dict size [dict get $descriptor contributions]] >=
         [dict get $descriptor threshold]} {
@@ -205,14 +213,21 @@ proc ::tclmesh::release::_terminal_transition {id expected target {result {}}} {
 }
 
 proc ::tclmesh::release::reject {id {reason {}}} {
+    _managed_guard [_require $id]
     return [_terminal_transition         $id         {collecting quorum-reached}         rejected         [dict create reason $reason]]
 }
 
 proc ::tclmesh::release::expire {id {reason {}}} {
+    _managed_guard [_require $id]
     return [_terminal_transition         $id         {collecting quorum-reached}         expired         [dict create reason $reason]]
 }
 
 proc ::tclmesh::release::combine {id} {
+    _managed_guard [_require $id]
+    return [_combine $id]
+}
+
+proc ::tclmesh::release::_combine {id} {
     variable requests
     variable next_id
 
@@ -222,6 +237,9 @@ proc ::tclmesh::release::combine {id} {
     }
 
     set handle [_assert_bound_handle $descriptor]
+    foreach key {authorization contribution_authority} {
+        if {![dict exists $descriptor $key]} {dict set descriptor $key {}}
+    }
     set backend_descriptor [::tclmesh::private::backend::describe         [dict get $descriptor backend]]
     set command [dict get $backend_descriptor command]
     set profile [::tclmesh::private::profile::describe         [dict get $descriptor profile]]
@@ -234,7 +252,7 @@ proc ::tclmesh::release::combine {id} {
     _commit $candidate_requests $next_id
 
     set code [catch {
-        {*}$command combine-release             $profile             [dict get $descriptor type]             [dict get $handle token]             [dict get $descriptor contributions]             [dict create                 purpose [dict get $descriptor purpose]                 context [dict get $descriptor context]                 release_id $id binding [_binding $descriptor]]
+        {*}$command combine-release             $profile             [dict get $descriptor type]             [dict get $handle token]             [dict get $descriptor contributions]             [dict create                 purpose [dict get $descriptor purpose]                 context [dict get $descriptor context]                 release_id $id binding [_binding $descriptor] authorization [dict get $descriptor authorization] contribution_authority [dict get $descriptor contribution_authority]]
     } result options]
 
     if {$code} {
@@ -260,6 +278,11 @@ proc ::tclmesh::release::combine {id} {
 }
 
 proc ::tclmesh::release::recover {id disposition {result {}}} {
+    _managed_guard [_require $id]
+    return [_recover $id $disposition $result]
+}
+
+proc ::tclmesh::release::_recover {id disposition {result {}}} {
     variable requests
     variable next_id
 

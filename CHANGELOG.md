@@ -10,7 +10,11 @@
 - circuit/output provenance preserved in handles, release requests, and backend
   combination context, including after process restart.
 
-No PRIVATE/FULL conformance, application release authorization, cryptographic
+- manifest-owned release policies with role-specific holder/language authorization,
+  active-ancestor/context checks, current-manifest revalidation, governed direct
+  decryption/raw-API rejection, and persisted authority receipts.
+
+No PRIVATE/FULL conformance, identity authentication, cryptographic
 share verification, or confidentiality claim. Package version remains 0.2.0.
 
 ## 0.2.0

@@ -579,6 +579,9 @@ proc ::tclmesh::private::_evaluate {profile_name circuit inputs manifest_binding
 
 proc ::tclmesh::private::decrypt {handle_id} {
     set handle [_require_handle $handle_id]
+    if {[::tclmesh::release::_handle_policy $handle] ne ""} {
+        return -code error -errorcode {TCLMESH PRIVATE DECRYPT RELEASE_REQUIRED}             "governed output requires authorized threshold release"
+    }
     set profile [::tclmesh::private::profile::describe         [dict get $handle profile]]
 
     if {![dict get $profile allow_decrypt]} {

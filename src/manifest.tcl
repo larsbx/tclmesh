@@ -163,7 +163,12 @@ proc ::tclmesh::manifest::_canonical_node {node} {
     foreach key [lsort -dictionary [dict keys $node]] {
         set value [dict get $node $key]
 
-        if {$key in $node_map_fields} {
+        if {[dict exists $node kind] && [dict get $node kind] eq "threshold-release" &&
+            $key in {holders requesters combiners recoverers}} {
+            # Membership sets in the new release-policy schema. Existing node
+            # schemas and their manifest identities keep their prior rules.
+            set value [lsort -unique $value]
+        } elseif {$key in $node_map_fields} {
             set value [_canonical_node_map $value]
         } elseif {$key in $sequence_map_fields} {
             set value [_canonical_sequence_map $value]
@@ -242,6 +247,7 @@ proc ::tclmesh::manifest::install {manifest} {
         return -code error             -errorcode [::list TCLMESH MANIFEST ALREADY_INSTALLED $id $version]             "manifest '$id' version '$version' is already installed"
     }
 
+    set manifest [::tclmesh::release::bind_manifest $manifest]
     set hash [digest $manifest]
     set descriptor [dict create         application_id $id         version $version         manifest_hash $hash         manifest $manifest]
 
