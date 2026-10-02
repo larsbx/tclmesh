@@ -26,6 +26,7 @@ proc ::tclmesh::release::use-store {store_id} {
     variable store
 
     if {$store_id eq ""} {
+        ::tclmesh::private::_use_handle_store {}
         set store {}
         return {}
     }
@@ -42,12 +43,17 @@ proc ::tclmesh::release::use-store {store_id} {
 
         set candidate_requests [dict get $state requests]
         set candidate_next_id [dict get $state next_id]
+        if {[dict size $candidate_requests] > 0 &&
+            ![::tclmesh::store exists $store_id private.handles]} {
+            return -code error -errorcode {TCLMESH RELEASE STORE HANDLE_STATE_REQUIRED}                 "persisted releases require a durable private handle registry"
+        }
     } else {
         set candidate_requests $requests
         set candidate_next_id $next_id
         ::tclmesh::store put $store_id release.registry [dict create             requests $candidate_requests             next_id $candidate_next_id]
     }
 
+    ::tclmesh::private::_use_handle_store $store_id
     set requests $candidate_requests
     set next_id $candidate_next_id
     set store $store_id

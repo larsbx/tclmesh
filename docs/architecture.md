@@ -202,3 +202,39 @@ minimum ambiguity after compilation
 ```
 
 New domain abstractions should normally be introduced by TCL macros and extensions that compile to existing canonical nodes, rather than by widening the trusted runtime kernel.
+
+
+### Threshold release process recovery
+
+Attaching a release store also attaches the private handle registry to that store
+under `private.handles`. Backend recovery material is stored separately from the
+public release descriptors. Handle IDs, allocation counter, profile binding, and
+destroyed tombstones survive a process restart. Configure the same profiles and
+register their backends before reopening the release store. Existing stores with
+only `release.registry` do not contain enough information for fresh-process
+recovery and are rejected on reopen. Migrate such stores explicitly while the
+original private registry and backend state are available. Lost backend state
+cannot be reconstructed from a `ct:*` ID alone.
+
+Persistence requires the backend capability `persistent-handles`. The backend
+implements `export-handle profile type token` and
+`restore-handle profile type recovery-material`. Export must return durable,
+serializable recovery material; restore must validate it and return a usable
+backend token or fail closed. For real backends, use an authenticated ciphertext
+or a stable backend-owned object reference, with revocation and authorization
+checked by the backend. Tclmesh does not reinterpret recovery material as a token.
+Public `handle describe` and release descriptors never expose it. Unsupported
+backends cannot attach their active handles to a persistent registry. Restoring
+with a changed profile is rejected. Store and backend access remain trusted,
+single-writer configuration, as with the existing pluggable registry stores.
+
+The plaintext reference backend serializes its value and provides no confidentiality;
+its recovery files contain plaintext. This is a test contract, not a cryptographic
+threshold backend. Applications must protect recovery stores appropriately for
+the selected backend. The existing `idempotent-release` requirement still governs
+retrying an uncertain `combining` state.
+
+R-010 through R-014 launch independent Tcl processes, including a process that
+exits inside the combination callback after the `combining` commit. They cover
+quorum restart, uncertain retry, destroyed handles, backend restoration rejection,
+profile changes, ID allocation, opaque descriptors, and direct-decrypt prohibition.

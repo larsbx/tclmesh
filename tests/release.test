@@ -166,4 +166,50 @@ test R-009-combining-recovery {uncertain combine can return to quorum for idempo
     list         [dict get $recovered status]         [dict get $recovered recoveries]         [dict get $released status]         [dict get $released attempts]         [dict get $released result]
 } -result {quorum-reached 1 released 2 31}
 
+proc ::releasetest_process {mode resume} {
+    set path [::releasetest_path process]
+    set fixture [file join $::tcltest::testsDirectory release-process.tcl]
+    try {
+        exec [info nameofexecutable] $fixture $mode $path
+        return [exec [info nameofexecutable] $fixture $resume $path]
+    } finally {
+        file delete -force $path
+    }
+}
+
+test R-010-process-quorum {quorum combines in a fresh process with opaque handles} -body {
+    ::releasetest_process quorum resume
+} -result {quorum-reached released 73 1 0 {TCLMESH PRIVATE DECRYPT FORBIDDEN durable-profile} 0}
+
+test R-011-process-interrupted {committed combining resumes after actual process loss} -body {
+    ::releasetest_process interrupt resume
+} -result {combining released 73 2 1 {TCLMESH PRIVATE DECRYPT FORBIDDEN durable-profile} 0}
+
+test R-012-process-destroyed {restart must not resurrect a destroyed bound handle} -body {
+    ::releasetest_process destroy revoked
+} -result {TCLMESH PRIVATE HANDLE INACTIVE ct:1}
+
+test R-013-backend-authority {backend restoration rejection cannot be bypassed} -body {
+    catch {::releasetest_process quorum deny-restore} message
+    string match {*backend denied restoration*} $message
+} -result 1
+
+test R-014-profile-binding {changed profile cannot restore persisted handles} -body {
+    catch {::releasetest_process quorum changed-profile} message
+    string match {*persisted handle backend differs from profile*} $message
+} -result 1
+
+test R-015-legacy-fail-closed {release-only stores cannot bind coincident ephemeral IDs} -body {
+    set path [::releasetest_path legacy]
+    try {
+        set store [tclmesh store create file $path]
+        tclmesh store put $store release.registry [dict create requests [dict create release:1 [dict create handle ct:1]] next_id 1]
+        catch {tclmesh release use-store $store} message options
+        dict get $options -errorcode
+    } finally {
+        tclmesh release use-store {}
+        file delete -force $path
+    }
+} -result {TCLMESH RELEASE STORE HANDLE_STATE_REQUIRED}
+
 cleanupTests
