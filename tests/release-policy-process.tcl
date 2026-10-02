@@ -21,6 +21,12 @@ tclmesh private profile define policy-profile [dict create \
 set store [tclmesh store create file $path]
 tclmesh manifest use-store $store
 tclmesh language use-store $store
+if {$mode eq "extra-context"} {
+    set state [tclmesh store get $store release.registry]
+    set id [lindex [dict keys [dict get $state requests]] 0]
+    dict set state requests $id context recipient unapproved
+    tclmesh store put $store release.registry $state
+}
 tclmesh release use-store $store
 if {$mode in {produce interrupt}} {
     set setup [policytest_setup policy-process]
@@ -34,7 +40,11 @@ if {$mode in {produce interrupt}} {
     set id [lindex [tclmesh release list] 0]
     set request [tclmesh release get $id]
     set op [dict get $request authorization requester language_id]
-    if {$mode eq "revoked"} {
+    if {$mode eq "extra-context"} {
+        catch {tclmesh release combine-authorized $op $id operator} message options
+        set after [tclmesh release get $id]
+        puts [list [dict get $options -errorcode] [dict get $after status] [dict get $after attempts]]
+    } elseif {$mode eq "revoked"} {
         tclmesh language revoke [dict get $request contribution_authority a language_id]
         catch {tclmesh release combine-authorized $op $id operator} message options
         puts [dict get $options -errorcode]

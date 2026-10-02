@@ -301,8 +301,10 @@ integer; the existing generic `threshold` field retains its map schema.
 
 Each authorized call supplies a language ID and an authenticated actor ID from the
 trusted adapter. The language holder must match that actor, its command set must
-contain `release:<ceremony-id>`, and it must hold the role capability. Policy and
-language context bindings must match the request context. The language and every
+contain `release:<ceremony-id>`, and it must hold the role capability. The request context must equal the union of policy and language context bindings,
+with no additional keys. Conflicting bindings fail closed; dictionary insertion
+order is irrelevant. The same exact-context check applies to later transitions,
+including requests restored from stores written before this guard. The language and every
 ancestor must remain active. These APIs do not authenticate a caller merely because
 it supplied an actor ID.
 

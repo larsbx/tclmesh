@@ -178,4 +178,42 @@ test RP-016-requester-revocation {revoked initiating authority prevents fabricat
         [dict get [tclmesh release get $id] status]
 } -result {{TCLMESH RELEASE POLICY LANGUAGE_INACTIVE} combining}
 
+test RP-017-extra-context {unapproved recipient keyset and dataset never enter the release registry} -body {
+    set setup [policytest_setup policy-extra-context]
+    set before [tclmesh release list]
+    set codes {}
+    foreach field {recipient keyset dataset} {
+        set context [dict create tenant example $field unapproved]
+        lappend codes [policytest_code {tclmesh release request-authorized \
+            [dict get $setup operator] [dict get $setup outputs total] operator $context}]
+    }
+    list $codes [expr {$before eq [tclmesh release list]}]
+} -result {{{TCLMESH RELEASE POLICY CONTEXT_MISMATCH} {TCLMESH RELEASE POLICY CONTEXT_MISMATCH} {TCLMESH RELEASE POLICY CONTEXT_MISMATCH}} 1}
+
+test RP-018-context-union {exact policy plus language union permits different dictionary insertion order} -body {
+    set setup [policytest_setup policy-context-union]
+    set context [dict create recipient approved tenant example]
+    set operator [tclmesh language instantiate p operator {release:report} \
+        {release:request release:combine} [dict create tenant example recipient approved]]
+    set a [tclmesh language instantiate p a {release:report} {release:share} $context]
+    set b [tclmesh language instantiate p b {release:report} {release:share} $context]
+    set request [tclmesh release request-authorized $operator [dict get $setup outputs total] operator $context]
+    set id [dict get $request id]
+    tclmesh release contribute-authorized $a $id a share-a
+    tclmesh release contribute-authorized $b $id b share-b
+    dict get [tclmesh release combine-authorized $operator $id operator] result
+} -result 42
+
+test RP-019-conflicting-context {policy and language conflict cannot be hidden by a dictionary merge} -body {
+    set setup [policytest_setup policy-context-conflict]
+    set operator [tclmesh language instantiate p operator {release:report} \
+        {release:request} [dict create tenant different]]
+    policytest_code {tclmesh release request-authorized $operator [dict get $setup outputs total] \
+        operator [dict create tenant different]}
+} -result {TCLMESH RELEASE POLICY CONTEXT_MISMATCH}
+
+test RP-020-persisted-extra-context {reopened pre-fix state with unapproved fields cannot reach backend combination} -body {
+    policytest_process produce extra-context
+} -result {{TCLMESH RELEASE POLICY CONTEXT_MISMATCH} quorum-reached 0}
+
 cleanupTests
