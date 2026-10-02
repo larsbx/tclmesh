@@ -67,17 +67,44 @@ Status after all v0.2 slices:
 - [x] append-only structured audit event stream with persistent monotonic sequence numbers and no public reset operation;
 - [x] richer canonical expression operators: numeric comparison, membership, and containment in addition to equality/boolean composition, rejecting NaN numeric operands.
 
-## v0.3
+## v0.3 — private reference runtime (unreleased)
 
-- private-computation backend protocol;
-- parameter-profile registry;
-- ciphertext-handle lifecycle;
-- plaintext/private differential execution;
-- threshold-release state machine.
+Implemented on main through PR #14:
+
+- [x] private-computation backend protocol;
+- [x] immutable parameter-profile registry;
+- [x] opaque ciphertext-handle lifecycle;
+- [x] plaintext/private differential execution;
+- [x] backend-driven threshold-release state machine;
+- [x] backend-controlled durable handles and fresh-process quorum/combination recovery.
+
+Next implementation slice (this branch):
+
+- [x] schema-directed canonical circuit SHA-256 identity;
+- [x] evaluation of installed circuits pinned to the active manifest version/hash;
+- [x] output-handle and release binding to circuit hash, output name/specification,
+  and, for bound evaluation, manifest identity;
+- [x] process-boundary conformance checking of that binding at the backend.
+
+These complete provenance plumbing, not the normative PRIVATE profile. Before a
+v0.3 release or a stronger conformance claim, continue in this order:
+
+1. Add explicit manifest-declared release policy and holder/language capability
+   authorization. Starting a request and reaching quorum alone do not establish
+   application authorization.
+2. Bind keyset and cryptographic context metadata; require backend-verified
+   contribution scope/consumption across requests. Current reference shares are
+   nonempty opaque values, not verified cryptographic shares.
+3. Add circuit type/range checks, checked overflow semantics, and approved profile
+   compatibility. Packing metadata is hashed but not yet semantically validated.
+4. Extend integrated acceptance and provenance reconstruction through private
+   evaluation/release; audit private operations without exposing protected data.
+5. Review release/security/quickstart consistency, run all conformance and release
+   checks, and only then decide on the v0.3 reference-kernel version/tag.
+
+Real cryptographic execution and FULL/PRIVATE conformance remain open. The
+plaintext backend provides neither confidentiality nor cryptographic quorum.
 
 ## v1.0
 
 v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable workflows, ceremonies, private release, supervision, and the full integrated acceptance scenario.
-
-
-> Verification note: workflow/audit v0.2 was re-opened on a fresh branch after the original retargeted pull request stopped receiving new Actions runs. This note exists only to force an exact-head CI synchronization check.

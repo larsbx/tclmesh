@@ -1,0 +1,125 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+
+proc ::bindingtest_circuit {} {
+    return [tclmesh private circuit difference {} [dict create total {cipher int}] \
+        [dict create a {constant 45} b {constant 3} total {subtract a b}] \
+        [dict create output_nodes [dict create total total] \
+            packing [dict create slots 1 layout scalar] profile binding-reference]]
+}
+proc ::bindingtest_reverse {map} {
+    set result {}
+    foreach key [lreverse [dict keys $map]] {dict set result $key [dict get $map $key]}
+    return $result
+}
+proc ::bindingtest_profile {} {
+    if {[catch {tclmesh private profile describe binding-reference}]} {
+        tclmesh private profile define binding-reference [dict create \
+            backend plaintext semantics exact-integer allow_decrypt false]
+    }
+}
+proc ::bindingtest_install {app version {value 45}} {
+    set circuit [::bindingtest_circuit]
+    dict set circuit nodes a [list constant $value]
+    set manifest [tclmesh manifest new $app $version]
+    dict set manifest circuits aggregate $circuit
+    set installed [tclmesh manifest install $manifest]
+    tclmesh manifest activate $app $version [dict get $installed manifest_hash]
+    return $installed
+}
+
+test PB-001-map-order {circuit hash ignores schema map insertion order} -body {
+    set a [::bindingtest_circuit]
+    dict set a inputs x {public int}
+    dict set a inputs y {public int}
+    dict set a outputs second {cipher int}
+    dict set a metadata output_nodes second a
+    set b [::bindingtest_reverse $a]
+    foreach key {inputs outputs nodes metadata} {
+        dict set b $key [::bindingtest_reverse [dict get $b $key]]
+    }
+    foreach key {output_nodes packing} {
+        dict set b metadata $key [::bindingtest_reverse [dict get $b metadata $key]]
+    }
+    expr {[tclmesh private digest $a] eq [tclmesh private digest $b]}
+} -result 1
+
+test PB-002-semantic-order {operation order output mapping types and packing affect identity} -body {
+    set a [::bindingtest_circuit]
+    set hash [tclmesh private digest $a]
+    set result {}
+    foreach change {operation output type packing} {
+        set b $a
+        switch $change {
+            operation {dict set b nodes total {subtract b a}}
+            output {dict set b metadata output_nodes total a}
+            type {dict set b outputs total {cipher uint32}}
+            packing {dict set b metadata packing slots 2}
+        }
+        lappend result [expr {$hash ne [tclmesh private digest $b]}]
+    }
+    return $result
+} -result {1 1 1 1}
+
+test PB-003-manifest-pin {evaluated handle and release retain original pin after activation changes} -body {
+    ::bindingtest_profile
+    tclmesh release use-store {}
+    set installed [::bindingtest_install binding-app 1]
+    set handle [dict get [tclmesh private evaluate-bound binding-reference binding-app aggregate {}] total]
+    set descriptor [tclmesh private handle describe $handle]
+    set pin [dict get $descriptor binding]
+    ::bindingtest_install binding-app 2 100
+    set request [tclmesh release request $handle report 1 {holder} [dict create binding forged]]
+    tclmesh release contribute [dict get $request id] holder share
+    set released [tclmesh release combine [dict get $request id]]
+    list [expr {[dict get $pin manifest_hash] eq [dict get $installed manifest_hash]}] \
+        [dict get $pin manifest_version] [dict get $pin circuit_id] \
+        [dict get $pin output_name] [dict get $pin output_spec] \
+        [expr {[dict get $request binding] eq $pin}] [dict get $released result] \
+        [dict exists $descriptor token]
+} -result {1 1 aggregate total {cipher int} 1 42 0}
+
+test PB-004-standalone {standalone evaluation records circuit but does not claim manifest authority} -body {
+    set handle [dict get [tclmesh private evaluate binding-reference [::bindingtest_circuit] {}] total]
+    set binding [dict get [tclmesh private handle describe $handle] binding]
+    list [dict exists $binding manifest_hash] [expr {[dict get $binding circuit_hash] eq \
+        [tclmesh private digest [::bindingtest_circuit]]}]
+} -result {0 1}
+
+test PB-005-missing-circuit {bound evaluation rejects undeclared circuit} -body {
+    catch {tclmesh private evaluate-bound binding-reference binding-app absent {}} message options
+    dict get $options -errorcode
+} -result {TCLMESH PRIVATE CIRCUIT NOT_FOUND absent}
+
+test PB-006-profile {declared profile mismatch fails before evaluation} -body {
+    catch {tclmesh private evaluate-bound other-profile binding-app aggregate {}} message options
+    dict get $options -errorcode
+} -result {TCLMESH PRIVATE CIRCUIT PROFILE_MISMATCH}
+
+test PB-007-substitution {changing output provenance blocks combination before backend execution} -body {
+    set handle [dict get [tclmesh private evaluate-bound binding-reference binding-app aggregate {}] total]
+    set request [tclmesh release request $handle report 1 {holder}]
+    set id [dict get $request id]
+    tclmesh release contribute $id holder share
+    set saved $::tclmesh::private::handles
+    try {
+        dict set ::tclmesh::private::handles $handle binding output_name substituted
+        catch {tclmesh release combine $id} message options
+        list [lrange [dict get $options -errorcode] 0 2] \
+            [lindex [dict get $options -errorcode] end] \
+            [dict get [tclmesh release get $id] attempts]
+    } finally {set ::tclmesh::private::handles $saved}
+} -result {{TCLMESH RELEASE HANDLE_BINDING_MISMATCH} binding 0}
+
+test PB-008-process-binding {backend sees original manifest circuit and output binding after restart} -body {
+    set path [file join [temporaryDirectory] "binding-process-[pid]-[clock clicks].dict"]
+    set fixture [file join $::tcltest::testsDirectory private-binding-process.tcl]
+    try {
+        exec [info nameofexecutable] $fixture produce $path
+        exec [info nameofexecutable] $fixture resume $path
+    } finally {file delete -force $path}
+} -result {1 1 {cipher int} 42}
+
+cleanupTests
