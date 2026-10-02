@@ -11,6 +11,7 @@ namespace eval ::tclmesh::private {
     variable backends {}
     variable handles {}
     variable next_handle 0
+    variable handle_store {}
 
     namespace export         node circuit validate encrypt evaluate decrypt differential         profile backend handle
 }
@@ -307,13 +308,87 @@ proc ::tclmesh::private::_visibility {descriptor} {
     return $visibility
 }
 
+# Internal persistence boundary: only registered backends serialize and restore
+# their tokens. Public handle descriptors never expose this recovery material.
+proc ::tclmesh::private::_commit_handles {candidate next} {
+    variable handles
+    variable next_handle
+    variable handle_store
+    if {$handle_store ne ""} {
+        set saved {}
+        dict for {id descriptor} $candidate {
+            set record $descriptor
+            dict unset record token
+            if {[dict get $descriptor status] eq "active"} {
+                set backend [backend::describe [dict get $descriptor backend]]
+                if {"persistent-handles" ni [dict get $backend capabilities]} {
+                    return -code error -errorcode {TCLMESH PRIVATE HANDLE PERSISTENCE_UNSUPPORTED} "backend does not support persistent handles"
+                }
+                set profile [profile::describe [dict get $descriptor profile]]
+                dict set record profile_spec $profile
+                dict set record recovery [{*}[dict get $backend command] export-handle $profile [dict get $descriptor type] [dict get $descriptor token]]
+            }
+            dict set saved $id $record
+        }
+        ::tclmesh::store put $handle_store private.handles [dict create handles $saved next_handle $next]
+    }
+    set handles $candidate
+    set next_handle $next
+}
+
+proc ::tclmesh::private::_use_handle_store {store_id} {
+    variable handles
+    variable next_handle
+    variable handle_store
+    if {$store_id eq ""} {
+        set handle_store {}
+        return
+    }
+    set candidate $handles
+    set next $next_handle
+    if {[::tclmesh::store exists $store_id private.handles]} {
+        set state [::tclmesh::store get $store_id private.handles]
+        set candidate {}
+        set next [dict get $state next_handle]
+        dict for {id record} [dict get $state handles] {
+            set token {}
+            if {[dict get $record status] eq "active"} {
+                set profile [profile::describe [dict get $record profile]]
+                if {$profile ne [dict get $record profile_spec] ||
+                    [dict get $profile backend] ne [dict get $record backend]} {
+                    return -code error -errorcode {TCLMESH PRIVATE HANDLE BACKEND_MISMATCH} "persisted handle backend differs from profile"
+                }
+                set backend [backend::describe [dict get $record backend]]
+                if {"persistent-handles" ni [dict get $backend capabilities]} {
+                    return -code error -errorcode {TCLMESH PRIVATE HANDLE PERSISTENCE_UNSUPPORTED} "backend does not support persistent handles"
+                }
+                set token [{*}[dict get $backend command] restore-handle $profile [dict get $record type] [dict get $record recovery]]
+                dict unset record recovery
+                dict unset record profile_spec
+            }
+            dict set record token $token
+            dict set candidate $id $record
+        }
+    }
+    set previous $handle_store
+    set handle_store $store_id
+    try {
+        _commit_handles $candidate $next
+    } on error {message options} {
+        set handle_store $previous
+        return -options $options $message
+    }
+}
+
 proc ::tclmesh::private::_new_handle {profile type backend token origin} {
     variable handles
     variable next_handle
 
-    incr next_handle
-    set id "ct:$next_handle"
-    dict set handles $id [dict create         id $id         status active         profile $profile         type $type         backend $backend         origin $origin         token $token]
+    set next [expr {$next_handle + 1}]
+    set id "ct:$next"
+    set candidate $handles
+    dict set candidate $id [dict create         id $id         status active         profile $profile         type $type         backend $backend         origin $origin         token $token]
+    _commit_handles $candidate $next
     return $id
 }
 
@@ -350,7 +425,9 @@ proc ::tclmesh::private::handle::destroy {id} {
 
     dict set descriptor status destroyed
     dict set descriptor token {}
-    dict set handles $id $descriptor
+    set candidate $handles
+    dict set candidate $id $descriptor
+    ::tclmesh::private::_commit_handles $candidate $::tclmesh::private::next_handle
 
     dict unset descriptor token
     return $descriptor
@@ -602,8 +679,22 @@ proc ::tclmesh::private::_plaintext_backend {operation args} {
             }
             return $tokens
         }
+        export-handle -
+        restore-handle {
+            lassign $args profile type token
+            # Reference backend only: this material contains plaintext.
+            dict get $token value
+            return $token
+        }
         decrypt {
             lassign $args profile type token
+            return [dict get $token value]
+        }
+        combine-release {
+            lassign $args profile type token contributions context
+            if {[dict size $contributions] == 0} {
+                return -code error                     -errorcode {TCLMESH PRIVATE PLAINTEXT RELEASE EMPTY_CONTRIBUTIONS}                     "reference threshold release requires contributions"
+            }
             return [dict get $token value]
         }
         destroy {
@@ -689,4 +780,4 @@ namespace eval ::tclmesh::private {
     }
 }
 
-::tclmesh::private::backend::register     plaintext     ::tclmesh::private::_plaintext_backend     {decrypt destroy reference}
+::tclmesh::private::backend::register     plaintext     ::tclmesh::private::_plaintext_backend     {decrypt destroy reference threshold-release idempotent-release persistent-handles}
