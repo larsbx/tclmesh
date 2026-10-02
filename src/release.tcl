@@ -74,6 +74,13 @@ proc ::tclmesh::release::_unique {values} {
     return [lsort -unique $values]
 }
 
+proc ::tclmesh::release::_binding {descriptor} {
+    if {[dict exists $descriptor binding]} {
+        return [dict get $descriptor binding]
+    }
+    return {}
+}
+
 proc ::tclmesh::release::_assert_bound_handle {descriptor} {
     set handle_id [dict get $descriptor handle]
     set handle [::tclmesh::private::_require_handle $handle_id]
@@ -84,6 +91,12 @@ proc ::tclmesh::release::_assert_bound_handle {descriptor} {
         }
     }
 
+    if {[_binding $handle] ne [_binding $descriptor]} {
+        return -code error \
+            -errorcode [::list TCLMESH RELEASE HANDLE_BINDING_MISMATCH \
+                [dict get $descriptor id] binding] \
+            "release circuit/output binding changed"
+    }
     return $handle
 }
 
@@ -129,7 +142,7 @@ proc ::tclmesh::release::request {
     set candidate_next_id [expr {$next_id + 1}]
     set id "release:$candidate_next_id"
 
-    set descriptor [dict create         id $id         status collecting         handle $handle_id         profile $profile         backend $backend         type $type         purpose $purpose         threshold $threshold         holders $unique_holders         contributions {}         context $context         attempts 0         recoveries 0         result {}]
+    set descriptor [dict create         id $id         status collecting         handle $handle_id         profile $profile         backend $backend         type $type         purpose $purpose         threshold $threshold         holders $unique_holders         contributions {}         context $context         binding [_binding $handle]         attempts 0         recoveries 0         result {}]
 
     set candidate_requests $requests
     dict set candidate_requests $id $descriptor
@@ -221,7 +234,7 @@ proc ::tclmesh::release::combine {id} {
     _commit $candidate_requests $next_id
 
     set code [catch {
-        {*}$command combine-release             $profile             [dict get $descriptor type]             [dict get $handle token]             [dict get $descriptor contributions]             [dict create                 purpose [dict get $descriptor purpose]                 context [dict get $descriptor context]                 release_id $id]
+        {*}$command combine-release             $profile             [dict get $descriptor type]             [dict get $handle token]             [dict get $descriptor contributions]             [dict create                 purpose [dict get $descriptor purpose]                 context [dict get $descriptor context]                 release_id $id binding [_binding $descriptor]]
     } result options]
 
     if {$code} {

@@ -238,3 +238,42 @@ R-010 through R-014 launch independent Tcl processes, including a process that
 exits inside the combination callback after the `combining` commit. They cover
 quorum restart, uncertain retry, destroyed handles, backend restoration rejection,
 profile changes, ID allocation, opaque descriptors, and direct-decrypt prohibition.
+
+
+### Circuit identity and manifest-bound evaluation
+
+`private canonical circuit` sorts named input/output/node maps and the declared
+metadata maps `output_nodes` and `packing`, preserving ordered type descriptors
+and operations. Other metadata values are opaque; callers must use stable scalar
+representations for them. `private digest circuit` hashes the UTF-8 Tcl list
+`{tclmesh-private-circuit-v1 <canonical-circuit>}` with SHA-256. The domain tag
+separates this identity from manifest identity. Packing identity is included;
+packing validity, type inference, and overflow proofs remain separate obligations.
+
+`private evaluate-bound profile application circuit-id inputs` reads the active
+manifest, verifies its hash, and resolves the named installed circuit. An optional
+circuit `metadata profile` must match the supplied profile. Each returned opaque
+handle records a public `binding` containing application ID, manifest version/hash,
+circuit ID/hash, output name, and ordered output specification. The caller cannot
+provide this provenance through request context. Changing the active manifest
+later does not relabel an existing output. Ordinary `private evaluate` records
+circuit/output identity without asserting a manifest pin; encrypted input handles
+have an empty binding.
+
+A release copies the handle's binding and rechecks it before combination or retry.
+The backend receives it as `combine-release` context field `binding`, alongside
+purpose, release ID, and application context. Persistence carries the binding with
+the handle and request; PB-008 verifies the backend receives the original manifest
+pin after a fresh process. Older requests/handles with no binding retain an empty
+binding and gain no retroactive provenance.
+
+This API establishes provenance, not authorization. The next slice must enforce
+manifest-declared release policy and holder/language authority. Backends must still
+verify cryptographic contribution scope and consumption; the plaintext reference
+backend checks only the reference quorum lifecycle.
+
+The [estate authority-first contract](https://github.com/larsbx/estate-governance/blob/main/docs/architecture/estate-repository-template-v2.md)
+was consulted for this slice. `src/` remains
+the sole runtime implementation; `tests/` supplies conformance evidence and
+`docs/spec-v1.md` the normative target. TclMesh is not an estate-template adopter,
+and this change introduces no new layout or authority migration.

@@ -28,6 +28,19 @@ TCL may be highly dynamic while defining meaning; authoritative execution is red
 
 v0.2.0 does **not** claim FULL v1 conformance. Ceremony execution, process supervision, and cryptographic private-computation execution remain on the roadmap.
 
+## Unreleased v0.3 work on main
+
+The private reference runtime now provides backend profiles, opaque handles,
+differential evaluation, and threshold-release state with actual process-restart
+recovery. `private digest` identifies a canonical circuit;
+`private evaluate-bound` resolves an installed circuit from the active manifest
+and carries its version/hash and output provenance into release requests.
+
+This is trusted-adapter plumbing. Application release authorization, keyset/share
+verification, type/range enforcement, and cryptographic confidentiality remain
+open. The bundled backend executes plaintext. See the [roadmap](docs/roadmap.md)
+and [security boundaries](SECURITY.md) before integrating it.
+
 ## Install
 
 Requirements:

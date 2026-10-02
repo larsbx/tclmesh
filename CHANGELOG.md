@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — v0.3 reference runtime
+
+- backend protocol, immutable parameter profiles, opaque ciphertext handles, and
+  plaintext/backend differential evaluation;
+- threshold release, backend-controlled handle persistence, and independent-process
+  recovery for quorum and interrupted combination;
+- canonical circuit SHA-256 identity and installed-manifest-bound evaluation;
+- circuit/output provenance preserved in handles, release requests, and backend
+  combination context, including after process restart.
+
+No PRIVATE/FULL conformance, application release authorization, cryptographic
+share verification, or confidentiality claim. Package version remains 0.2.0.
+
 ## 0.2.0
 
 - safe compiler interpreters, resource limits, and hygienic `gensym`;

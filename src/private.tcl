@@ -13,7 +13,7 @@ namespace eval ::tclmesh::private {
     variable next_handle 0
     variable handle_store {}
 
-    namespace export         node circuit validate encrypt evaluate decrypt differential         profile backend handle
+    namespace export         node circuit validate canonical digest encrypt evaluate evaluate-bound decrypt differential         profile backend handle
 }
 
 namespace eval ::tclmesh::private::profile {
@@ -201,6 +201,40 @@ proc ::tclmesh::private::validate {circuit} {
     return $circuit
 }
 
+# Canonical identity is schema-directed: named maps are sorted, while each
+# type descriptor and circuit operation remains an ordered sequence.
+proc ::tclmesh::private::canonical {circuit} {
+    set circuit [validate $circuit]
+    set result {}
+    foreach key [lsort -dictionary [dict keys $circuit]] {
+        set value [dict get $circuit $key]
+        switch -- $key {
+            inputs - outputs - nodes {
+                set value [::tclmesh::manifest::_canonical_sequence_map $value]
+            }
+            metadata {
+                set metadata {}
+                foreach name [lsort -dictionary [dict keys $value]] {
+                    set item [dict get $value $name]
+                    if {$name in {output_nodes packing}} {
+                        set item [::tclmesh::manifest::_canonical_scalar_map $item]
+                    }
+                    lappend metadata $name $item
+                }
+                set value $metadata
+            }
+        }
+        lappend result $key $value
+    }
+    return $result
+}
+
+proc ::tclmesh::private::digest {circuit} {
+    package require sha256
+    set bytes [encoding convertto utf-8 [::list tclmesh-private-circuit-v1 [canonical $circuit]]]
+    return [string tolower [::sha2::sha256 -hex -- $bytes]]
+}
+
 proc ::tclmesh::private::backend::register {name command {capabilities {}}} {
     variable ::tclmesh::private::backends
 
@@ -380,14 +414,14 @@ proc ::tclmesh::private::_use_handle_store {store_id} {
     }
 }
 
-proc ::tclmesh::private::_new_handle {profile type backend token origin} {
+proc ::tclmesh::private::_new_handle {profile type backend token origin {binding {}}} {
     variable handles
     variable next_handle
 
     set next [expr {$next_handle + 1}]
     set id "ct:$next"
     set candidate $handles
-    dict set candidate $id [dict create         id $id         status active         profile $profile         type $type         backend $backend         origin $origin         token $token]
+    dict set candidate $id [dict create         id $id         status active         profile $profile         type $type         backend $backend         origin $origin         binding $binding         token $token]
     _commit_handles $candidate $next
     return $id
 }
@@ -480,6 +514,34 @@ proc ::tclmesh::private::_prepare_inputs {profile_name circuit inputs} {
 }
 
 proc ::tclmesh::private::evaluate {profile_name circuit inputs} {
+    return [_evaluate $profile_name $circuit $inputs {}]
+}
+
+# Resolve authoritative circuit semantics from the active immutable manifest.
+# This is a provenance boundary; caller authorization remains an adapter concern.
+proc ::tclmesh::private::evaluate-bound {profile_name application_id circuit_id inputs} {
+    set pin [::tclmesh::manifest active $application_id]
+    set manifest [::tclmesh::manifest get $application_id [dict get $pin version]]
+    if {[::tclmesh::manifest digest $manifest] ne [dict get $pin manifest_hash]} {
+        return -code error -errorcode {TCLMESH PRIVATE MANIFEST_MISMATCH} "active manifest does not match its hash"
+    }
+    if {![dict exists $manifest circuits $circuit_id]} {
+        return -code error -errorcode [::list TCLMESH PRIVATE CIRCUIT NOT_FOUND $circuit_id] "circuit is not declared by the active manifest"
+    }
+    set circuit [dict get $manifest circuits $circuit_id]
+    if {[dict exists $circuit metadata profile] &&
+        [dict get $circuit metadata profile] ne $profile_name} {
+        return -code error -errorcode {TCLMESH PRIVATE CIRCUIT PROFILE_MISMATCH} "circuit requires a different parameter profile"
+    }
+    set binding [dict create \
+        application_id $application_id \
+        manifest_version [dict get $pin version] \
+        manifest_hash [dict get $pin manifest_hash] \
+        circuit_id $circuit_id]
+    return [_evaluate $profile_name $circuit $inputs $binding]
+}
+
+proc ::tclmesh::private::_evaluate {profile_name circuit inputs manifest_binding} {
     set circuit [validate $circuit]
     if {![dict exists $circuit metadata output_nodes]} {
         return -code error             -errorcode {TCLMESH PRIVATE EVALUATE OUTPUT_NODES_REQUIRED}             "private evaluation requires metadata output_nodes"
@@ -491,6 +553,7 @@ proc ::tclmesh::private::evaluate {profile_name circuit inputs} {
     set command [dict get $backend_descriptor command]
     set prepared [_prepare_inputs $profile_name $circuit $inputs]
 
+    set circuit_hash [digest $circuit]
     set output_tokens [{*}$command evaluate $profile $circuit $prepared]
     set outputs {}
 
@@ -503,7 +566,12 @@ proc ::tclmesh::private::evaluate {profile_name circuit inputs} {
         }
 
         set type [_logical_type $type_descriptor]
-        dict set outputs $name [_new_handle             $profile_name             $type             $backend             [dict get $output_tokens $name]             evaluate]
+        set binding [dict merge $manifest_binding [dict create \
+            circuit_hash $circuit_hash \
+            output_name $name \
+            output_spec [::tclmesh::manifest::_canonical_sequence $type_descriptor]]]
+        dict set outputs $name [_new_handle \
+            $profile_name $type $backend [dict get $output_tokens $name] evaluate $binding]
     }
 
     return $outputs
@@ -770,11 +838,14 @@ namespace eval ::tclmesh::private {
         node ::tclmesh::private::node
         circuit ::tclmesh::private::circuit
         validate ::tclmesh::private::validate
+        canonical ::tclmesh::private::canonical
+        digest ::tclmesh::private::digest
         profile ::tclmesh::private::profile
         backend ::tclmesh::private::backend
         handle ::tclmesh::private::handle
         encrypt ::tclmesh::private::encrypt
         evaluate ::tclmesh::private::evaluate
+        evaluate-bound ::tclmesh::private::evaluate-bound
         decrypt ::tclmesh::private::decrypt
         differential ::tclmesh::private::differential
     }
