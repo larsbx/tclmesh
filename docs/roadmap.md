@@ -69,7 +69,7 @@ Status after all v0.2 slices:
 
 ## v0.3 — private reference runtime (unreleased)
 
-Implemented on main through PR #14:
+Implemented on main through PR #15:
 
 - [x] private-computation backend protocol;
 - [x] immutable parameter-profile registry;
@@ -78,7 +78,7 @@ Implemented on main through PR #14:
 - [x] backend-driven threshold-release state machine;
 - [x] backend-controlled durable handles and fresh-process quorum/combination recovery.
 
-Next implementation slice (this branch):
+Circuit/output provenance (merged PR #15):
 
 - [x] schema-directed canonical circuit SHA-256 identity;
 - [x] evaluation of installed circuits pinned to the active manifest version/hash;
@@ -86,20 +86,24 @@ Next implementation slice (this branch):
   and, for bound evaluation, manifest identity;
 - [x] process-boundary conformance checking of that binding at the backend.
 
-These complete provenance plumbing, not the normative PRIVATE profile. Before a
-v0.3 release or a stronger conformance claim, continue in this order:
+Release-policy milestone (this branch):
 
-1. Add explicit manifest-declared release policy and holder/language capability
-   authorization. Starting a request and reaching quorum alone do not establish
-   application authorization.
-2. Bind keyset and cryptographic context metadata; require backend-verified
+- [x] canonical manifest-owned threshold-release policy validation;
+- [x] role-separated request/contribution/combination/recovery capabilities;
+- [x] actor-holder, policy membership, context, and active ancestor checks;
+- [x] governed output/API bypass rejection and current-authority revalidation;
+- [x] independent-process authorized quorum/retry recovery and revocation checks.
+
+These are reference authorization checks, not normative PRIVATE conformance.
+Before a v0.3 release or a stronger claim, continue in this order:
+1. Bind keyset and cryptographic context metadata; require backend-verified
    contribution scope/consumption across requests. Current reference shares are
    nonempty opaque values, not verified cryptographic shares.
-3. Add circuit type/range checks, checked overflow semantics, and approved profile
+2. Add circuit type/range checks, checked overflow semantics, and approved profile
    compatibility. Packing metadata is hashed but not yet semantically validated.
-4. Extend integrated acceptance and provenance reconstruction through private
+3. Extend integrated acceptance and provenance reconstruction through private
    evaluation/release; audit private operations without exposing protected data.
-5. Review release/security/quickstart consistency, run all conformance and release
+4. Review release/security/quickstart consistency, run all conformance and release
    checks, and only then decide on the v0.3 reference-kernel version/tag.
 
 Real cryptographic execution and FULL/PRIVATE conformance remain open. The

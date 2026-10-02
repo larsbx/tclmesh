@@ -20,9 +20,9 @@ Important boundaries:
 - delegated language authority can only narrow;
 - the private runtime uses opaque backend handles; the bundled plaintext backend
   is a reference implementation and provides no cryptographic confidentiality;
-- circuit/output provenance and quorum state do not establish application release
-  authorization or authenticate cryptographic shares. Those boundaries remain
-  explicit v0.3 obligations in the roadmap.
+- governed circuits require manifest-declared release policy and role-specific
+  holder/language authorization; caller identity must be authenticated by the
+  trusted adapter. These checks do not authenticate cryptographic shares.
 
 ## Deployment requirements
 
@@ -39,9 +39,12 @@ untrusted import format. Legacy release-only stores fail closed and need explici
 migration while the original backend state remains available.
 
 `private evaluate-bound` resolves an installed circuit from the active manifest;
-it does not authorize its caller. Low-level private/release APIs are trusted
+it does not authorize its caller. Outputs linked to a `threshold-release`
+ceremony require the authorized release APIs and reject direct decryption. Outputs
+without that link retain the legacy trusted-adapter path and make no governed
+release claim. Low-level private/release APIs are trusted
 adapter entry points and must not be exposed directly to ordinary untrusted
-languages. Supply application authorization, backend key/share validation, and
+languages. Supply identity authentication, backend key/share validation, and
 durable deployment boundaries before treating these APIs as production private
 computation or release authorities.
 

@@ -1,0 +1,181 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+source [file join [file dirname [info script]] release-policy-support.tcl]
+
+proc policytest_code {script} {
+    catch {uplevel 1 $script} message options
+    return [dict get $options -errorcode]
+}
+
+test RP-001-policy-binding {authorized request uses manifest policy and backend releases after quorum} -body {
+    tclmesh release use-store {}
+    set setup [policytest_setup policy-happy]
+    set request [policytest_request $setup]
+    set id [dict get $request id]
+    policytest_quorum $setup $id
+    set released [tclmesh release combine-authorized [dict get $setup operator] $id operator]
+    list [dict get $request purpose] [dict get $request threshold] \
+        [dict get $request holders] [dict get $request authorization policy_id] \
+        [dict get $released result] [dict get $released contribution_authority a actor_id]
+} -result {quarterly-report 2 {a b} report 42 a}
+
+test RP-002-no-raw-bypass {governed outputs require authorized release even if direct decrypt is enabled} -body {
+    set setup [policytest_setup policy-raw]
+    set handle [dict get $setup outputs total]
+    list [policytest_code {tclmesh release request $handle forged-purpose 1 {operator}}] \
+        [policytest_code {tclmesh private decrypt $handle}]
+} -result {{TCLMESH RELEASE POLICY AUTHORIZATION_REQUIRED} {TCLMESH PRIVATE DECRYPT RELEASE_REQUIRED}}
+
+test RP-003-role-guards {holder command capability context output and membership fail closed} -body {
+    set setup [policytest_setup policy-roles]
+    set op [dict get $setup operator]
+    set handle [dict get $setup outputs total]
+    set noCommand [tclmesh language instantiate p operator {} {release:request}]
+    set noCap [tclmesh language instantiate p operator {release:report} {}]
+    set outsider [tclmesh language instantiate p outsider {release:report} {release:request}]
+    set codes {}
+    foreach script [list \
+        [list tclmesh release request-authorized $op $handle other [dict create tenant example]] \
+        [list tclmesh release request-authorized $noCommand $handle operator [dict create tenant example]] \
+        [list tclmesh release request-authorized $noCap $handle operator [dict create tenant example]] \
+        [list tclmesh release request-authorized $outsider $handle outsider [dict create tenant example]] \
+        [list tclmesh release request-authorized $op $handle operator [dict create tenant wrong]] \
+        [list tclmesh release request-authorized $op [dict get $setup outputs other] operator [dict create tenant example]]] {
+        lappend codes [lindex [policytest_code $script] end]
+    }
+    return $codes
+} -result {HOLDER_MISMATCH COMMAND_NOT_GRANTED CAPABILITY_NOT_GRANTED ACTOR_NOT_ALLOWED CONTEXT_MISMATCH OUTPUT_BINDING}
+
+test RP-004-managed-guards {all raw mutating release APIs reject managed requests} -body {
+    set setup [policytest_setup policy-managed]
+    set request [policytest_request $setup]
+    set id [dict get $request id]
+    set result {}
+    foreach script [list [list tclmesh release contribute $id a share] \
+        [list tclmesh release combine $id] [list tclmesh release recover $id released forged] \
+        [list tclmesh release reject $id] [list tclmesh release expire $id]] {
+        lappend result [lindex [policytest_code $script] end]
+    }
+    return $result
+} -result {AUTHORIZATION_REQUIRED AUTHORIZATION_REQUIRED AUTHORIZATION_REQUIRED AUTHORIZATION_REQUIRED AUTHORIZATION_REQUIRED}
+
+test RP-005-revoked-contributor {contributor revocation after quorum blocks combination without an attempt} -body {
+    set setup [policytest_setup policy-revoked]
+    set id [dict get [policytest_request $setup] id]
+    policytest_quorum $setup $id
+    tclmesh language revoke [dict get $setup a]
+    list [policytest_code {tclmesh release combine-authorized [dict get $setup operator] $id operator}] \
+        [dict get [tclmesh release get $id] attempts]
+} -result {{TCLMESH RELEASE POLICY LANGUAGE_INACTIVE} 0}
+
+test RP-006-lineage {revoked ancestor blocks a delegated release operator} -body {
+    set setup [policytest_setup policy-lineage]
+    set parent [dict get $setup operator]
+    set child [tclmesh language delegate $parent operator {release:report} \
+        {release:request} [dict create tenant example]]
+    tclmesh language revoke $parent
+    policytest_code {tclmesh release request-authorized $child [dict get $setup outputs total] \
+        operator [dict create tenant example]}
+} -result {TCLMESH RELEASE POLICY LANGUAGE_INACTIVE}
+
+test RP-007-policy-change {new active manifest invalidates pending release authorization} -body {
+    set setup [policytest_setup policy-version]
+    set id [dict get [policytest_request $setup] id]
+    set installed [tclmesh manifest install [policytest_manifest policy-version 2]]
+    tclmesh manifest activate policy-version 2 [dict get $installed manifest_hash]
+    policytest_code {tclmesh release contribute-authorized [dict get $setup a] $id a share}
+} -result {TCLMESH RELEASE POLICY MANIFEST_CHANGED}
+
+test RP-008-validation {malformed threshold and undeclared policy fail before installation} -body {
+    set manifest [policytest_manifest policy-invalid 1]
+    dict set manifest ceremonies report quorum 3
+    set first [policytest_code {tclmesh manifest install $manifest}]
+    dict set manifest ceremonies report quorum 2
+    dict set manifest circuits aggregate metadata release_policy absent
+    set second [policytest_code {tclmesh manifest install $manifest}]
+    list $first $second [expr {"policy-invalid" in [tclmesh manifest list]}]
+} -result {{TCLMESH RELEASE POLICY INVALID_THRESHOLD} {TCLMESH RELEASE POLICY CIRCUIT_BINDING} 0}
+
+test RP-009-recovery {authorized retry preserves quorum but still requires idempotency and current authority} -body {
+    set setup [policytest_setup policy-recovery]
+    set id [dict get [policytest_request $setup] id]
+    policytest_quorum $setup $id
+    dict set ::tclmesh::release::requests $id status combining
+    dict set ::tclmesh::release::requests $id attempts 1
+    set recovered [tclmesh release recover-authorized [dict get $setup operator] $id operator retry]
+    set released [tclmesh release combine-authorized [dict get $setup operator] $id operator]
+    list [dict get $recovered recoveries] [dict get $released attempts] [dict get $released result]
+} -result {1 2 42}
+
+proc policytest_process {produce resume} {
+    set path [file join [temporaryDirectory] "policy-process-[pid]-[clock clicks].dict"]
+    set fixture [file join $::tcltest::testsDirectory release-policy-process.tcl]
+    try {
+        exec [info nameofexecutable] $fixture $produce $path
+        exec [info nameofexecutable] $fixture $resume $path
+    } finally {file delete -force $path}
+}
+
+test RP-010-process-quorum {policy manifests languages and receipts recover in a fresh process} -body {
+    policytest_process produce resume
+} -result {released 1 0 42}
+
+test RP-011-process-interrupted {authorized combination resumes after actual process loss} -body {
+    policytest_process interrupt resume
+} -result {released 2 1 42}
+
+test RP-012-process-revoked {fresh process rechecks contributor authority instead of trusting old receipt} -body {
+    policytest_process produce revoked
+} -result {TCLMESH RELEASE POLICY LANGUAGE_INACTIVE}
+
+test RP-013-admin-role {holder role cannot combine recover reject or expire while administrator can deny} -body {
+    set setup [policytest_setup policy-admin]
+    set id [dict get [policytest_request $setup] id]
+    set a [dict get $setup a]
+    set result {}
+    foreach script [list [list tclmesh release combine-authorized $a $id a]         [list tclmesh release recover-authorized $a $id a released forged]         [list tclmesh release reject-authorized $a $id a]         [list tclmesh release expire-authorized $a $id a]] {
+        lappend result [lindex [policytest_code $script] end]
+    }
+    set rejected [tclmesh release reject-authorized [dict get $setup operator] $id operator denied]
+    lappend result [dict get $rejected status]
+} -result {CAPABILITY_NOT_GRANTED CAPABILITY_NOT_GRANTED CAPABILITY_NOT_GRANTED CAPABILITY_NOT_GRANTED rejected}
+
+test RP-014-schema {unknown restrictions are rejected and policy membership order is canonical} -body {
+    set a [policytest_manifest policy-schema 1]
+    set b $a
+    dict set b ceremonies report holders {a b}
+    set same [expr {[tclmesh manifest digest $a] eq [tclmesh manifest digest $b]}]
+    dict set a ceremonies report ignored_restriction forbidden
+    list $same [policytest_code {tclmesh manifest install $a}]
+} -result {1 {TCLMESH RELEASE POLICY UNKNOWN_FIELD}}
+
+test RP-015-idempotency {authorized retry cannot bypass backend idempotency requirement} -body {
+    set setup [policytest_setup policy-idempotency]
+    set id [dict get [policytest_request $setup] id]
+    policytest_quorum $setup $id
+    dict set ::tclmesh::release::requests $id status combining
+    set saved $::tclmesh::private::backends
+    try {
+        set capabilities [dict get $saved plaintext capabilities]
+        set index [lsearch -exact $capabilities idempotent-release]
+        dict set ::tclmesh::private::backends plaintext capabilities [lreplace $capabilities $index $index]
+        set code [policytest_code {tclmesh release recover-authorized [dict get $setup operator] $id operator retry}]
+        list [lrange $code 0 3] [dict get [tclmesh release get $id] recoveries]
+    } finally {set ::tclmesh::private::backends $saved}
+} -result {{TCLMESH RELEASE RECOVERY IDEMPOTENCY_REQUIRED} 0}
+
+test RP-016-requester-revocation {revoked initiating authority prevents fabricated recovery completion} -body {
+    set setup [policytest_setup policy-requester-revoked]
+    set id [dict get [policytest_request $setup] id]
+    policytest_quorum $setup $id
+    dict set ::tclmesh::release::requests $id status combining
+    tclmesh language revoke [dict get $setup operator]
+    set alternate [tclmesh language instantiate p operator {release:report} {release:recover} \
+        [dict create tenant example]]
+    list [policytest_code {tclmesh release recover-authorized $alternate $id operator released forged}] \
+        [dict get [tclmesh release get $id] status]
+} -result {{TCLMESH RELEASE POLICY LANGUAGE_INACTIVE} combining}
+
+cleanupTests

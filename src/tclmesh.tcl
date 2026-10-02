@@ -16,6 +16,7 @@ foreach file {
     workflow.tcl
     private.tcl
     release.tcl
+    release_policy.tcl
 } {
     source [file join $::tclmesh::here $file]
 }

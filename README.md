@@ -36,9 +36,11 @@ recovery. `private digest` identifies a canonical circuit;
 `private evaluate-bound` resolves an installed circuit from the active manifest
 and carries its version/hash and output provenance into release requests.
 
-This is trusted-adapter plumbing. Application release authorization, keyset/share
+Manifest-declared threshold-release policies now enforce holder/language roles,
+context, revocation, and current manifest authority on governed outputs.
+This remains trusted-adapter plumbing: identity authentication, keyset/share
 verification, type/range enforcement, and cryptographic confidentiality remain
-open. The bundled backend executes plaintext. See the [roadmap](docs/roadmap.md)
+application/backend obligations. The bundled backend executes plaintext. See the [roadmap](docs/roadmap.md)
 and [security boundaries](SECURITY.md) before integrating it.
 
 ## Install
