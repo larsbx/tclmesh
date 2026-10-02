@@ -101,9 +101,21 @@ proc ::tclmesh::release::_authorize {language_id actor policy_id policy role con
         recover {set members [dict get $policy recoverers]}
     }
     if {$actor ni $members} {_policy_error ACTOR_NOT_ALLOWED}
+    set approved {}
     foreach required [::list [dict get $policy context] [dict get $language context]] {
         dict for {key value} $required {
-            if {![dict exists $context $key] || [dict get $context $key] ne $value} {_policy_error CONTEXT_MISMATCH}
+            if {[dict exists $approved $key] && [dict get $approved $key] ne $value} {
+                _policy_error CONTEXT_MISMATCH
+            }
+            dict set approved $key $value
+        }
+    }
+    # Dictionary equality is independent of insertion order. Reject all fields
+    # outside the policy/language union before persisting or invoking a backend.
+    if {[dict size $context] != [dict size $approved]} {_policy_error CONTEXT_MISMATCH}
+    dict for {key value} $approved {
+        if {![dict exists $context $key] || [dict get $context $key] ne $value} {
+            _policy_error CONTEXT_MISMATCH
         }
     }
     return [dict create language_id $language_id actor_id $actor generation [dict get $language generation]]
