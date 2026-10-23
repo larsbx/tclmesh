@@ -1,0 +1,41 @@
+name: tag-release
+
+# Tags pushed with GITHUB_TOKEN do not trigger `release`, so the same
+# verification runs here, against the exact commit, before tagging.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.2.0
+        required: true
+      sha:
+        description: Full commit SHA to tag
+        required: true
+
+jobs:
+  verify:
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ inputs.tag }}
+      ref: ${{ inputs.sha }}
+
+  tag:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag }}
+      SHA: ${{ inputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create annotated tag
+        run: |
+          git merge-base --is-ancestor "$SHA" origin/main || { echo "$SHA is not on main"; exit 1; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$SHA" -m "TclMesh $TAG — reference kernel release"
+          git push origin "refs/tags/$TAG"
