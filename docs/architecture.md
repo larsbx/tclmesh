@@ -14,6 +14,8 @@ TCL declarations and macros
     -> runtime execution
 ```
 
+Authoritative evaluation of the compiled actions is a pure function over canonical data, implemented both by the Tcl reference and by the Rust kernel and checked differentially. See [Tier A kernel](kernel.md).
+
 ## Canonical manifest
 
 The installed manifest is authoritative. It contains no unexpanded macros and no arbitrary opaque runtime script bodies.

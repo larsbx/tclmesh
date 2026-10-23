@@ -109,6 +109,46 @@ Before a v0.3 release or a stronger claim, continue in this order:
 Real cryptographic execution and FULL/PRIVATE conformance remain open. The
 plaintext backend provides neither confidentiality nor cryptographic quorum.
 
+## Encrypted languages
+
+Goal: TclMesh as a meta-language that writes encrypted languages, whose
+programs move homomorphic ciphertext that no TclMesh component, the kernel
+included, can decrypt.
+
+Tier A kernel (this branch):
+
+- [x] pure canonical action evaluation (`action evaluate`) in the Tcl reference;
+- [x] Rust kernel (`kernel/`) refining it under a typed JSON data model;
+- [x] canonical comparison domain shared by both: decimal-only numbers, quote-
+  and backslash-free lists;
+- [x] curated and seeded random differential conformance in CI.
+
+Next, in order:
+
+1. **Canonical IR.** Serialize manifests, including circuits and release policies,
+   as typed canonical data (deterministic CBOR or JSON) with a schema. Kernel
+   manifest hashing must agree with the Tcl reference.
+2. **Ciphertext as a kernel type.** Handles carry profile, logical type, circuit
+   provenance, and keyset context. The type system forbids ciphertext in
+   plaintext predicates, comparisons, changes, and effect fields, so no control
+   flow depends on encrypted values. The kernel has no `decrypt` operation.
+3. **Backend trait in Rust.** A plaintext reference backend for differential
+   testing, then a real FHE backend (e.g. TFHE for boolean/integer circuits,
+   CKKS for approximate arithmetic) behind the same trait. Evaluation keys are
+   held by the kernel; secret keys never are.
+4. **Kernel-side release.** Threshold release where the kernel collects and
+   verifies partial decryptions from holders and checks them against
+   manifest-declared policy. It cannot combine shares it is not authorized to
+   see. Verifiable decryption shares replace the current opaque reference shares.
+5. **Language generation.** `language define` in the meta-language declares an
+   encrypted language: its types, operators lowered to circuits, the parameter
+   profile, and the release policy. Generated languages compile to kernel IR,
+   and each one becomes a delegable language instance.
+6. **Orchestration tier.** An optional restricted Tcl profile for non-
+   authoritative workflow and routing that emits only inert proposals. It needs
+   real budgets: an operator block for `**`/`<<` (a single `expr` can otherwise
+   run without bound), per-command size caps, and replay transcripts.
+
 ## v1.0
 
 v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable workflows, ceremonies, private release, supervision, and the full integrated acceptance scenario.
