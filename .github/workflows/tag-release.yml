@@ -1,7 +1,8 @@
 name: tag-release
 
-# Tags pushed with GITHUB_TOKEN do not trigger `release`, so the same
-# verification runs here, against the exact commit, before tagging.
+# Tags a commit on main, overlaying the current LICENSE (and README license
+# section) when the commit predates them. The exact tagged tree is verified
+# here, since tags pushed with GITHUB_TOKEN do not trigger `release`.
 
 on:
   workflow_dispatch:
@@ -10,18 +11,11 @@ on:
         description: Release tag, e.g. v0.2.0
         required: true
       sha:
-        description: Full commit SHA to tag
+        description: Commit on main to release
         required: true
 
 jobs:
-  verify:
-    uses: ./.github/workflows/release.yml
-    with:
-      tag: ${{ inputs.tag }}
-      ref: ${{ inputs.sha }}
-
   tag:
-    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -32,10 +26,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Create annotated tag
+      - name: Cut release tree
         run: |
           git merge-base --is-ancestor "$SHA" origin/main || { echo "$SHA is not on main"; exit 1; }
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" "$SHA" -m "TclMesh $TAG — reference kernel release"
-          git push origin "refs/tags/$TAG"
+          git worktree add --detach rel "$SHA"
+          cp LICENSE rel/LICENSE
+          sed -i 's|^The repository currently does not declare an open-source license;.*$|## License\n\nLicensed under the [Apache License, Version 2.0](LICENSE).|' rel/README.md
+          git -C rel add -A
+          git -C rel diff --cached --quiet || git -C rel commit -m "chore: license $TAG under Apache-2.0"
+      - uses: ./.github/actions/verify-release
+        with:
+          tag: ${{ inputs.tag }}
+          path: rel
+      - name: Push annotated tag
+        run: |
+          git -C rel tag -a "$TAG" -m "TclMesh $TAG — reference kernel release"
+          git -C rel push origin "refs/tags/$TAG"

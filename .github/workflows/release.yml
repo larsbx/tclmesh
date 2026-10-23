@@ -4,36 +4,12 @@ on:
   push:
     tags:
       - "v*"
-  workflow_call:
-    inputs:
-      tag:
-        description: Release tag, e.g. v0.2.0
-        required: true
-        type: string
-      ref:
-        description: Commit to verify
-        required: true
-        type: string
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    env:
-      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/verify-release
         with:
-          ref: ${{ inputs.ref || github.ref }}
-      - name: Install TCL
-        run: sudo apt-get update && sudo apt-get install -y tcl8.6 tcllib
-      - name: Verify tag matches VERSION
-        run: |
-          expected="v$(tr -d '\n\r ' < VERSION)"
-          if [ "$TAG" != "$expected" ]; then
-            echo "tag $TAG does not match VERSION ($expected)"
-            exit 1
-          fi
-      - name: Run test suite
-        run: tclsh tests/all.tcl
-      - name: Run release self-check
-        run: tclsh tools/release_check.tcl
+          tag: ${{ github.ref_name }}
