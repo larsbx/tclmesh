@@ -36,3 +36,30 @@ jobs:
         run: tclsh tests/all.tcl
       - name: Run release self-check
         run: tclsh tools/release_check.tcl
+
+  kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TCL
+        run: sudo apt-get update && sudo apt-get install -y tcl8.6 tcllib
+      - name: Format and lint kernel
+        run: |
+          cargo fmt --check --manifest-path kernel/Cargo.toml
+          cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
+      - name: Kernel unit and committed-vector tests
+        run: cargo test --manifest-path kernel/Cargo.toml
+      - name: Recorded Tcl outcomes are current
+        run: tclsh tools/conformance.tcl check
+      - name: Random differential conformance
+        env:
+          RUN_SEED: ${{ github.run_id }}
+        run: |
+          cargo build --release --manifest-path kernel/Cargo.toml
+          for spec in "1 2000 0" "2 2000 3" "3 2000 10" "$RUN_SEED 2000 2"; do
+            set -- $spec
+            echo "seed $1, $2 vectors, noise $3%"
+            tclsh tools/conformance.tcl generate "$@" > vectors.json
+            tclsh tools/conformance.tcl run vectors.json > outcomes.json
+            kernel/target/release/tclmesh-kernel conform vectors.json outcomes.json --min-agreement 0.6
+          done
