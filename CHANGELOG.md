@@ -14,6 +14,8 @@
   active-ancestor/context checks, current-manifest revalidation, governed direct
   decryption/raw-API rejection, and persisted authority receipts.
 
+- licensed under Apache-2.0.
+
 No PRIVATE/FULL conformance, identity authentication, cryptographic
 share verification, or confidentiality claim. Package version remains 0.2.0.
 
