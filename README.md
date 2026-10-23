@@ -98,4 +98,6 @@ v0.2.0 is suitable as a **reference-kernel/source release** and for controlled i
 
 The in-memory registries are intentionally reference implementations. Applications requiring crash durability, multi-process authority, or distributed consistency must supply durable deployment boundaries before treating those registries as production authorities.
 
-The repository currently does not declare an open-source license; publication of a tag or source archive does not by itself grant additional reuse rights.
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).
