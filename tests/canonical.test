@@ -1,0 +1,59 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2
+
+# Pure Tier A evaluation and the canonical comparison domain shared with the
+# Rust kernel (kernel/, conformance/).
+
+proc ::canonical_permits {predicate {state {}}} {
+    set descriptor [list authorize [list permit-if $predicate]]
+    try {
+        tclmesh action evaluate Canonical::act $descriptor $state {actor_id u}
+        return permit
+    } trap {TCLMESH ACTION AUTHORIZATION DENIED} {} {
+        return deny
+    } trap {} {message options} {
+        return [dict get $options -errorcode]
+    }
+}
+
+proc ::lit {value} { list literal $value }
+
+test CANON-001-evaluate-is-pure {evaluate returns state and effects without persisting} -body {
+    set descriptor {
+        changes {{set status {literal done}}}
+        effects {{emit notify to {field status}}}
+    }
+    set e [tclmesh action evaluate A::act $descriptor {status open} {actor_id u}]
+    list [dict get $e state] [dict get $e effects] [dict get $e deontic verdict]
+} -result {{status done} {{type notify to done}} M}
+
+test CANON-002-canonical-decimals-compare {integers exact, mixed exact, doubles rounded} -body {
+    list \
+        [canonical_permits [list gt [lit 9007199254740993] [lit 9007199254740992.0]]] \
+        [canonical_permits [list lte [lit 1e3] [lit 1000]]] \
+        [canonical_permits [list gte [lit 0.1] [lit 0.10000000000000000001]]] \
+        [canonical_permits [list lt [lit -0] [lit 0]]]
+} -result {permit permit permit deny}
+
+test CANON-003-non-canonical-numbers-rejected {hex octal padded and Inf are not numbers} -body {
+    lmap spelling {0x10 010 { 1} Inf NaN +1 .5 1. 1_0} {
+        lindex [canonical_permits [list gt [lit $spelling] [lit 0]]] 3
+    }
+} -result {NON_NUMERIC NON_NUMERIC NON_NUMERIC NON_NUMERIC NON_NUMERIC NON_NUMERIC NON_NUMERIC NON_NUMERIC NON_NUMERIC}
+
+test CANON-004-rejection-cannot-be-negated {not over a rejected comparison still fails} -body {
+    canonical_permits [list not [list lt [lit 0x10] [lit 1]]]
+} -result {TCLMESH ACTION PREDICATE NON_NUMERIC lt}
+
+test CANON-005-canonical-lists {bare words and brace grouping only} -body {
+    list \
+        [canonical_permits [list in [lit {b c}] [lit {a {b c}}]]] \
+        [canonical_permits [list in [lit a{b] [lit {a{b c}}]]] \
+        [canonical_permits [list in [lit {b c}] [lit {a "b c"}]]] \
+        [canonical_permits [list in [lit {b c}] [lit {a b\ c}]]] \
+        [canonical_permits [list in [lit a] [lit "\{a"]]]
+} -result {permit permit {TCLMESH ACTION PREDICATE NON_CANONICAL_LIST} {TCLMESH ACTION PREDICATE NON_CANONICAL_LIST} {TCLMESH ACTION PREDICATE NON_CANONICAL_LIST}}
+
+cleanupTests
