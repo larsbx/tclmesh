@@ -4,6 +4,9 @@
 //!
 //! * domain `canonical`: `k = t`;
 //! * domain `any` (default): `k = t`, or `k` is a kernel refusal (fail closed).
+//!
+//! Against the executable Lean specification the relation is `Exact`: the
+//! kernel must reproduce every outcome, refusals included.
 
 use crate::{evaluate, outcome};
 use serde_json::Value;
@@ -24,7 +27,15 @@ impl Report {
     }
 }
 
-pub fn check(vectors: &Value, expected: &Value) -> Report {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Relation {
+    /// Against the Tcl reference: equal, or a kernel refusal off the canonical domain.
+    Refines,
+    /// Against the Lean specification: equal on every vector.
+    Exact,
+}
+
+pub fn check(vectors: &Value, expected: &Value, relation: Relation) -> Report {
     let mut report = Report::default();
     let empty = Vec::new();
     for v in vectors["vectors"].as_array().unwrap_or(&empty) {
@@ -48,7 +59,9 @@ pub fn check(vectors: &Value, expected: &Value) -> Report {
         };
         if &kernel == tcl {
             report.agreed += 1;
-        } else if let Some(reason) = refusal.filter(|_| v["domain"].as_str() != Some("canonical")) {
+        } else if let Some(reason) = refusal
+            .filter(|_| relation == Relation::Refines && v["domain"].as_str() != Some("canonical"))
+        {
             report.refused += 1;
             *report.refusals.entry(reason).or_default() += 1;
         } else {

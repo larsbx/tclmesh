@@ -1,8 +1,9 @@
 use serde_json::Value;
 use std::{fs, io::Read, process::ExitCode};
-use tclmesh_kernel::{conformance, evaluate, outcome};
+use tclmesh_kernel::conformance::{self, Relation};
+use tclmesh_kernel::{evaluate, outcome};
 
-const USAGE: &str = "usage: tclmesh-kernel evaluate < input.json\n       tclmesh-kernel conform VECTORS EXPECTED [--min-agreement RATIO]";
+const USAGE: &str = "usage: tclmesh-kernel evaluate < input.json\n       tclmesh-kernel conform VECTORS EXPECTED [--exact | --min-agreement RATIO]";
 
 fn load(path: &str) -> Result<Value, String> {
     let text = fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
@@ -27,14 +28,16 @@ fn run(args: &[String]) -> Result<bool, String> {
             Ok(true)
         }
         [cmd, vectors, expected, rest @ ..] if cmd == "conform" => {
-            let min: f64 = match rest {
-                [] => 0.0,
-                [flag, ratio] if flag == "--min-agreement" => {
-                    ratio.parse().map_err(|_| USAGE.to_owned())?
-                }
+            let (relation, min): (Relation, f64) = match rest {
+                [] => (Relation::Refines, 0.0),
+                [flag] if flag == "--exact" => (Relation::Exact, 1.0),
+                [flag, ratio] if flag == "--min-agreement" => (
+                    Relation::Refines,
+                    ratio.parse().map_err(|_| USAGE.to_owned())?,
+                ),
                 _ => return Err(USAGE.to_owned()),
             };
-            let report = conformance::check(&load(vectors)?, &load(expected)?);
+            let report = conformance::check(&load(vectors)?, &load(expected)?, relation);
             for v in &report.violations {
                 eprintln!("VIOLATION {v}");
             }

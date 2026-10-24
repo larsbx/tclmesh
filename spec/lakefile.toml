@@ -3,3 +3,7 @@ defaultTargets = ["TclMesh"]
 
 [[lean_lib]]
 name = "TclMesh"
+
+[[lean_exe]]
+name = "spec-eval"
+root = "Oracle"

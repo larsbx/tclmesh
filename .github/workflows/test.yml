@@ -51,16 +51,30 @@ jobs:
         run: cargo test --manifest-path kernel/Cargo.toml
       - name: Recorded Tcl outcomes are current
         run: tclsh tools/conformance.tcl check
-      - name: Random differential conformance
+      - name: Install Lean (version pinned by spec/lean-toolchain)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build executable specification
+        working-directory: spec
+        run: lake build spec-eval
+      - name: Kernel equals the specification on committed vectors
+        run: |
+          cargo build --release --manifest-path kernel/Cargo.toml
+          spec/.lake/build/bin/spec-eval conformance/vectors.json > spec-outcomes.json
+          kernel/target/release/tclmesh-kernel conform conformance/vectors.json spec-outcomes.json --exact
+      - name: Random differential conformance (kernel = spec exactly; kernel refines Tcl)
         env:
           RUN_SEED: ${{ github.run_id }}
         run: |
-          cargo build --release --manifest-path kernel/Cargo.toml
           for spec in "1 2000 0" "2 2000 3" "3 2000 10" "$RUN_SEED 2000 2"; do
             set -- $spec
             echo "seed $1, $2 vectors, noise $3%"
             tclsh tools/conformance.tcl generate "$@" > vectors.json
             tclsh tools/conformance.tcl run vectors.json > outcomes.json
+            spec/.lake/build/bin/spec-eval vectors.json > spec-outcomes.json
+            kernel/target/release/tclmesh-kernel conform vectors.json spec-outcomes.json --exact
             kernel/target/release/tclmesh-kernel conform vectors.json outcomes.json --min-agreement 0.6
           done
 
