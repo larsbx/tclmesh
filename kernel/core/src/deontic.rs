@@ -1,6 +1,7 @@
 //! Deontic resolution; refines `TclMesh.Deontic.resolve`.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     W,
     N,
@@ -9,7 +10,8 @@ pub enum Verdict {
     H,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Judgment {
     Inapplicable,
     Determinate(Verdict),
