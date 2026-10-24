@@ -1,3 +1,5 @@
+import TclMesh.Decimal
+
 /-!
 # Fail-closed canonical predicates
 
@@ -5,8 +7,10 @@ The predicate language of today's Tier A action descriptors
 (`::tclmesh::action::evaluate`, `tclmesh-kernel`). Evaluation either succeeds
 with a Boolean or faults; a fault is never turned into permission.
 
-Number and list parsing are parameters. Only their partiality matters here:
-`num` and `list` return `none` outside the canonical domain.
+Number comparison and list parsing are parameters of the general theorems; only
+their partiality matters there (`none` outside the canonical domain).
+`canonicalDomain` instantiates numbers with the exact decimals of
+`TclMesh.Decimal`.
 -/
 
 namespace TclMesh.Canonical
@@ -38,9 +42,9 @@ structure Env where
   field : List String → Option String
   request : List String → Option String
 
-/-- Canonical-domain parsers: numbers to a total order, lists to elements. -/
+/-- Canonical-domain parsers: number comparison and list elements. -/
 structure Domain where
-  num : String → Option Int
+  compare : String → String → Option Ordering
   list : String → Option (List String)
 
 def Term.eval (env : Env) : Term → Except Fault String
@@ -52,15 +56,15 @@ def Term.eval (env : Env) : Term → Except Fault String
     | some v => .ok v
     | none => .error .missingRequest
 
-def Cmp.holds : Cmp → Int → Int → Bool
-  | .lt, x, y => x < y
-  | .lte, x, y => x ≤ y
-  | .gt, x, y => x > y
-  | .gte, x, y => x ≥ y
+def Cmp.holds : Cmp → Ordering → Bool
+  | .lt, o => o == .lt
+  | .lte, o => o != .gt
+  | .gt, o => o == .gt
+  | .gte, o => o != .lt
 
-def number (d : Domain) (s : String) : Except Fault Int :=
-  match d.num s with
-  | some n => .ok n
+def compareTerms (d : Domain) (l r : String) : Except Fault Ordering :=
+  match d.compare l r with
+  | some o => .ok o
   | none => .error .nonNumeric
 
 def Pred.eval (d : Domain) (env : Env) : Pred → Except Fault Bool
@@ -72,7 +76,7 @@ def Pred.eval (d : Domain) (env : Env) : Pred → Except Fault Bool
       -- both operands are evaluated before either is parsed
       let l ← a.eval env
       let r ← b.eval env
-      pure (c.holds (← number d l) (← number d r))
+      pure (c.holds (← compareTerms d l r))
   | .mem n h => do
       let needle ← n.eval env
       let hay ← h.eval env
@@ -120,8 +124,8 @@ theorem or_true_left {d env p q} (h : p.eval d env = .ok true) :
 /-- **Comparisons are fail-closed.** A comparison that succeeds had both operands
 present and inside the canonical numeric domain. -/
 theorem cmp_ok {d env c a b r} (h : (Pred.cmp c a b).eval d env = .ok r) :
-    ∃ l r' x y, a.eval env = .ok l ∧ b.eval env = .ok r' ∧ d.num l = some x ∧ d.num r' = some y ∧
-      r = c.holds x y := by
+    ∃ l r' o, a.eval env = .ok l ∧ b.eval env = .ok r' ∧ d.compare l r' = some o ∧
+      r = c.holds o := by
   simp only [Pred.eval] at h
   cases ha : a.eval env with
   | error f => simp [ha, bind, Except.bind] at h
@@ -129,15 +133,27 @@ theorem cmp_ok {d env c a b r} (h : (Pred.cmp c a b).eval d env = .ok r) :
     cases hb : b.eval env with
     | error f => simp [ha, hb, bind, Except.bind] at h
     | ok r' =>
-      simp only [ha, hb, number, bind, Except.bind] at h
-      cases hx : d.num l with
-      | none => simp [hx] at h
-      | some x =>
-        cases hy : d.num r' with
-        | none => simp [hx, hy] at h
-        | some y =>
-          simp only [hx, hy, pure, Except.pure, Except.ok.injEq] at h
-          exact ⟨l, r', x, y, rfl, rfl, hx, hy, h.symm⟩
+      simp only [ha, hb, compareTerms, bind, Except.bind] at h
+      cases ho : d.compare l r' with
+      | none => simp [ho] at h
+      | some o =>
+        simp only [ho, pure, Except.pure, Except.ok.injEq] at h
+        exact ⟨l, r', o, rfl, rfl, ho, h.symm⟩
+
+/-- The canonical numeric domain: exact decimals. -/
+def canonicalDomain (list : String → Option (List String)) : Domain :=
+  ⟨Decimal.compareStrings, list⟩
+
+/-- In the canonical domain a successful comparison had two canonical decimals
+and reports their exact order. -/
+theorem cmp_ok_canonical {list env c a b r} (h : (Pred.cmp c a b).eval (canonicalDomain list) env = .ok r) :
+    ∃ l r' x y, a.eval env = .ok l ∧ b.eval env = .ok r' ∧
+      Decimal.parse l = some x ∧ Decimal.parse r' = some y ∧ r = c.holds (x.cmp y) := by
+  obtain ⟨l, r', o, ha, hb, ho, rfl⟩ := cmp_ok h
+  simp only [canonicalDomain, Decimal.compareStrings, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.pure_def, Option.some.injEq] at ho
+  obtain ⟨x, hx, y, hy, rfl⟩ := ho
+  exact ⟨l, r', x, y, ha, hb, hx, hy, rfl⟩
 
 /-- Membership succeeds only on a canonical list. -/
 theorem mem_ok {d env n h r} (hok : (Pred.mem n h).eval d env = .ok r) :
