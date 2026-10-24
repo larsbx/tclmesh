@@ -103,6 +103,7 @@ TclMesh preserves six boundaries:
 - [Quickstart](docs/quickstart.md)
 - [Architecture](docs/architecture.md)
 - [Tier A kernel and conformance](docs/kernel.md)
+- [Proofs (Lean 4)](docs/proofs.md)
 - [Normative v1 target](docs/spec-v1.md)
 - [Roadmap and release scope](docs/roadmap.md)
 - [Security](SECURITY.md)

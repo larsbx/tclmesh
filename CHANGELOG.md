@@ -10,6 +10,12 @@
 - Rust Tier A kernel (`kernel/`) refining the Tcl evaluator, with curated and
   seeded random differential conformance (`tools/conformance.tcl`,
   `conformance/`) run in CI;
+- Lean 4 specification (`spec/`, `docs/proofs.md`) proving declassification-
+  indexed non-interference with oblivious `select`, typed `release` and `verify`,
+  action-level non-interference, obliviousness of `if`→`select` compilation,
+  sound and complete label checkers, leakage-budget soundness, threshold-release
+  quorum safety, deontic admission laws, and fail-closed canonical predicates.
+  An axiom audit in CI rejects `sorry`;
 
 - backend protocol, immutable parameter profiles, opaque ciphertext handles, and
   plaintext/backend differential evaluation;
