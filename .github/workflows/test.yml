@@ -63,3 +63,19 @@ jobs:
             tclsh tools/conformance.tcl run vectors.json > outcomes.json
             kernel/target/release/tclmesh-kernel conform vectors.json outcomes.json --min-agreement 0.6
           done
+
+  spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lean (version pinned by spec/lean-toolchain)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Check proofs
+        working-directory: spec
+        run: lake build
+      - name: Audit axioms (no sorry, standard axioms only)
+        working-directory: spec
+        run: lake env lean Audit.lean

@@ -1,0 +1,5 @@
+name = "tclmesh-spec"
+defaultTargets = ["TclMesh"]
+
+[[lean_lib]]
+name = "TclMesh"
