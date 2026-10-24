@@ -7,6 +7,10 @@
 - **breaking:** ordered comparisons accept only canonical decimal numbers
   (hex, octal, padded, signed, and `Inf`/`NaN` spellings raise `NON_NUMERIC`).
   `in` accepts only quote- and backslash-free lists (`NON_CANONICAL_LIST`);
+- **breaking:** ordered comparisons use exact decimals (no floating-point
+  rounding), with written exponents capped at 1000;
+- executable Lean specification of the Tier A kernel (`lake exe spec-eval`). The
+  Rust kernel must equal it on every conformance vector;
 - Rust Tier A kernel (`kernel/`) refining the Tcl evaluator, with curated and
   seeded random differential conformance (`tools/conformance.tcl`,
   `conformance/`) run in CI;

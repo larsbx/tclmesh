@@ -52,16 +52,31 @@ typing rule:
 | | `accepts_ignores_other_requests`, `accepts_duplicate` | shares for other requests and repeated shares have no effect |
 | `Deontic` | `admits_iff` | execution is admitted iff all verdicts are one verdict other than `H` |
 | | `admits_congr`, `H_blocks`, `conflict_blocks` | admission ignores order and repetition; `H` and any conflict block execution |
-| `Canonical` | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
+| `Decimal` | `le_refl`, `le_trans`, `le_total` | exact decimal order is a total preorder |
+| | `scaled_le_iff`, `le_iff_at` | comparing at any exponent at or below both operands gives the same result |
+| | `neg_zero`, and 20 cases checked by `decide` | signed zero is zero; `1e3 = 1000`, `0.1 < 0.10000000000000000001`, `1e1001`, `007`, `0x10`, `Inf` and similar are rejected |
+| `Kernel` | `not_permits` | in the executable kernel, `not c` permits iff `c` evaluated to `false` |
+| | `cmp_ok` | in the executable kernel, a successful comparison had two canonical decimals and reports their exact order |
+| `Canonical` | `cmp_ok_canonical` | in the canonical domain, comparison success implies exact decimal order |
+| | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
 | | `cmp_ok`, `mem_ok` | a successful comparison had both operands in the canonical numeric domain; a successful membership test had a canonical list |
 | | `and_fault_left`, `and_false_left`, `or_true_left` | fault propagation and short-circuiting, as in the Tcl and Rust evaluators |
+
+## Executable specification
+
+`TclMesh/Kernel.lean` is a total model of the Tier A kernel over the typed data
+model: descriptor validation with the same fault codes, authorization,
+deontic resolution through `Deontic.resolve`, validations, sequential changes,
+and effects. `lake exe spec-eval VECTORS` runs it, and CI requires the Rust
+kernel to reproduce every outcome exactly, on the curated vectors and on
+seeded random ones.
 
 ## Not yet proved
 
 These are listed in the [roadmap](roadmap.md#formal-methods-first):
 
-- exact-decimal numbers;
-- the executable spec as the conformance oracle;
+- full refinement of the executable kernel against the `Canonical` and `Flow`
+  models (beyond the two lemmas above);
 - an Aeneas refinement proof for the Rust kernel;
 - ciphertext and labels in the kernel IR;
 - per-mechanism lemmas under cryptographic assumptions;

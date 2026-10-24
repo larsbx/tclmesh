@@ -162,8 +162,11 @@ Proof obligations:
   holders bound to the request;
 - [x] deontic resolution laws, and fail-closed evaluation of the canonical
   predicate language;
-- [ ] canonical numbers as exact decimals, with the Tcl and Rust comparisons migrated;
-- [ ] executable spec as the conformance oracle (`lake exe spec-eval`);
+- [x] canonical numbers as exact decimals: a total preorder, exponent-independent
+  scaling, and parser cases (`Decimal.lean`), with Tcl and Rust migrated;
+- [x] executable spec as the conformance oracle (`Kernel.lean`, `lake exe spec-eval`).
+  The Rust kernel must equal it on every vector, and its own fail-closed
+  `not` and exact-comparison theorems are proved;
 - [ ] `kernel-core` in the subset Aeneas can translate, plus a refinement proof;
 - [ ] ciphertext values and the IFC type system in the kernel IR, with the Tcl
   compiler emitting label certificates;
