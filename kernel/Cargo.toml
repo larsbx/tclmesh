@@ -7,4 +7,5 @@ description = "Tier A canonical action kernel for TclMesh, refining the Tcl refe
 publish = false
 
 [dependencies]
+tclmesh-kernel-core = { path = "core" }
 serde_json = { version = "1", features = ["preserve_order"] }

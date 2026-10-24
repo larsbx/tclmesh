@@ -120,7 +120,12 @@ name = "tclmesh-kernel"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "tclmesh-kernel-core",
 ]
+
+[[package]]
+name = "tclmesh-kernel-core"
+version = "0.1.0"
 
 [[package]]
 name = "unicode-ident"

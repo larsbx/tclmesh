@@ -104,7 +104,7 @@ fn validate_predicate(id: &str, field: &str, p: &Value) -> R<()> {
     }
 }
 
-fn validate(id: &str, d: &Map<String, Value>) -> R<Vec<&'static str>> {
+fn validate(id: &str, d: &Map<String, Value>) -> R<Vec<deontic::Verdict>> {
     if let Some(spec) = d.get("authorize") {
         let items = array(spec)?;
         match word(items, 0)? {
@@ -117,7 +117,7 @@ fn validate(id: &str, d: &Map<String, Value>) -> R<Vec<&'static str>> {
     }
 
     let verdicts = match d.get("deontic") {
-        None => vec!["M"],
+        None => vec![deontic::Verdict::M],
         Some(v) => {
             let items = array(v)?;
             if items.is_empty() {
@@ -319,13 +319,13 @@ pub fn evaluate(
     }
 
     let verdict = match deontic::resolve(&verdicts) {
-        deontic::Judgment::Conflicted(_) => {
+        deontic::Judgment::Conflicted | deontic::Judgment::Inapplicable => {
             return Err(Fault::new(&["ACTION", "DEONTIC", "CONFLICT"]))
         }
-        deontic::Judgment::Determinate(v) if !deontic::admits_execution(v) => {
+        deontic::Judgment::Determinate(deontic::Verdict::H) => {
             return Err(Fault::new(&["ACTION", "DEONTIC", "FORBIDDEN"]))
         }
-        deontic::Judgment::Determinate(v) => v,
+        deontic::Judgment::Determinate(v) => deontic::name(v),
     };
 
     for v in sequence(d, "validations")? {

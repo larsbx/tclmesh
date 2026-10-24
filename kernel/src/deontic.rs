@@ -1,41 +1,26 @@
-//! Fivefold deontic verdicts (W/N/M/K/H) and their resolution.
+//! Fivefold deontic verdicts: the verified implementation in
+//! `tclmesh-kernel-core` (`core/src/deontic.rs`), refining
+//! `spec/TclMesh/Deontic.lean`.
 
-pub const VERDICTS: [&str; 5] = ["H", "K", "M", "N", "W"];
+pub use tclmesh_kernel_core::deontic::{resolve, Judgment, Verdict};
 
-#[derive(Debug, PartialEq)]
-pub enum Judgment {
-    Determinate(&'static str),
-    Conflicted(Vec<&'static str>),
-}
-
-pub fn known(verdict: &str) -> Option<&'static str> {
-    VERDICTS.iter().copied().find(|v| *v == verdict)
-}
-
-/// Resolves known verdicts: duplicates collapse, distinct verdicts conflict.
-pub fn resolve(verdicts: &[&'static str]) -> Judgment {
-    let mut support: Vec<_> = verdicts.to_vec();
-    support.sort_unstable();
-    support.dedup();
-    match support.as_slice() {
-        [single] => Judgment::Determinate(single),
-        _ => Judgment::Conflicted(support),
+pub fn known(name: &str) -> Option<Verdict> {
+    match name {
+        "W" => Some(Verdict::W),
+        "N" => Some(Verdict::N),
+        "M" => Some(Verdict::M),
+        "K" => Some(Verdict::K),
+        "H" => Some(Verdict::H),
+        _ => None,
     }
 }
 
-/// `H` (omit-required) forbids execution; every other verdict admits it.
-pub fn admits_execution(verdict: &str) -> bool {
-    verdict != "H"
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn duplicates_collapse_and_distinct_conflict() {
-        assert_eq!(resolve(&["M", "M"]), Judgment::Determinate("M"));
-        assert_eq!(resolve(&["W", "H"]), Judgment::Conflicted(vec!["H", "W"]));
-        assert!(!admits_execution("H") && admits_execution("K"));
+pub fn name(v: Verdict) -> &'static str {
+    match v {
+        Verdict::W => "W",
+        Verdict::N => "N",
+        Verdict::M => "M",
+        Verdict::K => "K",
+        Verdict::H => "H",
     }
 }
