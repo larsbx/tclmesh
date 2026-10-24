@@ -167,7 +167,11 @@ Proof obligations:
 - [x] executable spec as the conformance oracle (`Kernel.lean`, `lake exe spec-eval`).
   The Rust kernel must equal it on every vector, and its own fail-closed
   `not` and exact-comparison theorems are proved;
-- [ ] `kernel-core` in the subset Aeneas can translate, plus a refinement proof;
+- [x] `kernel/core` in the subset Aeneas can translate. Its deontic resolution and
+  exact decimal comparison are proved equal to the spec through Aeneas
+  (`proof/`), with no axioms;
+- [ ] Aeneas refinement of decimal parsing, then of the whole evaluation, as it
+  moves into `kernel/core`;
 - [ ] ciphertext values and the IFC type system in the kernel IR, with the Tcl
   compiler emitting label certificates;
 - [ ] mechanism lemmas: CMUX select, threshold release, functional encryption,

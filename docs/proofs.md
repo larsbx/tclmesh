@@ -71,13 +71,42 @@ and effects. `lake exe spec-eval VECTORS` runs it, and CI requires the Rust
 kernel to reproduce every outcome exactly, on the curated vectors and on
 seeded random ones.
 
+## Rust refinement (Aeneas)
+
+`kernel/core` is the dependency-free part of the Rust kernel that the running
+kernel calls for decimal comparison and deontic resolution. It is written in
+the subset Aeneas translates: loops without early return, slices, `Vec`, enums,
+no `?` on `Option`, no traits beyond derives.
+
+`proof/extract.sh` runs Charon and Aeneas, both pinned, and regenerates
+`proof/TclMeshProof/Core/Core.lean`, a pure Lean model of that Rust code.
+`proof/CORE_SOURCE.sha256` records the sources it was generated from, and CI
+fails if they change without regeneration. The model contains no axioms.
+
+| File | Theorem | Statement |
+|---|---|---|
+| `Deontic` | `resolve_spec` | Rust `deontic::resolve` returns exactly `TclMesh.Deontic.resolve` of the abstracted verdicts |
+| | `admits_spec` | Rust `deontic::admits` returns exactly `TclMesh.Deontic.admits` |
+| `Decimal` | `compare_magnitude_loop_spec` | the digit loop computes the lexicographic order of the zero-padded digit strings |
+| | `compare_magnitude_spec` | for nonzero canonical digit strings, `compare_magnitude a pa b pb` is the order of `a·10^pa` and `b·10^pb` |
+| | `magnitude_spec` | exponent alignment to the smaller effective exponent is exact |
+| | `compare_spec` | **on well-formed decimals, Rust `decimal::compare` returns exactly `TclMesh.Decimal.Dec.cmp`** |
+| `Digits` | `lex_eq_compare`, `val_lt`, `val_ge`, `val_append_zeros` | lexicographic order of equal-length digit strings is numeric order; length bounds; zero padding multiplies by `10^p` |
+
+The proofs use Aeneas's Lean library and Mathlib, both at pinned versions
+(`proof/lakefile.toml`). The audit (`lake env lean Audit.lean`) checks every
+generated definition and every refinement theorem against the standard
+axioms.
+
 ## Not yet proved
 
 These are listed in the [roadmap](roadmap.md#formal-methods-first):
 
 - full refinement of the executable kernel against the `Canonical` and `Flow`
   models (beyond the two lemmas above);
-- an Aeneas refinement proof for the Rust kernel;
+- Aeneas refinement of `decimal::parse` (that it produces a well-formed `Dec`
+  equal to `TclMesh.Decimal.parse`), and moving the remaining kernel
+  evaluation into `kernel/core`;
 - ciphertext and labels in the kernel IR;
 - per-mechanism lemmas under cryptographic assumptions;
 - noise-budget soundness;

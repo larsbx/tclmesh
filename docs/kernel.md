@@ -13,7 +13,9 @@ descriptors interpreted by three evaluators:
 - `TclMesh.Kernel.evaluate` in `spec/`: the executable Lean specification, and
   the oracle. Its building blocks carry proofs (`docs/proofs.md`);
 - `tclmesh-kernel` in `kernel/`: the Rust kernel, intended to become the
-  authoritative executor. It must equal the specification on every input;
+  authoritative executor. It must equal the specification on every input. Its
+  `kernel/core` crate is translated by Aeneas, and parts of it are *proved*
+  equal to the specification (`docs/proofs.md#rust-refinement-aeneas`);
 - `::tclmesh::action::evaluate` in `src/action.tcl`: the Tcl reference. It is
   untyped, so it agrees with the specification only up to kernel refusals.
 

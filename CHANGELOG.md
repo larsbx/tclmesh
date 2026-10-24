@@ -9,6 +9,11 @@
   `in` accepts only quote- and backslash-free lists (`NON_CANONICAL_LIST`);
 - **breaking:** ordered comparisons use exact decimals (no floating-point
   rounding), with written exponents capped at 1000;
+- `kernel/core`: a dependency-free crate (decimal parsing and comparison, deontic
+  resolution) that the kernel calls. Aeneas translates it to Lean, and
+  `proof/` proves the translated `deontic::resolve`, `deontic::admits`, and
+  `decimal::compare` equal to the specification, with no axioms (CI job
+  `proof`);
 - executable Lean specification of the Tier A kernel (`lake exe spec-eval`). The
   Rust kernel must equal it on every conformance vector;
 - Rust Tier A kernel (`kernel/`) refining the Tcl evaluator, with curated and
