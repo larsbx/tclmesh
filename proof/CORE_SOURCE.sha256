@@ -1,0 +1,4 @@
+a3d868cf9b3066a770380c74e72b3aea2026ac7114a5431971eecf3917fa1b8f  kernel/core/Cargo.toml
+a984c522503f37ce0f939d3e7184c2ffac4f90a0aecc1de7edd48daa6e568e57  kernel/core/src/decimal.rs
+347dad1cbec337cab7e1d5578701815fb6f94a2886a5a05c8ed668ff071ac857  kernel/core/src/deontic.rs
+6ceeeaeba45cb944182701446786d67880afa399c13bd566fc9c29d760516e5b  kernel/core/src/lib.rs
