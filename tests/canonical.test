@@ -29,13 +29,23 @@ test CANON-001-evaluate-is-pure {evaluate returns state and effects without pers
     list [dict get $e state] [dict get $e effects] [dict get $e deontic verdict]
 } -result {{status done} {{type notify to done}} M}
 
-test CANON-002-canonical-decimals-compare {integers exact, mixed exact, doubles rounded} -body {
+test CANON-002-canonical-decimals-compare {exact decimal order at any size} -body {
     list \
         [canonical_permits [list gt [lit 9007199254740993] [lit 9007199254740992.0]]] \
         [canonical_permits [list lte [lit 1e3] [lit 1000]]] \
         [canonical_permits [list gte [lit 0.1] [lit 0.10000000000000000001]]] \
-        [canonical_permits [list lt [lit -0] [lit 0]]]
-} -result {permit permit permit deny}
+        [canonical_permits [list lt [lit -0] [lit 0]]] \
+        [canonical_permits [list gt [lit 1e1000] [lit 1e999]]] \
+        [canonical_permits [list lte [lit 0.10] [lit 0.1]]] \
+        [canonical_permits [list gt [lit 1E-2] [lit 0.009]]]
+} -result {permit permit deny deny permit permit permit}
+
+test CANON-002b-exponent-cap {written exponents beyond 1000 are not numbers} -body {
+    list \
+        [lindex [canonical_permits [list gt [lit 1e1001] [lit 0]]] 3] \
+        [canonical_permits [list gt [lit 1e0001000] [lit 0]]] \
+        [lindex [canonical_permits [list gt [lit 1e99999999999999999999] [lit 0]]] 3]
+} -result {NON_NUMERIC permit NON_NUMERIC}
 
 test CANON-003-non-canonical-numbers-rejected {hex octal padded and Inf are not numbers} -body {
     lmap spelling {0x10 010 { 1} Inf NaN +1 .5 1. 1_0} {

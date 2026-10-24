@@ -97,6 +97,7 @@ variable ::conformance::scalars {
     0.1 0.10000000000000000001 9007199254740993 9007199254740992.0 2.5 -2.5
     123456789012345678901234567890 Inf NaN abc north east {north east}
     {{a b} c} a\{b {"q"} {x y} ok {review ok} M type
+    1e1001 1e-1000 1e0001000 0.10 1E-2 -0.0
     a\\b \u00e9 a\u00a0b a\u3000b {a\tb} {a\vb} \{a\} \{\} #x
 }
 

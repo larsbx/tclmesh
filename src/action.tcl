@@ -36,11 +36,38 @@ proc ::tclmesh::action::_eval_value {value state request} {
     }
 }
 
-# number := -?(0|[1-9][0-9]*)(.[0-9]+)?([eE][+-]?[0-9]+)?
-# Integers compare exactly; values with a fraction or exponent compare as
-# correctly rounded doubles; mixed comparisons are exact.
-proc ::tclmesh::action::_canonical_number {value} {
-    regexp {^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?$} $value
+# number := -?(0|[1-9][0-9]*)(.[0-9]+)?([eE][+-]?[0-9]+)?, |written exponent| <= 1000
+# Returns {sign mantissa exponent} denoting sign * mantissa * 10^exponent
+# exactly, or {} outside the canonical domain (spec/TclMesh/Decimal.lean).
+proc ::tclmesh::action::_decimal {value} {
+    if {![regexp {^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([-+]?)([0-9]+))?$} \
+            $value -> sign int frac esign edigits]} {
+        return {}
+    }
+    set edigits [string trimleft $edigits 0]
+    if {[string length $edigits] > 4 || ($edigits ne "" && $edigits > 1000)} {
+        return {}
+    }
+    if {$edigits eq ""} {
+        set edigits 0
+    }
+    set mantissa [string trimleft $int$frac 0]
+    if {$mantissa eq ""} {
+        set mantissa 0
+    }
+    return [::list [expr {$sign eq "-" ? -1 : 1}] $mantissa \
+        [expr {($esign eq "-" ? -$edigits : $edigits) - [string length $frac]}]]
+}
+
+# Exact order of two canonical decimals: -1, 0, or 1. Both are scaled to the
+# smaller exponent and compared as integers.
+proc ::tclmesh::action::_compare_decimal {a b} {
+    lassign $a sa ma ea
+    lassign $b sb mb eb
+    set e [expr {min($ea, $eb)}]
+    set x [expr {$sa * $ma * 10 ** ($ea - $e)}]
+    set y [expr {$sb * $mb * 10 ** ($eb - $e)}]
+    expr {$x < $y ? -1 : ($x > $y ? 1 : 0)}
 }
 
 # Canonical lists use bare words and brace grouping only, so that their
@@ -93,17 +120,20 @@ proc ::tclmesh::action::_eval_predicate {expr state request} {
             # accept hex, octal (010 == 8), padded, and Inf/NaN spellings.
             # A rejected operand is an error, so `not` cannot turn malformed
             # numeric input into permission.
-            if {![_canonical_number $left] || ![_canonical_number $right]} {
+            set left [_decimal $left]
+            set right [_decimal $right]
+            if {$left eq "" || $right eq ""} {
                 return -code error \
                     -errorcode [::list TCLMESH ACTION PREDICATE NON_NUMERIC $op] \
                     "predicate '$op' requires canonical decimal operands"
             }
 
+            set order [_compare_decimal $left $right]
             switch -- $op {
-                lt  { return [expr {$left < $right}] }
-                lte { return [expr {$left <= $right}] }
-                gt  { return [expr {$left > $right}] }
-                gte { return [expr {$left >= $right}] }
+                lt  { return [expr {$order < 0}] }
+                lte { return [expr {$order <= 0}] }
+                gt  { return [expr {$order > 0}] }
+                gte { return [expr {$order >= 0}] }
             }
         }
         in {

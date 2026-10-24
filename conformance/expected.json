@@ -7,11 +7,11 @@
     "permit-if-false": {"status":"error","code":["TCLMESH","ACTION","AUTHORIZATION","DENIED"]},
     "int-vs-double-exact-gt": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "int-vs-double-exact-eq": {"status":"ok","verdict":"M","changes":[],"effects":[]},
-    "double-rounding-equal": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "exact-decimal-ordering": {"status":"error","code":["TCLMESH","ACTION","AUTHORIZATION","DENIED"]},
     "bigint-ordering": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "negative-zero": {"status":"ok","verdict":"M","changes":[],"effects":[]},
-    "overflow-to-infinity": {"status":"ok","verdict":"M","changes":[],"effects":[]},
-    "underflow-to-zero": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "large-exponent-is-exact": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "small-exponent-is-exact": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "non-numeric-left": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_NUMERIC","lt"]},
     "non-numeric-right-after-both-evaluated": {"status":"error","code":["TCLMESH","ACTION","VALUE","MISSING_FIELD"]},
     "nan-is-non-numeric": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_NUMERIC","lt"]},
@@ -63,6 +63,10 @@
     "in-braced-empty-element": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "in-tab-separated": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "in-array-with-balanced-braces": {"status":"ok","verdict":"M","changes":[],"effects":[]},
-    "in-array-with-unbalanced-brace-is-non-canonical": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_CANONICAL_LIST"]}
+    "in-array-with-unbalanced-brace-is-non-canonical": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_CANONICAL_LIST"]},
+    "exponent-cap-is-non-numeric": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_NUMERIC","gt"]},
+    "exponent-leading-zeros": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "trailing-fraction-zeros-equal": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "negative-exponent-exact": {"status":"ok","verdict":"M","changes":[],"effects":[]}
   }
 }

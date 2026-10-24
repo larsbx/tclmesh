@@ -239,7 +239,7 @@
    }
   },
   {
-   "id": "double-rounding-equal",
+   "id": "exact-decimal-ordering",
    "domain": "canonical",
    "action_id": "Curated::act",
    "descriptor": {
@@ -388,7 +388,7 @@
    }
   },
   {
-   "id": "overflow-to-infinity",
+   "id": "large-exponent-is-exact",
    "domain": "canonical",
    "action_id": "Curated::act",
    "descriptor": {
@@ -433,7 +433,7 @@
    }
   },
   {
-   "id": "underflow-to-zero",
+   "id": "small-exponent-is-exact",
    "domain": "canonical",
    "action_id": "Curated::act",
    "descriptor": {
@@ -2776,6 +2776,188 @@
     "quoted": [
      "a{b",
      "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "exponent-cap-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "1e1001"
+      ],
+      [
+       "literal",
+       "0"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "exponent-leading-zeros",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "1e0001000"
+      ],
+      [
+       "literal",
+       "1e999"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "trailing-fraction-zeros-equal",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "and",
+      [
+       "lte",
+       [
+        "literal",
+        "0.10"
+       ],
+       [
+        "literal",
+        "0.1"
+       ]
+      ],
+      [
+       "gte",
+       [
+        "literal",
+        "0.10"
+       ],
+       [
+        "literal",
+        "0.1"
+       ]
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "negative-exponent-exact",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "1E-2"
+      ],
+      [
+       "literal",
+       "0.009"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
     ]
    },
    "request": {
