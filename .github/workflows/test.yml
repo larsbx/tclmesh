@@ -45,8 +45,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y tcl8.6 tcllib
       - name: Format and lint kernel
         run: |
-          cargo fmt --check --manifest-path kernel/Cargo.toml
-          cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
+          for m in kernel/Cargo.toml kernel/core/Cargo.toml; do
+            cargo fmt --check --manifest-path "$m"
+            cargo clippy --manifest-path "$m" --all-targets -- -D warnings
+          done
+          cargo test --manifest-path kernel/core/Cargo.toml
       - name: Kernel unit and committed-vector tests
         run: cargo test --manifest-path kernel/Cargo.toml
       - name: Recorded Tcl outcomes are current
@@ -92,4 +95,29 @@ jobs:
         run: lake build
       - name: Audit axioms (no sorry, standard axioms only)
         working-directory: spec
+        run: lake env lean Audit.lean
+
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Translated model is current for kernel/core
+        run: |
+          sha256sum -c proof/CORE_SOURCE.sha256 || {
+            echo "kernel/core changed: regenerate with proof/extract.sh and re-check the proofs"
+            exit 1
+          }
+      - name: Install Lean (version pinned by proof/lean-toolchain)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch Mathlib build cache
+        working-directory: proof
+        run: lake exe cache get
+      - name: Check refinement proofs (Rust kernel-core = Lean spec)
+        working-directory: proof
+        run: lake build
+      - name: Audit axioms (no sorry, standard axioms only)
+        working-directory: proof
         run: lake env lean Audit.lean
