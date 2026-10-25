@@ -98,22 +98,33 @@ fn is_sign(b: u8) -> bool {
     b == b'-' || b == b'+'
 }
 
+/// An optional exponent sign at `i`: whether it is `-`, and where the digits start.
+fn exp_sign(s: &[u8], i: usize) -> (bool, usize) {
+    if i < s.len() && is_sign(s[i]) {
+        (s[i] == b'-', i + 1)
+    } else {
+        (false, i)
+    }
+}
+
+/// The signed value of the exponent digits `s[from..to]` if at most `MAX_EXP`.
+fn signed_exp(s: &[u8], from: usize, to: usize, minus: bool) -> Option<i32> {
+    match bounded_exp(s, from, to) {
+        Some(m) => Some(if minus { -(m as i32) } else { m as i32 }),
+        None => None,
+    }
+}
+
 /// An optional exponent `[eE][+-]?digits` starting at `i`: its value and end.
 fn exponent(s: &[u8], i: usize) -> Option<(i32, usize)> {
     if i < s.len() && is_exp_marker(s[i]) {
-        let sign = i + 1;
-        let minus = sign < s.len() && s[sign] == b'-';
-        let start = if sign < s.len() && is_sign(s[sign]) {
-            sign + 1
-        } else {
-            sign
-        };
+        let (minus, start) = exp_sign(s, i + 1);
         let end = digits_end(s, start);
         if end == start {
             return None;
         }
-        match bounded_exp(s, start, end) {
-            Some(m) => Some((if minus { -(m as i32) } else { m as i32 }, end)),
+        match signed_exp(s, start, end, minus) {
+            Some(e) => Some((e, end)),
             None => None,
         }
     } else {

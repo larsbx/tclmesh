@@ -244,8 +244,41 @@ def decimal.is_sign (b : Std.U8) : Result Bool := do
   then ok true
   else ok (b = 43#u8)
 
+/-- [tclmesh_kernel_core::decimal::exp_sign]:
+    Source: 'src/decimal.rs', lines 102:0-108:1 -/
+def decimal.exp_sign
+  (s : Slice Std.U8) (i : Std.Usize) : Result (Bool × Std.Usize) := do
+  let i1 := Slice.len s
+  if i < i1
+  then
+    let i2 ← Slice.index_usize s i
+    let b ← decimal.is_sign i2
+    if b
+    then let i3 ← i + 1#usize
+         ok (i2 = 45#u8, i3)
+    else ok (false, i)
+  else ok (false, i)
+
+/-- [tclmesh_kernel_core::decimal::signed_exp]:
+    Source: 'src/decimal.rs', lines 111:0-116:1 -/
+def decimal.signed_exp
+  (s : Slice Std.U8) («from» : Std.Usize) («to» : Std.Usize) (minus : Bool)
+  :
+  Result (Option Std.I32)
+  := do
+  let o ← decimal.bounded_exp s «from» «to»
+  match o with
+  | none => ok none
+  | some m =>
+    if minus
+    then let i ← lift (UScalar.hcast .I32 m)
+         let i1 ← -. i
+         ok (some i1)
+    else let i ← lift (UScalar.hcast .I32 m)
+         ok (some i)
+
 /-- [tclmesh_kernel_core::decimal::exponent]:
-    Source: 'src/decimal.rs', lines 102:0-122:1 -/
+    Source: 'src/decimal.rs', lines 119:0-133:1 -/
 def decimal.exponent
   (s : Slice Std.U8) (i : Std.Usize) :
   Result (Option (Std.I32 × Std.Usize))
@@ -257,45 +290,21 @@ def decimal.exponent
     let b ← decimal.is_exp_marker i2
     if b
     then
-      let sign ← i + 1#usize
-      let i3 := Slice.len s
-      let minus ←
-        if sign < i3
-        then do
-             let i4 ← Slice.index_usize s sign
-             ok (i4 = 45#u8)
-        else ok false
-      let i4 := Slice.len s
-      let start ←
-        if sign < i4
-        then
-          do
-          let i5 ← Slice.index_usize s sign
-          let b1 ← decimal.is_sign i5
-          if b1
-          then sign + 1#usize
-          else ok sign
-        else ok sign
+      let i3 ← i + 1#usize
+      let (minus, start) ← decimal.exp_sign s i3
       let «end» ← decimal.digits_end s start
       if «end» = start
       then ok none
       else
-        let o ← decimal.bounded_exp s start «end»
+        let o ← decimal.signed_exp s start «end» minus
         match o with
         | none => ok none
-        | some m =>
-          if minus
-          then
-            let i5 ← lift (UScalar.hcast .I32 m)
-            let i6 ← -. i5
-            ok (some (i6, «end»))
-          else let i5 ← lift (UScalar.hcast .I32 m)
-               ok (some (i5, «end»))
+        | some e => ok (some (e, «end»))
     else ok (some (0#i32, i))
   else ok (some (0#i32, i))
 
 /-- [tclmesh_kernel_core::decimal::integer_ok]:
-    Source: 'src/decimal.rs', lines 125:0-127:1 -/
+    Source: 'src/decimal.rs', lines 136:0-138:1 -/
 def decimal.integer_ok
   (s : Slice Std.U8) (start : Std.Usize) («end» : Std.Usize) :
   Result Bool
@@ -310,7 +319,7 @@ def decimal.integer_ok
   else ok false
 
 /-- [tclmesh_kernel_core::decimal::mantissa]:
-    Source: 'src/decimal.rs', lines 131:0-140:1 -/
+    Source: 'src/decimal.rs', lines 142:0-151:1 -/
 def decimal.mantissa
   (s : Slice Std.U8) (int_start : Std.Usize) (int_end : Std.Usize)
   (frac_end : Std.Usize) :
@@ -329,7 +338,7 @@ def decimal.mantissa
   else ok (digits, 0#u32)
 
 /-- [tclmesh_kernel_core::decimal::parse]:
-    Source: 'src/decimal.rs', lines 142:0-169:1
+    Source: 'src/decimal.rs', lines 153:0-180:1
     Visibility: public -/
 def decimal.parse (s : Slice Std.U8) : Result (Option decimal.Dec) := do
   let i := Slice.len s
@@ -361,7 +370,7 @@ def decimal.parse (s : Slice Std.U8) : Result (Option decimal.Dec) := do
     else ok none
 
 /-- [tclmesh_kernel_core::decimal::padded]:
-    Source: 'src/decimal.rs', lines 172:0-178:1 -/
+    Source: 'src/decimal.rs', lines 183:0-189:1 -/
 def decimal.padded (digits : Slice Std.U8) (i : Std.U64) : Result Std.U8 := do
   let i1 := Slice.len digits
   let i2 ← lift (UScalar.cast .U64 i1)
@@ -380,7 +389,7 @@ inductive Order where
 | Gt : Order
 
 /-- [tclmesh_kernel_core::decimal::compare_magnitude]: loop 0:
-    Source: 'src/decimal.rs', lines 194:4-205:5 -/
+    Source: 'src/decimal.rs', lines 205:4-216:5 -/
 @[rust_loop]
 def decimal.compare_magnitude_loop
   (a : Slice Std.U8) (b : Slice Std.U8) (la : Std.U64) (order : Order)
@@ -408,7 +417,7 @@ def decimal.compare_magnitude_loop
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::decimal::compare_magnitude]:
-    Source: 'src/decimal.rs', lines 182:0-207:1 -/
+    Source: 'src/decimal.rs', lines 193:0-218:1 -/
 def decimal.compare_magnitude
   (a : Slice Std.U8) (pa : Std.U64) (b : Slice Std.U8) (pb : Std.U64) :
   Result Order
@@ -427,7 +436,7 @@ def decimal.compare_magnitude
     else decimal.compare_magnitude_loop a b la Order.Eq 0#u64
 
 /-- [tclmesh_kernel_core::decimal::reverse]:
-    Source: 'src/decimal.rs', lines 209:0-215:1 -/
+    Source: 'src/decimal.rs', lines 220:0-226:1 -/
 def decimal.reverse (o : Order) : Result Order := do
   match o with
   | Order.Lt => ok Order.Gt
@@ -435,7 +444,7 @@ def decimal.reverse (o : Order) : Result Order := do
   | Order.Gt => ok Order.Lt
 
 /-- [tclmesh_kernel_core::decimal::magnitude]:
-    Source: 'src/decimal.rs', lines 219:0-224:1 -/
+    Source: 'src/decimal.rs', lines 230:0-235:1 -/
 def decimal.magnitude (a : decimal.Dec) (b : decimal.Dec) : Result Order := do
   let i ← lift (IScalar.cast .I64 a.exp)
   let i1 ← lift (UScalar.hcast .I64 a.frac_len)
@@ -455,7 +464,7 @@ def decimal.magnitude (a : decimal.Dec) (b : decimal.Dec) : Result Order := do
   decimal.compare_magnitude s i5 s1 i7
 
 /-- [tclmesh_kernel_core::decimal::compare]:
-    Source: 'src/decimal.rs', lines 227:0-255:1
+    Source: 'src/decimal.rs', lines 238:0-266:1
     Visibility: public -/
 def decimal.compare (a : decimal.Dec) (b : decimal.Dec) : Result Order := do
   let i := alloc.vec.Vec.len a.digits
