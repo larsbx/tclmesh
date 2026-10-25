@@ -71,6 +71,11 @@ jobs:
         run: |
           spec/.lake/build/bin/spec-eval --views conformance/circuits.json > spec-views.json
           tclsh tools/views.tcl check conformance/circuits.json spec-views.json
+      - name: Certificates (Tcl checker = proved Lean checker; emitted = least; mutations rejected)
+        run: |
+          tclsh tools/views.tcl certificates conformance/circuits.json > certs.json
+          spec/.lake/build/bin/spec-eval --certificates certs.json > spec-certs.json
+          tclsh tools/views.tcl check-certificates certs.json spec-certs.json
       - name: Random differential conformance (kernel = spec exactly; kernel refines Tcl)
         env:
           RUN_SEED: ${{ github.run_id }}

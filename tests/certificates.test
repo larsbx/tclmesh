@@ -1,0 +1,63 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+
+# Certificates (spec/TclMesh/Certificate.lean): the compiler's certificate is
+# accepted, and every weakening of it is rejected.
+
+proc ::cert_circuit {} {
+    tclmesh private circuit max-bid \
+        [dict create a {cipher int} b {cipher int} reserve {public int}] \
+        [dict create winner {cipher int} above {cipher bool}] \
+        [dict create \
+            na [tclmesh private node input a] \
+            nb [tclmesh private node input b] \
+            nr [tclmesh private node input reserve] \
+            r2 [tclmesh private node add nr nr] \
+            gt [tclmesh private node greater-than na nb] \
+            best [tclmesh private node select gt na nb] \
+            above [tclmesh private node greater-than best r2]] \
+        [dict create output_nodes [dict create winner best above above]]
+}
+
+test C-001-emitted-certificate {least labels, oblivious select} -body {
+    set cert [tclmesh certificate emit [::cert_circuit]]
+    list [dict get $cert labels] [dict get $cert oblivious]
+} -result {{na cipher nb cipher nr public r2 public gt cipher best cipher above cipher} best}
+
+test C-002-emitted-certificate-accepted {the checker accepts what the compiler emits} -body {
+    tclmesh certificate check [::cert_circuit] [tclmesh certificate emit [::cert_circuit]]
+} -result {}
+
+test C-003-mutation-under-label {a cipher-dependent node demoted to public is rejected} -body {
+    set cert [tclmesh certificate emit [::cert_circuit]]
+    dict set cert labels gt public
+    tclmesh certificate check [::cert_circuit] $cert
+} -result {{under-labelled gt na} {under-labelled gt nb}}
+
+test C-004-mutation-not-oblivious {a select on a cipher condition must be oblivious} -body {
+    set cert [tclmesh certificate emit [::cert_circuit]]
+    dict set cert oblivious {}
+    tclmesh certificate check [::cert_circuit] $cert
+} -result {{not-oblivious best}}
+
+test C-005-mutation-input-demoted {a cipher input labelled public is rejected} -body {
+    set cert [tclmesh certificate emit [::cert_circuit]]
+    dict set cert labels na public
+    tclmesh certificate check [::cert_circuit] $cert
+} -result {{input-demoted na}}
+
+test C-006-over-approximation {labelling a public node cipher is allowed} -body {
+    set cert [tclmesh certificate emit [::cert_circuit]]
+    dict set cert labels r2 cipher
+    tclmesh certificate check [::cert_circuit] $cert
+} -result {}
+
+test C-007-public-output {a public output computed from ciphertexts is rejected} -body {
+    set c [::cert_circuit]
+    dict set c outputs above {public bool}
+    tclmesh certificate check $c [tclmesh certificate emit $c]
+} -result {{public-output-of-cipher above}}
+
+cleanupTests

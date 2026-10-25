@@ -9,3 +9,4 @@ import TclMesh.Decimal
 import TclMesh.Predicate
 import TclMesh.Kernel
 import TclMesh.Circuit
+import TclMesh.Certificate

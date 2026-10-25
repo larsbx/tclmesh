@@ -1,6 +1,6 @@
 import Lean.Data.Json
 import TclMesh.Kernel
-import TclMesh.Circuit
+import TclMesh.Certificate
 
 /-!
 `lake exe spec-eval VECTORS` evaluates every conformance vector with the
@@ -9,6 +9,10 @@ in the shared encoding: `{"outcomes": {id: outcome}}`.
 
 `lake exe spec-eval --views CIRCUITS` prints, for every circuit vector, the
 evaluator's declared view (`TclMesh.Circuit.declared`): `{"views": {id: view}}`.
+
+`lake exe spec-eval --certificates CERTS` checks every certificate with the
+proved checker (`TclMesh.Circuit.check`) and prints the verdict and the least
+certificate (`certify`): `{"certificates": {id: {accepted, least}}}`.
 -/
 
 open Lean TclMesh.Kernel
@@ -62,8 +66,33 @@ def views (path : String) : IO UInt32 := do
   IO.println (Json.mkObj [("views", Json.mkObj out)]).compress
   return 0
 
+def labelOf (j : Json) : TclMesh.Circuit.Label :=
+  if j.getStr?.toOption = some "public" then .pub else .cipher
+
+def certificateOf (j : Json) : TclMesh.Circuit.Certificate where
+  labels := (entries (field j "labels")).map fun (k, v) => (k, labelOf v)
+  oblivious := strings (field j "oblivious")
+
+def certificateJson (cert : TclMesh.Circuit.Certificate) : Json := Json.mkObj [
+  ("labels", Json.mkObj (cert.labels.map fun (k, l) =>
+    (k, Json.str (match l with | .pub => "public" | .cipher => "cipher")))),
+  ("oblivious", Json.arr (cert.oblivious.toArray.map Json.str))]
+
+def certificates (path : String) : IO UInt32 := do
+  let json ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
+  let vectors ← IO.ofExcept ((json.getObjVal? "vectors").bind Json.getArr?)
+  let out := vectors.toList.map fun v =>
+    let id := (field v "id").getStr?.toOption.getD "?"
+    let c := circuitOf (field v "circuit")
+    (id, Json.mkObj [
+      ("accepted", Json.bool (TclMesh.Circuit.check c (certificateOf (field v "certificate")))),
+      ("least", certificateJson (TclMesh.Circuit.certify c))])
+  IO.println (Json.mkObj [("certificates", Json.mkObj out)]).compress
+  return 0
+
 def main (args : List String) : IO UInt32 := do
   if let ["--views", path] := args then return ← views path
+  if let ["--certificates", path] := args then return ← certificates path
   let [path] := args | IO.eprintln "usage: spec-eval VECTORS | spec-eval --views CIRCUITS"; return 2
   let json ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
   let vectors ← IO.ofExcept ((json.getObjVal? "vectors").bind Json.getArr?)
