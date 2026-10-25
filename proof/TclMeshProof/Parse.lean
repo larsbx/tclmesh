@@ -412,7 +412,7 @@ theorem exp_sign_spec (s : Slice Std.U8) (i : Std.Usize) (hi : i.val ≤ s.lengt
     by_cases h : byte i2 = 45
     · simp only [h, ite_true, decide_true]; scalar_tac
     · have h43 : byte i2 = 43 := by simpa [h] using hb
-      simp only [h, h43, ite_false, decide_false, ite_true]; scalar_tac
+      simp only [h43, ite_true]; scalar_tac
   · -- another byte
     have hlt : i.val < s.length := by scalar_tac
     have hb : ¬ (byte i2 = 45 ∨ byte i2 = 43) := by simpa [b_post] using ‹¬b = true›
@@ -510,5 +510,239 @@ theorem exponent_spec (s : Slice Std.U8) (i : Std.Usize) (hi : i.val ≤ s.lengt
     simp only [Option.map_some]
     rw [List.drop_eq_nil_of_le (by rw [length_bytes]; scalar_tac), expPart_nil]
     refine ⟨rfl, fun x hx => ?_⟩; cases hx; simp; exact hi
+
+/-! ## Mantissa -/
+
+def nats (v : alloc.vec.Vec Std.U8) : List Nat := v.val.map (·.val)
+
+/-- No leading zero digit. -/
+def Lead (l : List Nat) : Prop := ∀ x xs, l = x :: xs → x ≠ 0
+
+theorem val_snoc (l : List Nat) (d : Nat) : val (l ++ [d]) = 10 * val l + d := by
+  simp [val, List.foldl_append]
+
+theorem lead_snoc {l : List Nat} {d : Nat} (h : Lead l) (hd : d ≠ 0 ∨ l ≠ []) : Lead (l ++ [d]) := by
+  intro x xs hx
+  cases l with
+  | nil => simp at hx; obtain ⟨rfl, -⟩ := hx; simpa using hd
+  | cons y ys => simp at hx; obtain ⟨rfl, -⟩ := hx; exact h _ _ rfl
+
+/-- `push_digits` appends the digits of `s[i, stop)`, skipping leading zeros of the whole
+mantissa: the value accumulates exactly as `digitsVal` does. -/
+@[step]
+theorem push_digits_loop_spec (digits : alloc.vec.Vec Std.U8) (s : Slice Std.U8) (stop i : Std.Usize)
+    (hi : i.val ≤ stop.val) (hs : stop.val ≤ s.length) (hd : ∀ b ∈ range s i.val stop.val, isDigit b)
+    (hD : IsDigits (nats digits)) (hL : Lead (nats digits))
+    (hlen : digits.length + (stop.val - i.val) ≤ 4294967295) :
+    decimal.push_digits_loop digits s stop i ⦃ r =>
+      val (nats r) = (range s i.val stop.val).foldl dstep (val (nats digits)) ∧
+      IsDigits (nats r) ∧ Lead (nats r) ∧ r.length ≤ digits.length + (stop.val - i.val) ⦄ := by
+  unfold decimal.push_digits_loop
+  split
+  · rename_i hlt
+    have hlt' : i.val < s.length := by scalar_tac
+    have hrc := range_cons s i.val stop.val (by scalar_tac) hs
+    have hb := hd _ (by rw [hrc]; exact List.mem_cons_self ..)
+    rw [isDigit_byte] at hb
+    have hdig : 48 ≤ (s.val[i.val]'(by simpa [Slice.length] using hlt')).val ∧
+        (s.val[i.val]'(by simpa [Slice.length] using hlt')).val ≤ 57 := by simpa using hb
+    have hd' : ∀ b ∈ range s (i.val + 1) stop.val, isDigit b :=
+      fun b hm => hd b (by rw [hrc]; exact List.mem_cons_of_mem _ hm)
+    rw [hrc, List.foldl_cons]
+    step*
+    have hdst : dstep (val (nats digits)) (byte (s.val[i.val]'(by simpa [Slice.length] using hlt')))
+        = 10 * val (nats digits) + d.val := by
+      simp only [dstep, digitVal_byte]; scalar_tac
+    rw [hdst]
+    -- each branch: the new digits, then the recursive call
+    split
+    · step as ⟨digits1, h1⟩
+      have hn : nats digits1 = nats digits ++ [d.val] := by simp [nats, h1]
+      have hD1 : IsDigits (nats digits1) := by
+        rw [hn]; intro x hx; rcases List.mem_append.mp hx with hx | hx
+        · exact hD x hx
+        · simp at hx; scalar_tac
+      have hL1 : Lead (nats digits1) := by
+        have hnz := ‹(d != 0#u8) = true›
+        rw [hn]; refine lead_snoc hL (Or.inl fun h => ?_)
+        simp only [bne_iff_ne, ne_eq] at hnz; exact hnz (UScalar.eq_of_val_eq (by simpa using h))
+      have hl1 : digits1.length = digits.length + 1 := by simp [h1]
+      have hv1 : val (nats digits1) = 10 * val (nats digits) + d.val := by rw [hn, val_snoc]
+      step*
+      all_goals (rw [i2_post]; exact hd')
+    · split
+      · step as ⟨digits1, h1⟩
+        have hn : nats digits1 = nats digits ++ [d.val] := by simp [nats, h1]
+        have hne : digits.val ≠ [] := by
+          intro h; have hnz := ‹(digits.len != 0#usize) = true›
+          simp only [bne_iff_ne, ne_eq] at hnz
+          exact hnz (UScalar.eq_of_val_eq (by simp [h]))
+        have hD1 : IsDigits (nats digits1) := by
+          rw [hn]; intro x hx; rcases List.mem_append.mp hx with hx | hx
+          · exact hD x hx
+          · simp at hx; scalar_tac
+        have hL1 : Lead (nats digits1) := by
+          rw [hn]; exact lead_snoc hL (Or.inr (by simpa [nats] using hne))
+        have hl1 : digits1.length = digits.length + 1 := by simp [h1]
+        have hv1 : val (nats digits1) = 10 * val (nats digits) + d.val := by rw [hn, val_snoc]
+        step*
+        all_goals (rw [i2_post]; exact hd')
+      · have hd0 : d.val = 0 := by
+          have := ‹¬(d != 0#u8) = true›; simp at this; rw [this]
+        have he : digits.val = [] := by
+          have := ‹¬(digits.len != 0#usize) = true›; simpa using this
+        have hv0 : val (nats digits) = 0 := by simp [nats, he, val]
+        step*
+        all_goals (rw [i2_post]; exact hd')
+  · step*
+    rw [range_empty s _ _ (by scalar_tac)]
+    simp_all
+termination_by s.length - i.val
+decreasing_by all_goals scalar_tac
+
+theorem nats_new : nats (alloc.vec.Vec.new Std.U8) = [] := rfl
+
+@[step]
+theorem mantissa_spec (s : Slice Std.U8) (a b c : Std.Usize) (hab : a.val ≤ b.val) (hbc : b.val ≤ c.val)
+    (hc : c.val ≤ s.length) (hlen : s.length ≤ 4294967295)
+    (hd1 : ∀ x ∈ range s a.val b.val, isDigit x) (hd2 : ∀ x ∈ range s (b.val + 1) c.val, isDigit x) :
+    decimal.mantissa s a b c ⦃ r =>
+      val (nats r.1) = digitsVal (range s a.val b.val ++ range s (b.val + 1) c.val) ∧
+      IsDigits (nats r.1) ∧ Lead (nats r.1) ∧ r.1.length ≤ s.length ∧
+      r.2.val = (range s (b.val + 1) c.val).length ⦄ := by
+  have hD0 : IsDigits (nats (alloc.vec.Vec.new Std.U8)) := by simp [nats_new, IsDigits]
+  have hL0 : Lead (nats (alloc.vec.Vec.new Std.U8)) := by simp [nats_new, Lead]
+  have hl0 : (alloc.vec.Vec.new Std.U8).length = 0 := rfl
+  have hv0 : val (nats (alloc.vec.Vec.new Std.U8)) = 0 := rfl
+  unfold decimal.mantissa
+  step*
+  · rw [i_post]; exact hd2
+  · rw [i_post] at digits1_post digits1_post3
+    rw [hv0] at digits_post
+    refine ⟨?_, digits1_post1, digits1_post2, by scalar_tac, ?_⟩
+    · rw [digits1_post, digits_post, digitsVal_foldl, List.foldl_append]
+    · rw [length_range _ _ _ hc]; scalar_tac
+  · have hF : range s (b.val + 1) c.val = [] := range_empty s _ _ (by scalar_tac)
+    rw [hv0] at digits_post
+    refine ⟨?_, digits_post1, digits_post2, by scalar_tac, by simp [hF]⟩
+    rw [hF, List.append_nil, digits_post, digitsVal_foldl]
+
+/-! ## Parsing -/
+
+theorem fracPart_digits {l f r : List UInt8} (h : fracPart l = some (f, r)) : ∀ x ∈ f, isDigit x := by
+  cases l with
+  | nil => rw [fracPart_nil] at h; cases h; simp
+  | cons b rest =>
+    rw [fracPart_cons] at h
+    split at h
+    · split at h
+      · cases h
+      · have hd := takeDigits_digits rest
+        simp only [Option.some.injEq] at h; rw [h] at hd; exact hd
+    · cases h; simp
+
+/-- `parseBytes`, given its sign and integer parts. -/
+theorem parseBytes_parts (bs : List UInt8) (neg : Bool) (r1 int r2 : List UInt8)
+    (h1 : signPart bs = (neg, r1)) (h2 : takeDigits r1 = (int, r2)) :
+    parseBytes bs = if intOk int then (fracPart r2).bind (fun p => (expPart p.2).bind (fun q =>
+       if q.2 = [] then some ⟨neg, digitsVal (int ++ p.1), q.1 - p.1.length⟩ else none)) else none := by
+  simp only [parseBytes, h1, h2]
+  split
+  · rename_i h
+    simp [h, guard]
+    cases fracPart r2 with
+    | none => rfl
+    | some p =>
+      simp
+      cases expPart p.2 with
+      | none => rfl
+      | some q => simp; split <;> simp_all
+  · rename_i h; simp [h, guard]
+
+theorem decide_usize_one (u : Std.Usize) : decide (u = 1#usize) = decide (u.val = 1) := by
+  rw [Bool.eq_iff_iff]; simp only [decide_eq_true_eq]
+  exact ⟨fun h => by rw [h]; rfl, fun h => UScalar.eq_of_val_eq h⟩
+
+/-- `parse` is the specification's parser on the input bytes, except that it refuses inputs
+longer than `u32::MAX`; every decimal it returns is well formed. -/
+@[step]
+theorem parse_spec (s : Slice Std.U8) :
+    decimal.parse s ⦃ r =>
+      r.map absDec = (if s.length ≤ 4294967295 then parseBytes (bytes s) else none) ∧
+      ∀ d, r = some d → WF d ⦄ := by
+  have hR : U32.rMax = 4294967295 := rfl
+  have hM : core.num.U32.MAX.val = 4294967295 := by simp [core.num.U32.MAX, hR]
+  unfold decimal.parse
+  step*
+  · -- too long
+    rw [ite_eq_right (by scalar_tac)]; simp
+  all_goals have hlen : s.length ≤ 4294967295 := by scalar_tac
+  all_goals rw [ite_eq_left hlen, parseBytes_parts _ _ _ (range s int_start.val int_end.val) _
+    int_start_post2 (digits_split s _ _ int_end_post)]
+  all_goals try
+    have hb : intOk (range s int_start.val int_end.val) = true := by rw [← b_post]; assumption
+    rw [ite_eq_left hb, o_post, ‹o = some e›, Option.map_some, Option.bind_some, o1_post]
+  · -- no fraction after '.'
+    have hb : intOk (range s int_start.val int_end.val) = true := by rw [← b_post]; assumption
+    rw [ite_eq_left hb, o_post, ‹o = none›]; simp
+  · -- bad exponent
+    rw [‹o1 = none›]; simp
+  · -- an exponent: the rest must be empty
+    obtain ⟨exp, fin⟩ := x
+    have hx := o1_post1 _ ‹o1 = some (exp, fin)›
+    have he := o_post1 _ ‹o = some e›
+    have hfrac := fracPart_digits (o_post.trans (by rw [‹o = some e›]; rfl))
+    have hint : ∀ x ∈ range s int_start.val int_end.val, isDigit x := by
+      have h := takeDigits_digits ((bytes s).drop int_start.val)
+      rwa [digits_split s _ _ int_end_post] at h
+    rw [‹o1 = some (exp, fin)›]
+    simp only [Option.map_some, Option.bind_some]
+    step*
+    · -- trailing bytes
+      have hlt : fin.val < s.length := by scalar_tac
+      have : (bytes s).drop fin.val ≠ [] := by
+        rw [drop_bytes s _ hlt]; simp
+      simp [this]
+    · -- the decimal
+      have hfin : fin.val = s.length := by scalar_tac
+      rw [List.drop_eq_nil_of_le (by rw [length_bytes]; omega)]
+      refine ⟨?_, ?_⟩
+      · simp only [Option.map_some, ite_true, absDec, digitsOf, decide_usize_one, Option.some.injEq,
+          TclMesh.Decimal.Dec.mk.injEq, true_and]
+        refine ⟨?_, ?_⟩
+        · exact digits_post
+        · rw [digits_post4]
+      · intro d hd; cases hd
+        exact ⟨digits_post1, digits_post2, by scalar_tac, by scalar_tac, by scalar_tac⟩
+  · -- integer part not canonical
+    have hb : ¬ intOk (range s int_start.val int_end.val) = true := by rw [← b_post]; assumption
+    rw [ite_eq_right hb]; simp
+
+/-- End to end: parsing two operands and comparing them in Rust is the specification's
+comparison of their bytes (`TclMesh.Decimal.compareStrings` on UTF-8), for operands of at
+most `u32::MAX` bytes. -/
+theorem parse_compare_spec (a b : Slice Std.U8) (ha : a.length ≤ 4294967295)
+    (hb : b.length ≤ 4294967295) :
+    (do
+      let x ← decimal.parse a
+      let y ← decimal.parse b
+      match x, y with
+      | some x, some y => do let o ← decimal.compare x y; ok (some o)
+      | _, _ => ok none) ⦃ r =>
+      r.map absO = (do pure ((← parseBytes (bytes a)).cmp (← parseBytes (bytes b)))) ⦄ := by
+  step*
+  rw [ite_eq_left ha] at x_post
+  rw [ite_eq_left hb] at y_post
+  rw [← x_post, ← y_post]
+  cases x with
+  | none => simp
+  | some x =>
+    cases y with
+    | none => simp
+    | some y =>
+      have hc := compare_spec x y (x_post1 x rfl) (y_post1 y rfl)
+      simp only [Option.map_some]
+      step*
+      simp [o_post]
 
 end TclMeshProof.Parse

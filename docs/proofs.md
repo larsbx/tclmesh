@@ -74,7 +74,7 @@ seeded random ones.
 ## Rust refinement (Aeneas)
 
 `kernel/core` is the dependency-free part of the Rust kernel that the running
-kernel calls for decimal comparison and deontic resolution. It is written in
+kernel calls for decimal parsing and comparison and for deontic resolution. It is written in
 the subset Aeneas translates: loops without early return, slices, `Vec`, enums,
 no `?` on `Option`, no traits beyond derives.
 
@@ -91,6 +91,11 @@ fails if they change without regeneration. The model contains no axioms.
 | | `compare_magnitude_spec` | for nonzero canonical digit strings, `compare_magnitude a pa b pb` is the order of `a·10^pa` and `b·10^pb` |
 | | `magnitude_spec` | exponent alignment to the smaller effective exponent is exact |
 | | `compare_spec` | **on well-formed decimals, Rust `decimal::compare` returns exactly `TclMesh.Decimal.Dec.cmp`** |
+| `Parse` | `digits_end_loop_spec`, `sign_end_spec`, `integer_ok_spec`, `fraction_end_spec`, `exponent_spec` | each scanner returns the split of the input bytes that the corresponding part of `TclMesh.Decimal.parseBytes` computes (`takeDigits`, `signPart`, `intOk`, `fracPart`, `expPart`) |
+| | `bounded_exp_spec` | the saturating exponent accumulator returns exactly `boundedExp`: the value if at most 1000, else `none` |
+| | `push_digits_loop_spec`, `mantissa_spec` | dropping leading zeros preserves the value `digitsVal (int ++ frac)` and yields digits without a leading zero |
+| | `parse_spec` | **Rust `decimal::parse` returns exactly `TclMesh.Decimal.parseBytes` of the input bytes (under `absDec`), refusing only inputs longer than `u32::MAX` bytes, and every decimal it returns is well formed** |
+| | `parse_compare_spec` | **end to end: parsing two operands and comparing them in Rust is the specification's comparison of their bytes** |
 | `Digits` | `lex_eq_compare`, `val_lt`, `val_ge`, `val_append_zeros` | lexicographic order of equal-length digit strings is numeric order; length bounds; zero padding multiplies by `10^p` |
 
 The proofs use Aeneas's Lean library and Mathlib, both at pinned versions
@@ -104,9 +109,8 @@ These are listed in the [roadmap](roadmap.md#formal-methods-first):
 
 - full refinement of the executable kernel against the `Canonical` and `Flow`
   models (beyond the two lemmas above);
-- Aeneas refinement of `decimal::parse` (that it produces a well-formed `Dec`
-  equal to `TclMesh.Decimal.parse`), and moving the remaining kernel
-  evaluation into `kernel/core`;
+- moving the remaining kernel evaluation (predicates, paths, changes, effects)
+  into `kernel/core` and refining it the same way;
 - ciphertext and labels in the kernel IR;
 - per-mechanism lemmas under cryptographic assumptions;
 - noise-budget soundness;

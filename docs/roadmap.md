@@ -138,7 +138,8 @@ that satisfies the declaration, or rejects it.
 The Lean 4 specification in `spec/` is the root of trust. New semantics start
 as a Lean definition and its theorems. Implementations follow:
 
-- the Rust kernel is refined against the spec, with an Aeneas proof planned;
+- the Rust kernel is refined against the spec: `kernel/core` by Aeneas proofs,
+  the rest by exact conformance with the executable spec;
 - the Tcl reference is checked against it by conformance testing;
 - the Tcl meta-language acts as a certifying compiler, whose certificates a
   checker proved in Lean validates before activation.
@@ -167,11 +168,10 @@ Proof obligations:
 - [x] executable spec as the conformance oracle (`Kernel.lean`, `lake exe spec-eval`).
   The Rust kernel must equal it on every vector, and its own fail-closed
   `not` and exact-comparison theorems are proved;
-- [x] `kernel/core` in the subset Aeneas can translate. Its deontic resolution and
-  exact decimal comparison are proved equal to the spec through Aeneas
-  (`proof/`), with no axioms;
-- [ ] Aeneas refinement of decimal parsing, then of the whole evaluation, as it
-  moves into `kernel/core`;
+- [x] `kernel/core` in the subset Aeneas can translate. Its deontic resolution,
+  exact decimal parsing and exact decimal comparison are proved equal to the
+  spec through Aeneas (`proof/`), with no axioms;
+- [ ] Aeneas refinement of the whole evaluation, as it moves into `kernel/core`;
 - [ ] ciphertext values and the IFC type system in the kernel IR, with the Tcl
   compiler emitting label certificates;
 - [ ] mechanism lemmas: CMUX select, threshold release, functional encryption,
