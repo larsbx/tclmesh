@@ -60,7 +60,7 @@ test CANON-004-rejection-cannot-be-negated {not over a rejected comparison still
 test CANON-005-canonical-lists {bare words and brace grouping only} -body {
     list \
         [canonical_permits [list in [lit {b c}] [lit {a {b c}}]]] \
-        [canonical_permits [list in [lit a{b] [lit {a{b c}}]]] \
+        [canonical_permits [list in [lit "a\{b"] [lit {a{b c}}]]] \
         [canonical_permits [list in [lit {b c}] [lit {a "b c"}]]] \
         [canonical_permits [list in [lit {b c}] [lit {a b\ c}]]] \
         [canonical_permits [list in [lit a] [lit "\{a"]]]
