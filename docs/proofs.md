@@ -111,6 +111,25 @@ fails if they change without regeneration. The model contains no axioms.
 | | `eval_spec` | **Rust `predicate::eval` decides every resolved predicate exactly as `TclMesh.Kernel.Pred.eval`, faults included, for comparison operands of at most `u32::MAX` bytes** |
 | `Digits` | `lex_eq_compare`, `val_lt`, `val_ge`, `val_append_zeros` | lexicographic order of equal-length digit strings is numeric order; length bounds; zero padding multiplies by `10^p` |
 
+### Computational security
+
+`proof/TclMeshProof/Security.lean` connects the structural theorems to
+computational security by a concrete-security hybrid argument. A
+distinguisher `D` of two views of `n` ciphertexts under one key yields
+explicit non-adaptive IND-CPA adversaries: `reduction D i` queries the
+encryption oracle on the other `n − 1` hybrid messages and runs `D` once.
+
+| Theorem | Statement |
+|---|---|
+| `game_reduction` | the IND-CPA game against `reduction D i` is exactly a view with the challenge at position `i` |
+| `view_hybrid` | `Adv_view(D) ≤ Σ i, Adv_cpa(reduction D i)` |
+| `view_bound` | if every non-adaptive IND-CPA adversary has advantage at most `ε` (a named hypothesis), views are `n·ε`-close |
+| `leakage_bound` | views that agree on their public part (as the structural theorems guarantee for leakage-equivalent inputs) are `n·ε`-close |
+| `completeness`, `special_soundness`, `hvzk`, `hvzk_prob` | Schnorr's Σ-protocol, in the exponent model `ZMod q`: honest proofs verify; two transcripts with one commitment determine the witness; real and simulated transcripts have equal distributions |
+
+`security/` tests the same properties empirically on implementations
+(`docs/testing.md`).
+
 The proofs use Aeneas's Lean library and Mathlib, both at pinned versions
 (`proof/lakefile.toml`). The audit (`lake env lean Audit.lean`) checks every
 generated definition and every refinement theorem against the standard
