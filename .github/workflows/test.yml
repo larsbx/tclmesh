@@ -67,6 +67,10 @@ jobs:
           cargo build --release --manifest-path kernel/Cargo.toml
           spec/.lake/build/bin/spec-eval conformance/vectors.json > spec-outcomes.json
           kernel/target/release/tclmesh-kernel conform conformance/vectors.json spec-outcomes.json --exact
+      - name: Per-party views (recorded = declared by Tcl and Lean; paired runs; calibration)
+        run: |
+          spec/.lake/build/bin/spec-eval --views conformance/circuits.json > spec-views.json
+          tclsh tools/views.tcl check conformance/circuits.json spec-views.json
       - name: Random differential conformance (kernel = spec exactly; kernel refines Tcl)
         env:
           RUN_SEED: ${{ github.run_id }}

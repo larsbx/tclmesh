@@ -8,3 +8,4 @@ import TclMesh.Canonical
 import TclMesh.Decimal
 import TclMesh.Predicate
 import TclMesh.Kernel
+import TclMesh.Circuit

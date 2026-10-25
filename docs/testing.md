@@ -181,3 +181,11 @@ manifest, programs, expected views and expected results:
 
 Each exemplar runs through every layer, and the corpus documents what M can
 generate.
+
+## Status
+
+| Piece | Where | State |
+|---|---|---|
+| per-party views, paired runs | `src/views.tcl`, `tests/views.test` | evaluator and recipient views; transparent backend; `lazy` and `sized` calibration breaks detected |
+| declared views from the spec | `spec/TclMesh/Circuit.lean`, `spec-eval --views` | `declared` with `declared_publics` (the view depends on public inputs only) and `schedule_nodup` proved |
+| view conformance | `tools/views.tcl check`, `conformance/circuits.json` | recorded = declared (Tcl) = declared (Lean) on every vector, in CI |
