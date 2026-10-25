@@ -96,76 +96,89 @@ theorem le_total (a b : Dec) : a.le b ∨ b.le a := by
 theorem neg_zero (e : Int) : (Dec.mk true 0 e).scaled e = (Dec.mk false 0 e).scaled e := by
   simp [Dec.scaled]
 
-/-! ## Parsing -/
+/-! ## Parsing
 
-def digitVal (c : Char) : Nat := c.toNat - '0'.toNat
+The grammar is ASCII, and the parser reads the UTF-8 bytes of the operand,
+exactly as the Rust kernel does (`text.as_bytes()`); a Lean `String` is its
+UTF-8 bytes (`String.toByteArray`).
+-/
+
+def isDigit (b : UInt8) : Bool := 48 ≤ b && b ≤ 57
+
+def digitVal (b : UInt8) : Nat := b.toNat - 48
 
 /-- Splits a maximal run of ASCII digits off the front. -/
-def takeDigits : List Char → List Char × List Char
-  | c :: cs => if c.isDigit then let (d, r) := takeDigits cs; (c :: d, r) else ([], c :: cs)
+def takeDigits : List UInt8 → List UInt8 × List UInt8
+  | b :: bs => if isDigit b then let (d, r) := takeDigits bs; (b :: d, r) else ([], b :: bs)
   | [] => ([], [])
 
-def digitsVal (ds : List Char) : Nat := ds.foldl (fun n c => 10 * n + digitVal c) 0
+def digitsVal (ds : List UInt8) : Nat := ds.foldl (fun n b => 10 * n + digitVal b) 0
 
-/-- The exponent's magnitude after removing leading zeros, if within `maxExp`. -/
-def boundedExp (ds : List Char) : Option Nat :=
-  let ds := ds.dropWhile (· == '0')
-  if ds.length ≤ 4 && digitsVal ds ≤ maxExp then some (digitsVal ds) else none
+/-- The exponent's magnitude, if within `maxExp`. -/
+def boundedExp (ds : List UInt8) : Option Nat :=
+  if digitsVal ds ≤ maxExp then some (digitsVal ds) else none
 
-def parseChars (cs : List Char) : Option Dec := do
-  let (neg, cs) := match cs with
-    | '-' :: rest => (true, rest)
-    | _ => (false, cs)
-  let (int, cs) := takeDigits cs
-  guard (int ≠ [] && (int.length = 1 || int.head? ≠ some '0'))
-  let (frac, cs) ← match cs with
-    | '.' :: rest =>
+def parseBytes (bs : List UInt8) : Option Dec := do
+  let (neg, bs) := match bs with
+    | 45 :: rest => (true, rest)          -- '-'
+    | _ => (false, bs)
+  let (int, bs) := takeDigits bs
+  guard (int ≠ [] && (int.length = 1 || int.head? ≠ some 48))   -- no leading '0'
+  let (frac, bs) ← match bs with
+    | 46 :: rest =>                        -- '.'
         let (f, r) := takeDigits rest
         if f = [] then none else some (f, r)
-    | _ => some ([], cs)
-  let (e, cs) ← match cs with
-    | c :: rest =>
-        if c = 'e' || c = 'E' then
+    | _ => some ([], bs)
+  let (e, bs) ← match bs with
+    | b :: rest =>
+        if b = 101 || b = 69 then          -- 'e' | 'E'
           let (sign, rest) := match rest with
-            | '-' :: r => (-1, r)
-            | '+' :: r => (1, r)
+            | 45 :: r => (-1, r)
+            | 43 :: r => (1, r)            -- '+'
             | _ => (1, rest)
           let (ds, r) := takeDigits rest
           if ds = [] then none else do
             let m ← boundedExp ds
             some (sign * (m : Int), r)
-        else some (0, c :: rest)
+        else some (0, b :: rest)
     | [] => some (0, [])
-  guard (cs = [])
+  guard (bs = [])
   pure ⟨neg, digitsVal (int ++ frac), e - frac.length⟩
 
-def parse (s : String) : Option Dec := parseChars s.toList
+def parse (s : String) : Option Dec := parseBytes s.toByteArray.toList
 
 /-- Comparison of two operand strings: `none` if either is not canonical. -/
 def compareStrings (a b : String) : Option Ordering := do
   pure ((← parse a).cmp (← parse b))
 
-/-! ## The canonical domain, by example (checked by evaluation) -/
+/-! ## The canonical domain, by example (checked by evaluation)
 
-example : compareStrings "1e3" "1000" = some .eq := by decide
-example : compareStrings "0.10" "0.1" = some .eq := by decide
-example : compareStrings "-0" "0" = some .eq := by decide
-example : compareStrings "-0.0" "0" = some .eq := by decide
-example : compareStrings "0.1" "0.10000000000000000001" = some .lt := by decide
-example : compareStrings "9007199254740993" "9007199254740992.0" = some .gt := by decide
-example : compareStrings "-2.5" "-3" = some .gt := by decide
-example : compareStrings "1E-2" "0.01" = some .eq := by decide
-example : compareStrings "1e1000" "1e999" = some .gt := by decide
-example : parse "1e1001" = none := by decide
-example : parse "1e0000000000000001000" ≠ none := by decide
-example : parse "007" = none := by decide
-example : parse "0x10" = none := by decide
-example : parse " 1" = none := by decide
-example : parse "+1" = none := by decide
-example : parse ".5" = none := by decide
-example : parse "1." = none := by decide
-example : parse "1e" = none := by decide
-example : parse "Inf" = none := by decide
-example : parse "" = none := by decide
+`ascii s` is the byte list of an ASCII literal: its UTF-8 encoding. -/
+
+def ascii (s : String) : List UInt8 := s.toList.map Char.toUInt8
+
+def compareAscii (a b : String) : Option Ordering := do
+  pure ((← parseBytes (ascii a)).cmp (← parseBytes (ascii b)))
+
+example : compareAscii "1e3" "1000" = some .eq := by decide
+example : compareAscii "0.10" "0.1" = some .eq := by decide
+example : compareAscii "-0" "0" = some .eq := by decide
+example : compareAscii "-0.0" "0" = some .eq := by decide
+example : compareAscii "0.1" "0.10000000000000000001" = some .lt := by decide
+example : compareAscii "9007199254740993" "9007199254740992.0" = some .gt := by decide
+example : compareAscii "-2.5" "-3" = some .gt := by decide
+example : compareAscii "1E-2" "0.01" = some .eq := by decide
+example : compareAscii "1e1000" "1e999" = some .gt := by decide
+example : parseBytes (ascii "1e1001") = none := by decide
+example : parseBytes (ascii "1e0000000000000001000") ≠ none := by decide
+example : parseBytes (ascii "007") = none := by decide
+example : parseBytes (ascii "0x10") = none := by decide
+example : parseBytes (ascii " 1") = none := by decide
+example : parseBytes (ascii "+1") = none := by decide
+example : parseBytes (ascii ".5") = none := by decide
+example : parseBytes (ascii "1.") = none := by decide
+example : parseBytes (ascii "1e") = none := by decide
+example : parseBytes (ascii "Inf") = none := by decide
+example : parseBytes (ascii "") = none := by decide
 
 end TclMesh.Decimal
