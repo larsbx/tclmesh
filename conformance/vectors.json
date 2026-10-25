@@ -3057,6 +3057,224 @@
     "attempts": "2",
     "limit": "9007199254740992.0"
    }
+  },
+  {
+   "id": "contains-utf8",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "contains",
+      [
+       "field",
+       "word"
+      ],
+      [
+       "literal",
+       "é"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "word": "héllo"
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "contains-utf8-absent",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "contains",
+      [
+       "field",
+       "word"
+      ],
+      [
+       "literal",
+       "ü"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "word": "héllo"
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-list-text-utf8",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "ü ö"
+      ],
+      [
+       "field",
+       "umlauts"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "umlauts": "é {ü ö} ß"
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-array-utf8",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "ß"
+      ],
+      [
+       "field",
+       "sharp"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "sharp": [
+     "é",
+     "ß"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "eq-utf8",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [
+       "field",
+       "word"
+      ],
+      [
+       "literal",
+       "héllo"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "word": "héllo"
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
   }
  ]
 }

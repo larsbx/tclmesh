@@ -79,9 +79,11 @@ def decimal.Dec.Insts.CoreCmpPartialEqDec.eq
 /-- Trait implementation: [tclmesh_kernel_core::decimal::{impl core::cmp::PartialEq<tclmesh_kernel_core::decimal::Dec> for tclmesh_kernel_core::decimal::Dec}]
     Source: 'src/decimal.rs', lines 16:16-16:25 -/
 @[reducible]
-def decimal.Dec.Insts.CoreCmpPartialEqDec : core.cmp.PartialEq decimal.Dec
+impl_def decimal.Dec.Insts.CoreCmpPartialEqDec : core.cmp.PartialEq decimal.Dec
   decimal.Dec := {
   eq := decimal.Dec.Insts.CoreCmpPartialEqDec.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    decimal.Dec.Insts.CoreCmpPartialEqDec
 }
 
 /-- [tclmesh_kernel_core::decimal::{impl core::cmp::Eq for tclmesh_kernel_core::decimal::Dec}::assert_fields_are_eq]:
@@ -380,7 +382,7 @@ def decimal.padded (digits : Slice Std.U8) (i : Std.U64) : Result Std.U8 := do
   else ok 0#u8
 
 /-- [tclmesh_kernel_core::Order]
-    Source: 'src/lib.rs', lines 26:0-30:1
+    Source: 'src/lib.rs', lines 27:0-31:1
     Visibility: public -/
 @[discriminant isize]
 inductive Order where
@@ -545,9 +547,11 @@ def deontic.Verdict.Insts.CoreCmpPartialEqVerdict.eq
 /-- Trait implementation: [tclmesh_kernel_core::deontic::{impl core::cmp::PartialEq<tclmesh_kernel_core::deontic::Verdict> for tclmesh_kernel_core::deontic::Verdict}]
     Source: 'src/deontic.rs', lines 4:22-4:31 -/
 @[reducible]
-def deontic.Verdict.Insts.CoreCmpPartialEqVerdict : core.cmp.PartialEq
+impl_def deontic.Verdict.Insts.CoreCmpPartialEqVerdict : core.cmp.PartialEq
   deontic.Verdict deontic.Verdict := {
   eq := deontic.Verdict.Insts.CoreCmpPartialEqVerdict.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    deontic.Verdict.Insts.CoreCmpPartialEqVerdict
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::deontic::{impl core::cmp::Eq for tclmesh_kernel_core::deontic::Verdict}]
@@ -621,9 +625,11 @@ def deontic.Judgment.Insts.CoreCmpPartialEqJudgment.eq
 /-- Trait implementation: [tclmesh_kernel_core::deontic::{impl core::cmp::PartialEq<tclmesh_kernel_core::deontic::Judgment> for tclmesh_kernel_core::deontic::Judgment}]
     Source: 'src/deontic.rs', lines 14:22-14:31 -/
 @[reducible]
-def deontic.Judgment.Insts.CoreCmpPartialEqJudgment : core.cmp.PartialEq
+impl_def deontic.Judgment.Insts.CoreCmpPartialEqJudgment : core.cmp.PartialEq
   deontic.Judgment deontic.Judgment := {
   eq := deontic.Judgment.Insts.CoreCmpPartialEqJudgment.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    deontic.Judgment.Insts.CoreCmpPartialEqJudgment
 }
 
 /-- [tclmesh_kernel_core::deontic::{impl core::cmp::Eq for tclmesh_kernel_core::deontic::Judgment}::assert_fields_are_eq]:
@@ -728,34 +734,34 @@ def deontic.admits (vs : Slice deontic.Verdict) : Result Bool := do
   | deontic.Judgment.Conflicted => ok false
 
 /-- [tclmesh_kernel_core::{impl core::clone::Clone for tclmesh_kernel_core::Order}::clone]:
-    Source: 'src/lib.rs', lines 25:9-25:14
+    Source: 'src/lib.rs', lines 26:9-26:14
     Visibility: public -/
 def Order.Insts.CoreCloneClone.clone (self : Order) : Result Order := do
   ok self
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::clone::Clone for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 25:9-25:14 -/
+    Source: 'src/lib.rs', lines 26:9-26:14 -/
 @[reducible]
 def Order.Insts.CoreCloneClone : core.clone.Clone Order := {
   clone := Order.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::marker::Copy for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 25:16-25:20 -/
+    Source: 'src/lib.rs', lines 26:16-26:20 -/
 @[reducible]
 def Order.Insts.CoreMarkerCopy : core.marker.Copy Order := {
   cloneInst := Order.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::marker::StructuralPartialEq for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 25:22-25:31 -/
+    Source: 'src/lib.rs', lines 26:22-26:31 -/
 @[reducible]
 def Order.Insts.CoreMarkerStructuralPartialEq : core.marker.StructuralPartialEq
   Order := {
 }
 
 /-- [tclmesh_kernel_core::{impl core::cmp::PartialEq<tclmesh_kernel_core::Order> for tclmesh_kernel_core::Order}::eq]:
-    Source: 'src/lib.rs', lines 25:22-25:31
+    Source: 'src/lib.rs', lines 26:22-26:31
     Visibility: public -/
 def Order.Insts.CoreCmpPartialEqOrder.eq
   (self : Order) (other : Order) : Result Bool := do
@@ -764,19 +770,754 @@ def Order.Insts.CoreCmpPartialEqOrder.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::cmp::PartialEq<tclmesh_kernel_core::Order> for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 25:22-25:31 -/
+    Source: 'src/lib.rs', lines 26:22-26:31 -/
 @[reducible]
-def Order.Insts.CoreCmpPartialEqOrder : core.cmp.PartialEq Order Order := {
+impl_def Order.Insts.CoreCmpPartialEqOrder : core.cmp.PartialEq Order Order
+  := {
   eq := Order.Insts.CoreCmpPartialEqOrder.eq
+  ne := core.cmp.PartialEq.ne.trait_default Order.Insts.CoreCmpPartialEqOrder
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::cmp::Eq for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 25:33-25:35 -/
+    Source: 'src/lib.rs', lines 26:33-26:35 -/
 @[reducible]
 impl_def Order.Insts.CoreCmpEq : core.cmp.Eq Order := {
   partialEqInst := Order.Insts.CoreCmpPartialEqOrder
   assert_fields_are_eq := core.cmp.Eq.assert_fields_are_eq.default
     Order.Insts.CoreCmpEq
 }
+
+/-- [tclmesh_kernel_core::predicate::Res]
+    Source: 'src/predicate.rs', lines 12:0-19:1
+    Visibility: public -/
+@[discriminant isize]
+inductive predicate.Res where
+| Fault : Std.Usize → predicate.Res
+| Str : alloc.vec.Vec Std.U8 → predicate.Res
+| Arr : alloc.vec.Vec (Option (alloc.vec.Vec Std.U8)) → predicate.Res
+| Other : predicate.Res
+
+/-- [tclmesh_kernel_core::predicate::CmpOp]
+    Source: 'src/predicate.rs', lines 23:0-28:1
+    Visibility: public -/
+@[discriminant isize]
+inductive predicate.CmpOp where
+| Lt : predicate.CmpOp
+| Lte : predicate.CmpOp
+| Gt : predicate.CmpOp
+| Gte : predicate.CmpOp
+
+/-- [tclmesh_kernel_core::predicate::{impl core::clone::Clone for tclmesh_kernel_core::predicate::CmpOp}::clone]:
+    Source: 'src/predicate.rs', lines 22:9-22:14
+    Visibility: public -/
+def predicate.CmpOp.Insts.CoreCloneClone.clone
+  (self : predicate.CmpOp) : Result predicate.CmpOp := do
+  ok self
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::clone::Clone for tclmesh_kernel_core::predicate::CmpOp}]
+    Source: 'src/predicate.rs', lines 22:9-22:14 -/
+@[reducible]
+def predicate.CmpOp.Insts.CoreCloneClone : core.clone.Clone predicate.CmpOp
+  := {
+  clone := predicate.CmpOp.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::marker::Copy for tclmesh_kernel_core::predicate::CmpOp}]
+    Source: 'src/predicate.rs', lines 22:16-22:20 -/
+@[reducible]
+def predicate.CmpOp.Insts.CoreMarkerCopy : core.marker.Copy predicate.CmpOp
+  := {
+  cloneInst := predicate.CmpOp.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::marker::StructuralPartialEq for tclmesh_kernel_core::predicate::CmpOp}]
+    Source: 'src/predicate.rs', lines 22:22-22:31 -/
+@[reducible]
+def predicate.CmpOp.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq predicate.CmpOp := {
+}
+
+/-- [tclmesh_kernel_core::predicate::{impl core::cmp::PartialEq<tclmesh_kernel_core::predicate::CmpOp> for tclmesh_kernel_core::predicate::CmpOp}::eq]:
+    Source: 'src/predicate.rs', lines 22:22-22:31
+    Visibility: public -/
+def predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp.eq
+  (self : predicate.CmpOp) (other : predicate.CmpOp) : Result Bool := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  ok (self1 = other1)
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::cmp::PartialEq<tclmesh_kernel_core::predicate::CmpOp> for tclmesh_kernel_core::predicate::CmpOp}]
+    Source: 'src/predicate.rs', lines 22:22-22:31 -/
+@[reducible]
+impl_def predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp : core.cmp.PartialEq
+  predicate.CmpOp predicate.CmpOp := {
+  eq := predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp
+}
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::cmp::Eq for tclmesh_kernel_core::predicate::CmpOp}]
+    Source: 'src/predicate.rs', lines 22:33-22:35 -/
+@[reducible]
+impl_def predicate.CmpOp.Insts.CoreCmpEq : core.cmp.Eq predicate.CmpOp := {
+  partialEqInst := predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp
+  assert_fields_are_eq := core.cmp.Eq.assert_fields_are_eq.default
+    predicate.CmpOp.Insts.CoreCmpEq
+}
+
+/-- [tclmesh_kernel_core::predicate::Pred]
+    Source: 'src/predicate.rs', lines 32:0-45:1
+    Visibility: public -/
+@[discriminant isize]
+inductive predicate.Pred where
+| Fail : Std.Usize → predicate.Pred
+| True : predicate.Pred
+| False : predicate.Pred
+| Eq : predicate.Res → predicate.Res → predicate.Pred
+| Neq : predicate.Res → predicate.Res → predicate.Pred
+| Cmp : predicate.CmpOp → predicate.Res → predicate.Res → predicate.Pred
+| Mem : predicate.Res → predicate.Res → predicate.Pred
+| Contains : predicate.Res → predicate.Res → predicate.Pred
+| Not : predicate.Pred → predicate.Pred
+| And : predicate.Pred → predicate.Pred → predicate.Pred
+| Or : predicate.Pred → predicate.Pred → predicate.Pred
+
+/-- [tclmesh_kernel_core::predicate::Error]
+    Source: 'src/predicate.rs', lines 49:0-58:1
+    Visibility: public -/
+@[discriminant isize]
+inductive predicate.Error where
+| Given : Std.Usize → predicate.Error
+| NotScalar : predicate.Error
+| NotList : predicate.Error
+| NonNumeric : predicate.CmpOp → predicate.Error
+| NonCanonicalList : predicate.Error
+
+/-- [tclmesh_kernel_core::predicate::{impl core::clone::Clone for tclmesh_kernel_core::predicate::Error}::clone]:
+    Source: 'src/predicate.rs', lines 48:9-48:14
+    Visibility: public -/
+def predicate.Error.Insts.CoreCloneClone.clone
+  (self : predicate.Error) : Result predicate.Error := do
+  ok self
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::clone::Clone for tclmesh_kernel_core::predicate::Error}]
+    Source: 'src/predicate.rs', lines 48:9-48:14 -/
+@[reducible]
+def predicate.Error.Insts.CoreCloneClone : core.clone.Clone predicate.Error
+  := {
+  clone := predicate.Error.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::marker::Copy for tclmesh_kernel_core::predicate::Error}]
+    Source: 'src/predicate.rs', lines 48:16-48:20 -/
+@[reducible]
+def predicate.Error.Insts.CoreMarkerCopy : core.marker.Copy predicate.Error
+  := {
+  cloneInst := predicate.Error.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::marker::StructuralPartialEq for tclmesh_kernel_core::predicate::Error}]
+    Source: 'src/predicate.rs', lines 48:22-48:31 -/
+@[reducible]
+def predicate.Error.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq predicate.Error := {
+}
+
+/-- [tclmesh_kernel_core::predicate::{impl core::cmp::PartialEq<tclmesh_kernel_core::predicate::Error> for tclmesh_kernel_core::predicate::Error}::eq]:
+    Source: 'src/predicate.rs', lines 48:22-48:31
+    Visibility: public -/
+def predicate.Error.Insts.CoreCmpPartialEqError.eq
+  (self : predicate.Error) (other : predicate.Error) : Result Bool := do
+  let self1 := read_discriminant self
+  let other1 := read_discriminant other
+  if self1 = other1
+  then
+    match self with
+    | predicate.Error.Given __self_0 =>
+      match other with
+      | predicate.Error.Given __arg1_0 =>
+        lift (core.cmp.impls.PartialEqUsize.eq __self_0 __arg1_0)
+      | predicate.Error.NotScalar => ok true
+      | predicate.Error.NotList => ok true
+      | predicate.Error.NonNumeric _ => ok true
+      | predicate.Error.NonCanonicalList => ok true
+    | predicate.Error.NotScalar => ok true
+    | predicate.Error.NotList => ok true
+    | predicate.Error.NonNumeric __self_0 =>
+      match other with
+      | predicate.Error.Given _ => ok true
+      | predicate.Error.NotScalar => ok true
+      | predicate.Error.NotList => ok true
+      | predicate.Error.NonNumeric __arg1_0 =>
+        predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp.eq __self_0 __arg1_0
+      | predicate.Error.NonCanonicalList => ok true
+    | predicate.Error.NonCanonicalList => ok true
+  else ok false
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::cmp::PartialEq<tclmesh_kernel_core::predicate::Error> for tclmesh_kernel_core::predicate::Error}]
+    Source: 'src/predicate.rs', lines 48:22-48:31 -/
+@[reducible]
+impl_def predicate.Error.Insts.CoreCmpPartialEqError : core.cmp.PartialEq
+  predicate.Error predicate.Error := {
+  eq := predicate.Error.Insts.CoreCmpPartialEqError.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    predicate.Error.Insts.CoreCmpPartialEqError
+}
+
+/-- [tclmesh_kernel_core::predicate::{impl core::cmp::Eq for tclmesh_kernel_core::predicate::Error}::assert_fields_are_eq]:
+    Source: 'src/predicate.rs', lines 48:33-48:35
+    Visibility: public -/
+def predicate.Error.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : predicate.Error) : Result Unit := do
+  ok ()
+
+/-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::cmp::Eq for tclmesh_kernel_core::predicate::Error}]
+    Source: 'src/predicate.rs', lines 48:33-48:35 -/
+@[reducible]
+def predicate.Error.Insts.CoreCmpEq : core.cmp.Eq predicate.Error := {
+  partialEqInst := predicate.Error.Insts.CoreCmpPartialEqError
+  assert_fields_are_eq := predicate.Error.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- [tclmesh_kernel_core::predicate::scalar]:
+    Source: 'src/predicate.rs', lines 60:0-67:1 -/
+def predicate.scalar
+  (r : predicate.Res) :
+  Result (core.result.Result (Slice Std.U8) predicate.Error)
+  := do
+  match r with
+  | predicate.Res.Fault i =>
+    ok (core.result.Result.Err (predicate.Error.Given i))
+  | predicate.Res.Str b =>
+    let s := alloc.vec.Vec.deref b
+    ok (core.result.Result.Ok s)
+  | predicate.Res.Arr _ =>
+    ok (core.result.Result.Err predicate.Error.NotScalar)
+  | predicate.Res.Other =>
+    ok (core.result.Result.Err predicate.Error.NotScalar)
+
+/-- [tclmesh_kernel_core::predicate::range_eq]: loop 0:
+    Source: 'src/predicate.rs', lines 76:8-81:9 -/
+@[rust_loop]
+def predicate.range_eq_loop
+  (a : Slice Std.U8) («from» : Std.Usize) (b : Slice Std.U8) (same : Bool)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let i2 ← «from» + i
+    let i3 ← Slice.index_usize a i2
+    let i4 ← Slice.index_usize b i
+    let same1 ← if i3 != i4
+                  then ok false
+                  else ok same
+    let i5 ← i + 1#usize
+    predicate.range_eq_loop a «from» b same1 i5
+  else ok same
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::range_eq]:
+    Source: 'src/predicate.rs', lines 70:0-84:1 -/
+def predicate.range_eq
+  (a : Slice Std.U8) («from» : Std.Usize) («to» : Std.Usize)
+  (b : Slice Std.U8) :
+  Result Bool
+  := do
+  let i ← «to» - «from»
+  let i1 := Slice.len b
+  if i != i1
+  then ok false
+  else predicate.range_eq_loop a «from» b true 0#usize
+
+/-- [tclmesh_kernel_core::predicate::bytes_eq]:
+    Source: 'src/predicate.rs', lines 86:0-88:1 -/
+def predicate.bytes_eq
+  (a : Slice Std.U8) (b : Slice Std.U8) : Result Bool := do
+  let i := Slice.len a
+  predicate.range_eq a 0#usize i b
+
+/-- [tclmesh_kernel_core::predicate::is_infix]: loop 0:
+    Source: 'src/predicate.rs', lines 94:4-99:5 -/
+@[rust_loop]
+def predicate.is_infix_loop
+  (needle : Slice Std.U8) (hay : Slice Std.U8) (found : Bool) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := Slice.len needle
+  let i2 ← i + i1
+  let i3 := Slice.len hay
+  if i2 <= i3
+  then
+    let i4 := Slice.len needle
+    let i5 ← i + i4
+    let b ← predicate.range_eq hay i i5 needle
+    let found1 ← if b
+                   then ok true
+                   else ok found
+    let i6 ← i + 1#usize
+    predicate.is_infix_loop needle hay found1 i6
+  else ok found
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::is_infix]:
+    Source: 'src/predicate.rs', lines 91:0-101:1 -/
+def predicate.is_infix
+  (needle : Slice Std.U8) (hay : Slice Std.U8) : Result Bool := do
+  let i := Slice.len needle
+  predicate.is_infix_loop needle hay (i = 0#usize) 0#usize
+
+/-- [tclmesh_kernel_core::predicate::is_space]:
+    Source: 'src/predicate.rs', lines 103:0-105:1 -/
+def predicate.is_space (b : Std.U8) : Result Bool := do
+  if b = 32#u8
+  then ok true
+  else
+    if b = 9#u8
+    then ok true
+    else
+      if b = 10#u8
+      then ok true
+      else
+        if b = 11#u8
+        then ok true
+        else if b = 12#u8
+             then ok true
+             else ok (b = 13#u8)
+
+/-- [tclmesh_kernel_core::predicate::is_quote]:
+    Source: 'src/predicate.rs', lines 107:0-109:1 -/
+def predicate.is_quote (b : Std.U8) : Result Bool := do
+  if b = 92#u8
+  then ok true
+  else ok (b = 34#u8)
+
+/-- [tclmesh_kernel_core::predicate::plain_element]: loop 0:
+    Source: 'src/predicate.rs', lines 117:4-132:5 -/
+@[rust_loop]
+def predicate.plain_element_loop
+  (b : Slice Std.U8) (ok1 : Bool) (depth : Std.Usize) (i : Std.Usize) :
+  Result (Bool × Std.Usize)
+  := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let i2 ← Slice.index_usize b i
+    let b1 ← predicate.is_quote i2
+    let (ok2, depth1) ←
+      if b1
+      then ok (false, depth)
+      else
+        if i2 = 123#u8
+        then
+          do
+          let i3 := Slice.len b
+          let i4 ← if depth < i3
+                     then depth + 1#usize
+                     else ok depth
+          ok (ok1, i4)
+        else
+          if i2 = 125#u8
+          then
+            if depth = 0#usize
+            then ok (false, depth)
+            else do
+                 let depth2 ← depth - 1#usize
+                 ok (ok1, depth2)
+          else ok (ok1, depth)
+    let i3 ← i + 1#usize
+    predicate.plain_element_loop b ok2 depth1 i3
+  else ok (ok1, depth)
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::plain_element]:
+    Source: 'src/predicate.rs', lines 113:0-134:1 -/
+def predicate.plain_element (b : Slice Std.U8) : Result Bool := do
+  let (ok1, depth) ← predicate.plain_element_loop b true 0#usize 0#usize
+  if ok1
+  then ok (depth = 0#usize)
+  else ok false
+
+/-- [tclmesh_kernel_core::predicate::has_quote]: loop 0:
+    Source: 'src/predicate.rs', lines 139:4-144:5 -/
+@[rust_loop]
+def predicate.has_quote_loop
+  (b : Slice Std.U8) (found : Bool) (i : Std.Usize) : Result Bool := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let i2 ← Slice.index_usize b i
+    let b1 ← predicate.is_quote i2
+    let found1 ← if b1
+                   then ok true
+                   else ok found
+    let i3 ← i + 1#usize
+    predicate.has_quote_loop b found1 i3
+  else ok found
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::has_quote]:
+    Source: 'src/predicate.rs', lines 136:0-146:1 -/
+@[reducible]
+def predicate.has_quote (b : Slice Std.U8) : Result Bool := do
+  predicate.has_quote_loop b false 0#usize
+
+/-- [tclmesh_kernel_core::predicate::skip_space]: loop 0:
+    Source: 'src/predicate.rs', lines 150:4-152:5 -/
+@[rust_loop]
+def predicate.skip_space_loop
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let i2 ← Slice.index_usize b i
+    let b1 ← predicate.is_space i2
+    if b1
+    then let i3 ← i + 1#usize
+         predicate.skip_space_loop b i3
+    else ok i
+  else ok i
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::skip_space]:
+    Source: 'src/predicate.rs', lines 149:0-154:1 -/
+@[reducible]
+def predicate.skip_space
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  predicate.skip_space_loop b i
+
+/-- [tclmesh_kernel_core::predicate::word_end]: loop 0:
+    Source: 'src/predicate.rs', lines 158:4-160:5 -/
+@[rust_loop]
+def predicate.word_end_loop
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let i2 ← Slice.index_usize b i
+    let b1 ← predicate.is_space i2
+    if b1
+    then ok i
+    else let i3 ← i + 1#usize
+         predicate.word_end_loop b i3
+  else ok i
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::word_end]:
+    Source: 'src/predicate.rs', lines 157:0-162:1 -/
+@[reducible]
+def predicate.word_end
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  predicate.word_end_loop b i
+
+/-- [tclmesh_kernel_core::predicate::group_end]: loop 0:
+    Source: 'src/predicate.rs', lines 168:4-177:5 -/
+@[rust_loop]
+def predicate.group_end_loop
+  (b : Slice Std.U8) (i : Std.Usize) (depth : Std.Usize) :
+  Result (Std.Usize × Std.Usize)
+  := do
+  if depth > 0#usize
+  then
+    let i1 := Slice.len b
+    if i < i1
+    then
+      let i2 ← Slice.index_usize b i
+      let depth1 ←
+        if i2 = 123#u8
+        then
+          let i3 := Slice.len b
+          if depth < i3
+          then depth + 1#usize
+          else ok depth
+        else if i2 = 125#u8
+             then depth - 1#usize
+             else ok depth
+      let i3 ← i + 1#usize
+      predicate.group_end_loop b i3 depth1
+    else ok (depth, i)
+  else ok (depth, i)
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::group_end]:
+    Source: 'src/predicate.rs', lines 166:0-179:1 -/
+@[reducible]
+def predicate.group_end
+  (b : Slice Std.U8) (i : Std.Usize) : Result (Std.Usize × Std.Usize) := do
+  predicate.group_end_loop b i 1#usize
+
+/-- [tclmesh_kernel_core::predicate::list_member]: loop 0:
+    Source: 'src/predicate.rs', lines 190:8-211:9 -/
+@[rust_loop]
+def predicate.list_member_loop
+  (text : Slice Std.U8) (needle : Slice Std.U8) (ok1 : Bool) (found : Bool)
+  (i : Std.Usize) :
+  Result (Bool × Bool)
+  := do
+  if ok1
+  then
+    let i1 := Slice.len text
+    if i < i1
+    then
+      let i2 ← Slice.index_usize text i
+      if i2 = 123#u8
+      then
+        let i3 ← i + 1#usize
+        let (depth, «end») ← predicate.group_end text i3
+        let (ok2, found1) ←
+          if depth != 0#usize
+          then ok (false, found)
+          else
+            do
+            let i4 ← «end» - 1#usize
+            let b ← predicate.range_eq text i3 i4 needle
+            let found2 ← if b
+                           then ok true
+                           else ok found
+            let i5 := Slice.len text
+            let b1 ←
+              if «end» < i5
+              then
+                do
+                let i6 ← Slice.index_usize text «end»
+                let b2 ← predicate.is_space i6
+                if b2
+                then ok ok1
+                else ok false
+              else ok ok1
+            ok (b1, found2)
+        let i4 ← predicate.skip_space text «end»
+        predicate.list_member_loop text needle ok2 found1 i4
+      else
+        let «end» ← predicate.word_end text i
+        let b ← predicate.range_eq text i «end» needle
+        let found1 ← if b
+                       then ok true
+                       else ok found
+        let i3 ← predicate.skip_space text «end»
+        predicate.list_member_loop text needle ok1 found1 i3
+    else ok (ok1, found)
+  else ok (ok1, found)
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::list_member]:
+    Source: 'src/predicate.rs', lines 183:0-218:1 -/
+def predicate.list_member
+  (text : Slice Std.U8) (needle : Slice Std.U8) : Result (Option Bool) := do
+  let b ← predicate.has_quote text
+  if b
+  then ok none
+  else
+    let i ← predicate.skip_space text 0#usize
+    let (ok1, found) ← predicate.list_member_loop text needle true false i
+    if ok1
+    then ok (some found)
+    else ok none
+
+/-- [tclmesh_kernel_core::predicate::item_member]:
+    Source: 'src/predicate.rs', lines 221:0-232:1 -/
+def predicate.item_member
+  (item : Option (alloc.vec.Vec Std.U8)) (needle : Slice Std.U8) (found : Bool)
+  :
+  Result (core.result.Result Bool predicate.Error)
+  := do
+  match item with
+  | none => ok (core.result.Result.Err predicate.Error.NotScalar)
+  | some b =>
+    let s := alloc.vec.Vec.deref b
+    let b1 ← predicate.plain_element s
+    if b1
+    then
+      if found
+      then ok (core.result.Result.Ok true)
+      else
+        let s1 := alloc.vec.Vec.deref b
+        let b2 ← predicate.bytes_eq s1 needle
+        ok (core.result.Result.Ok b2)
+    else ok (core.result.Result.Err predicate.Error.NonCanonicalList)
+
+/-- [tclmesh_kernel_core::predicate::items_member]: loop 0:
+    Source: 'src/predicate.rs', lines 238:4-244:5 -/
+@[rust_loop]
+def predicate.items_member_loop
+  (items : Slice (Option (alloc.vec.Vec Std.U8))) (needle : Slice Std.U8)
+  (status : core.result.Result Bool predicate.Error) (i : Std.Usize) :
+  Result (core.result.Result Bool predicate.Error)
+  := do
+  let i1 := Slice.len items
+  if i < i1
+  then
+    let status1 ←
+      match status with
+      | core.result.Result.Ok found =>
+        do
+        let o ← Slice.index_usize items i
+        predicate.item_member o needle found
+      | core.result.Result.Err _ => ok status
+    let i2 ← i + 1#usize
+    predicate.items_member_loop items needle status1 i2
+  else ok status
+partial_fixpoint
+
+/-- [tclmesh_kernel_core::predicate::items_member]:
+    Source: 'src/predicate.rs', lines 235:0-246:1 -/
+@[reducible]
+def predicate.items_member
+  (items : Slice (Option (alloc.vec.Vec Std.U8))) (needle : Slice Std.U8) :
+  Result (core.result.Result Bool predicate.Error)
+  := do
+  predicate.items_member_loop items needle (core.result.Result.Ok false)
+    0#usize
+
+/-- [tclmesh_kernel_core::predicate::member]:
+    Source: 'src/predicate.rs', lines 248:0-258:1 -/
+def predicate.member
+  (needle : Slice Std.U8) (haystack : predicate.Res) :
+  Result (core.result.Result Bool predicate.Error)
+  := do
+  match haystack with
+  | predicate.Res.Fault i =>
+    ok (core.result.Result.Err (predicate.Error.Given i))
+  | predicate.Res.Str text =>
+    let s := alloc.vec.Vec.deref text
+    let o ← predicate.list_member s needle
+    match o with
+    | none => ok (core.result.Result.Err predicate.Error.NonCanonicalList)
+    | some found => ok (core.result.Result.Ok found)
+  | predicate.Res.Arr items =>
+    let s := alloc.vec.Vec.deref items
+    predicate.items_member s needle
+  | predicate.Res.Other => ok (core.result.Result.Err predicate.Error.NotList)
+
+/-- [tclmesh_kernel_core::predicate::holds]:
+    Source: 'src/predicate.rs', lines 260:0-267:1 -/
+def predicate.holds (op : predicate.CmpOp) (o : Order) : Result Bool := do
+  match op with
+  | predicate.CmpOp.Lt => Order.Insts.CoreCmpPartialEqOrder.eq o Order.Lt
+  | predicate.CmpOp.Lte =>
+    core.cmp.PartialEq.ne.trait_default Order.Insts.CoreCmpPartialEqOrder o
+      Order.Gt
+  | predicate.CmpOp.Gt => Order.Insts.CoreCmpPartialEqOrder.eq o Order.Gt
+  | predicate.CmpOp.Gte =>
+    core.cmp.PartialEq.ne.trait_default Order.Insts.CoreCmpPartialEqOrder o
+      Order.Lt
+
+/-- [tclmesh_kernel_core::predicate::compare]:
+    Source: 'src/predicate.rs', lines 269:0-277:1 -/
+def predicate.compare
+  (op : predicate.CmpOp) (l : Slice Std.U8) (r : Slice Std.U8) :
+  Result (core.result.Result Bool predicate.Error)
+  := do
+  let o ← decimal.parse l
+  match o with
+  | none => ok (core.result.Result.Err (predicate.Error.NonNumeric op))
+  | some x =>
+    let o1 ← decimal.parse r
+    match o1 with
+    | none => ok (core.result.Result.Err (predicate.Error.NonNumeric op))
+    | some y =>
+      let o2 ← decimal.compare x y
+      let b ← predicate.holds op o2
+      ok (core.result.Result.Ok b)
+
+/-- [tclmesh_kernel_core::predicate::leaf]:
+    Source: 'src/predicate.rs', lines 279:0-317:1 -/
+def predicate.leaf
+  (p : predicate.Pred) : Result (core.result.Result Bool predicate.Error) := do
+  match p with
+  | predicate.Pred.Fail i =>
+    ok (core.result.Result.Err (predicate.Error.Given i))
+  | predicate.Pred.True => ok (core.result.Result.Ok true)
+  | predicate.Pred.False => ok (core.result.Result.Ok false)
+  | predicate.Pred.Eq a b =>
+    let r ← predicate.scalar a
+    match r with
+    | core.result.Result.Ok x =>
+      let r1 ← predicate.scalar b
+      match r1 with
+      | core.result.Result.Ok y =>
+        let b1 ← predicate.bytes_eq x y
+        ok (core.result.Result.Ok b1)
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | predicate.Pred.Neq a b =>
+    let r ← predicate.scalar a
+    match r with
+    | core.result.Result.Ok x =>
+      let r1 ← predicate.scalar b
+      match r1 with
+      | core.result.Result.Ok y =>
+        let b1 ← predicate.bytes_eq x y
+        ok (core.result.Result.Ok (¬ b1))
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | predicate.Pred.Cmp op a b =>
+    let r ← predicate.scalar a
+    match r with
+    | core.result.Result.Ok l =>
+      let r1 ← predicate.scalar b
+      match r1 with
+      | core.result.Result.Ok r2 => predicate.compare op l r2
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | predicate.Pred.Mem n h =>
+    let r ← predicate.scalar n
+    match r with
+    | core.result.Result.Ok needle => predicate.member needle h
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | predicate.Pred.Contains h n =>
+    let r ← predicate.scalar h
+    match r with
+    | core.result.Result.Ok hay =>
+      let r1 ← predicate.scalar n
+      match r1 with
+      | core.result.Result.Ok needle =>
+        let i := Slice.len needle
+        if i != 0#usize
+        then
+          let b ← predicate.is_infix needle hay
+          ok (core.result.Result.Ok b)
+        else ok (core.result.Result.Ok false)
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | predicate.Pred.Not _ => ok (core.result.Result.Ok false)
+  | predicate.Pred.And _ _ => ok (core.result.Result.Ok false)
+  | predicate.Pred.Or _ _ => ok (core.result.Result.Ok false)
+
+/-- [tclmesh_kernel_core::predicate::eval]:
+    Source: 'src/predicate.rs', lines 319:0-337:1
+    Visibility: public -/
+def predicate.eval
+  (p : predicate.Pred) : Result (core.result.Result Bool predicate.Error) := do
+  match p with
+  | predicate.Pred.Fail _ => predicate.leaf p
+  | predicate.Pred.True => predicate.leaf predicate.Pred.True
+  | predicate.Pred.False => predicate.leaf predicate.Pred.False
+  | predicate.Pred.Eq _ _ => predicate.leaf p
+  | predicate.Pred.Neq _ _ => predicate.leaf p
+  | predicate.Pred.Cmp _ _ _ => predicate.leaf p
+  | predicate.Pred.Mem _ _ => predicate.leaf p
+  | predicate.Pred.Contains _ _ => predicate.leaf p
+  | predicate.Pred.Not q =>
+    let r ← predicate.eval q
+    match r with
+    | core.result.Result.Ok b => ok (core.result.Result.Ok (¬ b))
+    | core.result.Result.Err _ => ok r
+  | predicate.Pred.And q r =>
+    let r1 ← predicate.eval q
+    match r1 with
+    | core.result.Result.Ok b => if b
+                                 then predicate.eval r
+                                 else ok r1
+    | core.result.Result.Err _ => ok r1
+  | predicate.Pred.Or q r =>
+    let r1 ← predicate.eval q
+    match r1 with
+    | core.result.Result.Ok b => if b
+                                 then ok r1
+                                 else predicate.eval r
+    | core.result.Result.Err _ => ok r1
+partial_fixpoint
 
 end tclmesh_kernel_core

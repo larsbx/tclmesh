@@ -7,7 +7,5 @@
 pub mod conformance;
 pub mod deontic;
 pub mod eval;
-pub mod list;
-pub mod num;
 
 pub use eval::{evaluate, outcome, Evaluation, Fault};
