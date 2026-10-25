@@ -103,7 +103,7 @@ exactly as the Rust kernel does (`text.as_bytes()`); a Lean `String` is its
 UTF-8 bytes (`String.toByteArray`).
 -/
 
-def isDigit (b : UInt8) : Bool := 48 ≤ b && b ≤ 57
+def isDigit (b : UInt8) : Bool := 48 ≤ b.toNat && b.toNat ≤ 57
 
 def digitVal (b : UInt8) : Nat := b.toNat - 48
 
@@ -118,30 +118,43 @@ def digitsVal (ds : List UInt8) : Nat := ds.foldl (fun n b => 10 * n + digitVal 
 def boundedExp (ds : List UInt8) : Option Nat :=
   if digitsVal ds ≤ maxExp then some (digitsVal ds) else none
 
+/-- An optional leading `-`. -/
+def signPart : List UInt8 → Bool × List UInt8
+  | 45 :: rest => (true, rest)
+  | bs => (false, bs)
+
+/-- The integer part is nonempty and has no leading `0` unless it is `0`. -/
+def intOk (int : List UInt8) : Bool :=
+  int ≠ [] && (int.length = 1 || int.head? ≠ some 48)
+
+/-- An optional fraction `.digits`; a `.` must be followed by a digit. -/
+def fracPart : List UInt8 → Option (List UInt8 × List UInt8)
+  | 46 :: rest =>
+      let (f, r) := takeDigits rest
+      if f = [] then none else some (f, r)
+  | bs => some ([], bs)
+
+def expSign : List UInt8 → Int × List UInt8
+  | 45 :: r => (-1, r)
+  | 43 :: r => (1, r)
+  | bs => (1, bs)
+
+/-- An optional exponent `[eE][+-]?digits` with magnitude at most `maxExp`. -/
+def expPart : List UInt8 → Option (Int × List UInt8)
+  | b :: rest =>
+      if b = 101 || b = 69 then
+        let (sign, rest) := expSign rest
+        let (ds, r) := takeDigits rest
+        if ds = [] then none else (boundedExp ds).map fun m => (sign * (m : Int), r)
+      else some (0, b :: rest)
+  | [] => some (0, [])
+
 def parseBytes (bs : List UInt8) : Option Dec := do
-  let (neg, bs) := match bs with
-    | 45 :: rest => (true, rest)          -- '-'
-    | _ => (false, bs)
+  let (neg, bs) := signPart bs
   let (int, bs) := takeDigits bs
-  guard (int ≠ [] && (int.length = 1 || int.head? ≠ some 48))   -- no leading '0'
-  let (frac, bs) ← match bs with
-    | 46 :: rest =>                        -- '.'
-        let (f, r) := takeDigits rest
-        if f = [] then none else some (f, r)
-    | _ => some ([], bs)
-  let (e, bs) ← match bs with
-    | b :: rest =>
-        if b = 101 || b = 69 then          -- 'e' | 'E'
-          let (sign, rest) := match rest with
-            | 45 :: r => (-1, r)
-            | 43 :: r => (1, r)            -- '+'
-            | _ => (1, rest)
-          let (ds, r) := takeDigits rest
-          if ds = [] then none else do
-            let m ← boundedExp ds
-            some (sign * (m : Int), r)
-        else some (0, b :: rest)
-    | [] => some (0, [])
+  guard (intOk int)
+  let (frac, bs) ← fracPart bs
+  let (e, bs) ← expPart bs
   guard (bs = [])
   pure ⟨neg, digitsVal (int ++ frac), e - frac.length⟩
 

@@ -1,5 +1,6 @@
 import TclMeshProof.Core.Core
 import TclMeshProof.Digits
+import TclMeshProof.Casts
 import TclMesh.Decimal
 
 /-!
@@ -16,11 +17,9 @@ open TclMeshProof.Digits
 
 set_option linter.tacticAnalysis.rwaSuggestion false
 
--- Casts are reasoned about by value, with their (provable) bounds as side goals.
+-- Casts by value (see `Casts`): drop the default bit-vector cast specifications.
 attribute [-step] UScalar.cast.step_spec IScalar.cast.step_spec UScalar.hcast.step_spec
   IScalar.hcast.step_spec
-attribute [local step] UScalar.cast_inBounds_spec IScalar.cast_inBounds_spec
-  UScalar.hcast_inBounds_spec IScalar.hcast_inBounds_spec
 
 namespace TclMeshProof.Decimal
 
