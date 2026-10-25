@@ -285,12 +285,27 @@ fn member(needle: &[u8], haystack: &Res) -> Result<bool, Error> {
     }
 }
 
+/// Whether an order satisfies a comparison.
 fn holds(op: CmpOp, o: Order) -> bool {
-    match op {
-        CmpOp::Lt => o == Order::Lt,
-        CmpOp::Lte => o != Order::Gt,
-        CmpOp::Gt => o == Order::Gt,
-        CmpOp::Gte => o != Order::Lt,
+    match o {
+        Order::Lt => match op {
+            CmpOp::Lt => true,
+            CmpOp::Lte => true,
+            CmpOp::Gt => false,
+            CmpOp::Gte => false,
+        },
+        Order::Eq => match op {
+            CmpOp::Lt => false,
+            CmpOp::Lte => true,
+            CmpOp::Gt => false,
+            CmpOp::Gte => true,
+        },
+        Order::Gt => match op {
+            CmpOp::Lt => false,
+            CmpOp::Lte => false,
+            CmpOp::Gt => true,
+            CmpOp::Gte => true,
+        },
     }
 }
 

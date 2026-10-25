@@ -169,9 +169,11 @@ Proof obligations:
   The Rust kernel must equal it on every vector, and its own fail-closed
   `not` and exact-comparison theorems are proved;
 - [x] `kernel/core` in the subset Aeneas can translate. Its deontic resolution,
-  exact decimal parsing and exact decimal comparison are proved equal to the
-  spec through Aeneas (`proof/`), with no axioms;
-- [ ] Aeneas refinement of the whole evaluation, as it moves into `kernel/core`;
+  exact decimal parsing and comparison, and predicate decisions (canonical
+  lists, membership, containment, fail-closed `not`, short-circuit `and`/`or`)
+  are proved equal to the spec through Aeneas (`proof/`), with no axioms;
+- [ ] Aeneas refinement of the rest of evaluation (lowering, validation,
+  changes, effects), as it moves into `kernel/core`;
 - [ ] ciphertext values and the IFC type system in the kernel IR, with the Tcl
   compiler emitting label certificates;
 - [ ] mechanism lemmas: CMUX select, threshold release, functional encryption,

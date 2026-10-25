@@ -9,11 +9,14 @@
   `in` accepts only quote- and backslash-free lists (`NON_CANONICAL_LIST`);
 - **breaking:** ordered comparisons use exact decimals (no floating-point
   rounding), with written exponents capped at 1000;
-- `kernel/core`: a dependency-free crate (decimal parsing and comparison, deontic
-  resolution) that the kernel calls. Aeneas translates it to Lean, and
-  `proof/` proves the translated `deontic::resolve`, `deontic::admits`,
-  `decimal::parse`, and `decimal::compare` equal to the specification, with no
-  axioms (CI job `proof`);
+- `kernel/core`: a dependency-free crate (predicate decisions, decimal parsing
+  and comparison, canonical lists, deontic resolution) that the kernel calls.
+  Aeneas translates it to Lean, and `proof/` proves the translated
+  `deontic::resolve`, `deontic::admits`, `decimal::parse`, `decimal::compare`
+  and `predicate::eval` equal to the specification, with no axioms (CI job
+  `proof`);
+- the specification evaluates predicates as lowering then a byte-level decision
+  (`TclMesh.Predicate`); canonical lists and `contains` work on UTF-8 bytes;
 - executable Lean specification of the Tier A kernel (`lake exe spec-eval`). The
   Rust kernel must equal it on every conformance vector;
 - Rust Tier A kernel (`kernel/`) refining the Tcl evaluator, with curated and

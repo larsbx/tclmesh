@@ -13,7 +13,9 @@ caller's faults.
 open Aeneas Aeneas.Std Result
 open tclmesh_kernel_core
 open TclMeshProof.Parse
-open TclMesh.Kernel (Bytes isSpace braced listElems parseList plainElement isInfix)
+open TclMeshProof.Decimal (absDec absO WF)
+open TclMesh.Kernel (Bytes isSpace braced listElems parseList plainElement isInfix Fault Res Pred CmpOp
+  elements refusal fault number)
 
 set_option linter.tacticAnalysis.rwaSuggestion false
 
@@ -490,10 +492,6 @@ theorem list_item_spec (text needle : Slice Std.U8) (i : Std.Usize) (hi : i.val 
     · simp only [ite_true]
       rw [end_post, end_post1, drop_bytes text _ hi, listElems_word f _ _ hns hne]
 
-theorem contains_cons (x : Bytes) (xs : List Bytes) (n : Bytes) :
-    (x :: xs).contains n = (decide (x = n) || xs.contains n) := by
-  simp [eq_comm]
-
 @[step]
 theorem list_member_loop_spec (text needle : Slice Std.U8) (ok found : Bool) (i : Std.Usize)
     (hsp : ((bytes text).drop i.val).dropWhile isSpace = (bytes text).drop i.val)
@@ -563,5 +561,269 @@ theorem list_member_spec (text needle : Slice Std.U8) :
       rw [← ok1_post]; simp [‹ok1 = true›]
     · simp only [WP.spec_ok]
       rw [← ok1_post]; simp [‹¬ok1 = true›]
+
+/-! ## Abstraction -/
+
+def vbytes (v : alloc.vec.Vec Std.U8) : Bytes := v.val.map byte
+
+theorem bytes_deref (v : alloc.vec.Vec Std.U8) : bytes (alloc.vec.Vec.deref v) = vbytes v := by
+  simp [bytes, vbytes, alloc.vec.Vec.deref]
+
+def absRes (fs : Std.Usize → Fault) : predicate.Res → Res
+  | .Fault i => .fault (fs i)
+  | .Str b => .str (vbytes b)
+  | .Arr items => .arr (items.val.map (Option.map vbytes))
+  | .Other => .other
+
+def absOp : predicate.CmpOp → CmpOp
+  | .Lt => .lt | .Lte => .lte | .Gt => .gt | .Gte => .gte
+
+def absErr (fs : Std.Usize → Fault) : predicate.Error → Fault
+  | .Given i => fs i
+  | .NotScalar => refusal "scalar"
+  | .NotList => refusal "list"
+  | .NonNumeric op => fault ["ACTION", "PREDICATE", "NON_NUMERIC", (absOp op).name]
+  | .NonCanonicalList => fault ["ACTION", "PREDICATE", "NON_CANONICAL_LIST"]
+
+def absR {α} (fs : Std.Usize → Fault) : core.result.Result α predicate.Error → Except Fault α
+  | .Ok a => .ok a
+  | .Err e => .error (absErr fs e)
+
+def absPred (fs : Std.Usize → Fault) : predicate.Pred → Pred
+  | .Fail i => .fail (fs i)
+  | .True => .tt
+  | .False => .ff
+  | .Eq a b => .eq (absRes fs a) (absRes fs b)
+  | .Neq a b => .neq (absRes fs a) (absRes fs b)
+  | .Cmp op a b => .cmp (absOp op) (absRes fs a) (absRes fs b)
+  | .Mem n h => .mem (absRes fs n) (absRes fs h)
+  | .Contains h n => .contains (absRes fs h) (absRes fs n)
+  | .Not p => .not (absPred fs p)
+  | .And p q => .and (absPred fs p) (absPred fs q)
+  | .Or p q => .or (absPred fs p) (absPred fs q)
+
+/-! ## Operands and membership -/
+
+@[step]
+theorem scalar_spec (r : predicate.Res) :
+    predicate.scalar r ⦃ x => ∀ fs, (absRes fs r).scalar = (absR fs x).map bytes ⦄ := by
+  unfold predicate.scalar
+  cases r <;> simp only [WP.spec_ok] <;> intro fs <;> simp [absRes, Res.scalar, absR, absErr, Except.map, TclMesh.Kernel.refuse,
+    bytes_deref, pure, Except.pure]
+
+@[step]
+theorem item_member_spec (item : Option (alloc.vec.Vec Std.U8))
+    (needle : Slice Std.U8) (found : Bool) :
+    predicate.item_member item needle found ⦃ r => ∀ fs,
+      absR fs r = (do
+        let rest ← elements [item.map vbytes]
+        pure (found || rest.contains (bytes needle))) ⦄ := by
+  unfold predicate.item_member
+  cases item with
+  | none => simp only [WP.spec_ok]; intro fs; simp [elements, absR, absErr, TclMesh.Kernel.refuse]
+  | some b =>
+    step*
+    all_goals try intro fs
+    all_goals simp only [bytes_deref] at *
+    · simp [absR, elements, ← b1_post, ‹b1 = true›, Functor.map, Except.map, Bind.bind,
+        Except.bind, pure, Except.pure]
+    · simp [absR, elements, ← b1_post, ‹b1 = true›, b2_post, Functor.map,
+        Except.map, Bind.bind, Except.bind, pure, Except.pure, eq_comm]
+    · simp [absR, absErr, elements, ← b1_post, ‹¬b1 = true›, TclMesh.Kernel.nonCanonicalList,
+        throw, throwThe, MonadExceptOf.throw, Bind.bind, Except.bind]
+
+@[step]
+theorem item_step_spec (status : core.result.Result Bool predicate.Error)
+    (item : Option (alloc.vec.Vec Std.U8)) (needle : Slice Std.U8) :
+    predicate.item_step status item needle ⦃ r => ∀ fs,
+      absR fs r = (do
+        let f ← absR fs status
+        let rest ← elements [item.map vbytes]
+        pure (f || rest.contains (bytes needle))) ⦄ := by
+  unfold predicate.item_step
+  cases status with
+  | Ok found => step*; rw [r_post]; rfl
+  | Err e => simp only [WP.spec_ok]; intro fs; simp [absR, Bind.bind, Except.bind]
+
+theorem elements_cons_bind (A : Except Fault Bool) (x : Option Bytes) (xs : List (Option Bytes))
+    (n : Bytes) :
+    (do let f ← A; let rest ← elements (x :: xs); pure (f || rest.contains n)) =
+      (do
+        let f' ← (do let f ← A; let r1 ← elements [x]; pure (f || r1.contains n))
+        let rest ← elements xs
+        pure (f' || rest.contains n)) := by
+  cases A with
+  | error e => rfl
+  | ok f =>
+    cases x with
+    | none => simp [elements, TclMesh.Kernel.refuse, Bind.bind, Except.bind]
+    | some b =>
+      by_cases hp : plainElement b
+      · simp only [elements, hp, ite_true, Bind.bind, Except.bind, Functor.map, Except.map, pure,
+          Except.pure]
+        cases elements xs <;> simp [Bool.or_assoc]
+      · simp [elements, hp, TclMesh.Kernel.nonCanonicalList, throw, throwThe, MonadExceptOf.throw,
+          Bind.bind, Except.bind]
+
+def ibytes (items : Slice (Option (alloc.vec.Vec Std.U8))) : List (Option Bytes) :=
+  items.val.map (Option.map vbytes)
+
+@[step]
+theorem items_member_loop_spec (items : Slice (Option (alloc.vec.Vec Std.U8)))
+    (needle : Slice Std.U8) (status : core.result.Result Bool predicate.Error) (i : Std.Usize) :
+    predicate.items_member_loop items needle status i ⦃ r => ∀ fs,
+      absR fs r = (do
+        let f ← absR fs status
+        let rest ← elements ((ibytes items).drop i.val)
+        pure (f || rest.contains (bytes needle))) ⦄ := by
+  unfold predicate.items_member_loop
+  step*
+  · have hlt : i.val < (ibytes items).length := by simp [ibytes]; scalar_tac
+    rw [r_post, status1_post, i2_post]
+    simp only [show ∀ x : Bool, (Except.pure x : Except Fault Bool) = pure x from fun _ => rfl]
+    conv_rhs => rw [List.drop_eq_getElem_cons hlt, elements_cons_bind]
+    simp only [ibytes, List.getElem_map, o_post]
+  · try intro fs
+    rw [List.drop_eq_nil_of_le (by simp [ibytes]; scalar_tac)]
+    cases status <;> simp [absR, elements, Bind.bind, Except.bind, pure, Except.pure]
+termination_by items.length - i.val
+decreasing_by all_goals scalar_tac
+
+@[step]
+theorem member_spec (needle : Slice Std.U8) (h : predicate.Res) :
+    predicate.member needle h ⦃ r => ∀ fs, (absRes fs h).member (bytes needle) = absR fs r ⦄ := by
+  unfold predicate.member
+  cases h with
+  | Fault i => simp only [WP.spec_ok]; intro fs; simp [absR, absErr, absRes, Res.member]
+  | Str text =>
+    step*
+    all_goals try intro fs
+    all_goals rw [bytes_deref] at o_post
+    · have hp : parseList (vbytes text) = none := by simpa [‹o = none›] using o_post.symm
+      simp [absR, absErr, absRes, Res.member, hp, TclMesh.Kernel.nonCanonicalList, throw, throwThe,
+        MonadExceptOf.throw]
+    · obtain ⟨items, hp, hc⟩ : ∃ items, parseList (vbytes text) = some items ∧
+          items.contains (bytes needle) = found := by
+        simpa [‹o = some found›, eq_comm] using o_post
+      simp [absR, absRes, Res.member, hp, pure, Except.pure, ← hc]
+  | Arr items =>
+    step*
+    rw [r_post]
+    simp [absR, absRes, Res.member, Bind.bind, Except.bind, ibytes, alloc.vec.Vec.deref]
+  | Other => simp only [WP.spec_ok]; intro fs; simp [absR, absErr, absRes, Res.member, TclMesh.Kernel.refuse]
+
+/-! ## Comparisons -/
+
+@[step]
+theorem holds_spec (op : predicate.CmpOp) (o : Order) :
+    predicate.holds op o ⦃ r => r = (absOp op).holds (absO o) ⦄ := by
+  unfold predicate.holds
+  cases op <;> cases o <;> simp [absO, CmpOp.holds, absOp]
+
+@[step]
+theorem compare_spec (op : predicate.CmpOp) (l r : Slice Std.U8) (hl : l.length ≤ 4294967295)
+    (hr : r.length ≤ 4294967295) :
+    predicate.compare op l r ⦃ res => ∀ fs, (do
+      let x ← number (absOp op) (bytes l)
+      let y ← number (absOp op) (bytes r)
+      pure ((absOp op).holds (x.cmp y))) = absR fs res ⦄ := by
+  unfold predicate.compare
+  step*
+  all_goals rw [ite_eq_left hl] at o_post
+  · intro fs
+    have hx : TclMesh.Decimal.parseBytes (bytes l) = none := by simpa [‹o = none›] using o_post.symm
+    simp [absR, absErr, number, hx, throw, throwThe, MonadExceptOf.throw, Bind.bind, Except.bind]
+  · intro fs
+    rw [ite_eq_left hr] at o1_post
+    have hx : TclMesh.Decimal.parseBytes (bytes l) = some (absDec x) := by
+      simpa [‹o = some x›] using o_post.symm
+    have hy : TclMesh.Decimal.parseBytes (bytes r) = none := by simpa [‹o1 = none›] using o1_post.symm
+    simp [absR, absErr, number, hx, hy, throw, throwThe, MonadExceptOf.throw, Bind.bind, Except.bind,
+      pure, Except.pure]
+  · intro fs
+    rw [ite_eq_left hr] at o1_post
+    have hx : TclMesh.Decimal.parseBytes (bytes l) = some (absDec x) := by
+      simpa [‹o = some x›] using o_post.symm
+    have hy : TclMesh.Decimal.parseBytes (bytes r) = some (absDec y) := by
+      simpa [‹o1 = some y›] using o1_post.symm
+    simp [absR, number, hx, hy, Bind.bind, Except.bind, pure, Except.pure, b_post, o2_post]
+
+/-! ## Decisions -/
+
+theorem beq_dec (a b : Bytes) : (a == b) = decide (a = b) := by
+  rw [Bool.eq_iff_iff]; simp
+
+theorem bne_dec (a b : Bytes) : (a != b) = !decide (a = b) := by
+  rw [bne, beq_dec]
+
+theorem bytes_eq_nil (s : Slice Std.U8) : bytes s = [] ↔ s.val = [] := by
+  simp [bytes]
+
+/-- Operands of ordered comparisons fit the decimal parser's `u32` length bound. -/
+def resBounded : predicate.Res → Prop
+  | .Str b => b.length ≤ 4294967295
+  | _ => True
+
+def Bounded : predicate.Pred → Prop
+  | .Cmp _ a b => resBounded a ∧ resBounded b
+  | .Not p => Bounded p
+  | .And p q => Bounded p ∧ Bounded q
+  | .Or p q => Bounded p ∧ Bounded q
+  | _ => True
+
+theorem scalar_length {r : predicate.Res} {x : Slice Std.U8} (hb : resBounded r)
+    (h : ∀ fs, (absRes fs r).scalar = (absR fs (core.result.Result.Ok x)).map bytes) :
+    x.length ≤ 4294967295 := by
+  cases r with
+  | Str b =>
+    have := h (fun _ => [])
+    simp [absRes, Res.scalar, absR, Except.map, pure, Except.pure] at this
+    have hl := congrArg List.length this
+    rw [length_bytes] at hl
+    simp [resBounded] at hb
+    simp [vbytes] at hl; show x.val.length ≤ _; omega
+  | _ =>
+    have := h (fun _ => [])
+    simp [absRes, Res.scalar, absR, Except.map, TclMesh.Kernel.refuse] at this
+
+@[step]
+theorem eval_spec (p : predicate.Pred) (hb : Bounded p) :
+    predicate.eval p ⦃ res => ∀ fs, (absPred fs p).eval = absR fs res ⦄ := by
+  induction p with
+  | Not q ih =>
+    unfold predicate.eval
+    have ih' := ih hb
+    step*
+    all_goals (try intro fs); subst_vars
+    all_goals simp_all [absR, absPred, Pred.eval, Functor.map, Except.map]
+  | And q r ihq ihr =>
+    unfold predicate.eval
+    have ihq' := ihq hb.1
+    have ihr' := ihr hb.2
+    step*
+    all_goals (try intro fs); subst_vars
+    all_goals simp_all [absR, absPred, Pred.eval, Bind.bind, Except.bind, pure, Except.pure]
+  | Or q r ihq ihr =>
+    unfold predicate.eval
+    have ihq' := ihq hb.1
+    have ihr' := ihr hb.2
+    step*
+    all_goals (try intro fs); subst_vars
+    all_goals simp_all [absR, absPred, Pred.eval, Bind.bind, Except.bind, pure, Except.pure]
+  | Cmp op a b =>
+    unfold predicate.eval predicate.leaf
+    step*
+    case hl => subst_vars; exact scalar_length hb.1 r_post
+    case hr => subst_vars; exact scalar_length hb.2 r1_post
+    all_goals (try intro fs); subst_vars
+    all_goals simp_all [absR, absErr, absPred, Pred.eval, Except.map, Bind.bind, Except.bind, pure,
+      Except.pure]
+    exact res_post fs
+  | _ =>
+    unfold predicate.eval predicate.leaf
+    step*
+    all_goals (try intro fs); subst_vars
+    all_goals simp_all [absR, absErr, absPred, Pred.eval, Except.map, Bind.bind, Except.bind, pure,
+      Except.pure, beq_dec, bne_dec, bytes_eq_nil]
 
 end TclMeshProof.Predicate

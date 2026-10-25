@@ -79,11 +79,9 @@ def decimal.Dec.Insts.CoreCmpPartialEqDec.eq
 /-- Trait implementation: [tclmesh_kernel_core::decimal::{impl core::cmp::PartialEq<tclmesh_kernel_core::decimal::Dec> for tclmesh_kernel_core::decimal::Dec}]
     Source: 'src/decimal.rs', lines 16:16-16:25 -/
 @[reducible]
-impl_def decimal.Dec.Insts.CoreCmpPartialEqDec : core.cmp.PartialEq decimal.Dec
+def decimal.Dec.Insts.CoreCmpPartialEqDec : core.cmp.PartialEq decimal.Dec
   decimal.Dec := {
   eq := decimal.Dec.Insts.CoreCmpPartialEqDec.eq
-  ne := core.cmp.PartialEq.ne.trait_default
-    decimal.Dec.Insts.CoreCmpPartialEqDec
 }
 
 /-- [tclmesh_kernel_core::decimal::{impl core::cmp::Eq for tclmesh_kernel_core::decimal::Dec}::assert_fields_are_eq]:
@@ -547,11 +545,9 @@ def deontic.Verdict.Insts.CoreCmpPartialEqVerdict.eq
 /-- Trait implementation: [tclmesh_kernel_core::deontic::{impl core::cmp::PartialEq<tclmesh_kernel_core::deontic::Verdict> for tclmesh_kernel_core::deontic::Verdict}]
     Source: 'src/deontic.rs', lines 4:22-4:31 -/
 @[reducible]
-impl_def deontic.Verdict.Insts.CoreCmpPartialEqVerdict : core.cmp.PartialEq
+def deontic.Verdict.Insts.CoreCmpPartialEqVerdict : core.cmp.PartialEq
   deontic.Verdict deontic.Verdict := {
   eq := deontic.Verdict.Insts.CoreCmpPartialEqVerdict.eq
-  ne := core.cmp.PartialEq.ne.trait_default
-    deontic.Verdict.Insts.CoreCmpPartialEqVerdict
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::deontic::{impl core::cmp::Eq for tclmesh_kernel_core::deontic::Verdict}]
@@ -625,11 +621,9 @@ def deontic.Judgment.Insts.CoreCmpPartialEqJudgment.eq
 /-- Trait implementation: [tclmesh_kernel_core::deontic::{impl core::cmp::PartialEq<tclmesh_kernel_core::deontic::Judgment> for tclmesh_kernel_core::deontic::Judgment}]
     Source: 'src/deontic.rs', lines 14:22-14:31 -/
 @[reducible]
-impl_def deontic.Judgment.Insts.CoreCmpPartialEqJudgment : core.cmp.PartialEq
+def deontic.Judgment.Insts.CoreCmpPartialEqJudgment : core.cmp.PartialEq
   deontic.Judgment deontic.Judgment := {
   eq := deontic.Judgment.Insts.CoreCmpPartialEqJudgment.eq
-  ne := core.cmp.PartialEq.ne.trait_default
-    deontic.Judgment.Insts.CoreCmpPartialEqJudgment
 }
 
 /-- [tclmesh_kernel_core::deontic::{impl core::cmp::Eq for tclmesh_kernel_core::deontic::Judgment}::assert_fields_are_eq]:
@@ -772,10 +766,8 @@ def Order.Insts.CoreCmpPartialEqOrder.eq
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::cmp::PartialEq<tclmesh_kernel_core::Order> for tclmesh_kernel_core::Order}]
     Source: 'src/lib.rs', lines 26:22-26:31 -/
 @[reducible]
-impl_def Order.Insts.CoreCmpPartialEqOrder : core.cmp.PartialEq Order Order
-  := {
+def Order.Insts.CoreCmpPartialEqOrder : core.cmp.PartialEq Order Order := {
   eq := Order.Insts.CoreCmpPartialEqOrder.eq
-  ne := core.cmp.PartialEq.ne.trait_default Order.Insts.CoreCmpPartialEqOrder
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::cmp::Eq for tclmesh_kernel_core::Order}]
@@ -849,11 +841,9 @@ def predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp.eq
 /-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::cmp::PartialEq<tclmesh_kernel_core::predicate::CmpOp> for tclmesh_kernel_core::predicate::CmpOp}]
     Source: 'src/predicate.rs', lines 22:22-22:31 -/
 @[reducible]
-impl_def predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp : core.cmp.PartialEq
+def predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp : core.cmp.PartialEq
   predicate.CmpOp predicate.CmpOp := {
   eq := predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp.eq
-  ne := core.cmp.PartialEq.ne.trait_default
-    predicate.CmpOp.Insts.CoreCmpPartialEqCmpOp
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::cmp::Eq for tclmesh_kernel_core::predicate::CmpOp}]
@@ -957,11 +947,9 @@ def predicate.Error.Insts.CoreCmpPartialEqError.eq
 /-- Trait implementation: [tclmesh_kernel_core::predicate::{impl core::cmp::PartialEq<tclmesh_kernel_core::predicate::Error> for tclmesh_kernel_core::predicate::Error}]
     Source: 'src/predicate.rs', lines 48:22-48:31 -/
 @[reducible]
-impl_def predicate.Error.Insts.CoreCmpPartialEqError : core.cmp.PartialEq
+def predicate.Error.Insts.CoreCmpPartialEqError : core.cmp.PartialEq
   predicate.Error predicate.Error := {
   eq := predicate.Error.Insts.CoreCmpPartialEqError.eq
-  ne := core.cmp.PartialEq.ne.trait_default
-    predicate.Error.Insts.CoreCmpPartialEqError
 }
 
 /-- [tclmesh_kernel_core::predicate::{impl core::cmp::Eq for tclmesh_kernel_core::predicate::Error}::assert_fields_are_eq]:
@@ -1397,20 +1385,30 @@ def predicate.member
   | predicate.Res.Other => ok (core.result.Result.Err predicate.Error.NotList)
 
 /-- [tclmesh_kernel_core::predicate::holds]:
-    Source: 'src/predicate.rs', lines 288:0-295:1 -/
+    Source: 'src/predicate.rs', lines 289:0-310:1 -/
 def predicate.holds (op : predicate.CmpOp) (o : Order) : Result Bool := do
-  match op with
-  | predicate.CmpOp.Lt => Order.Insts.CoreCmpPartialEqOrder.eq o Order.Lt
-  | predicate.CmpOp.Lte =>
-    core.cmp.PartialEq.ne.trait_default Order.Insts.CoreCmpPartialEqOrder o
-      Order.Gt
-  | predicate.CmpOp.Gt => Order.Insts.CoreCmpPartialEqOrder.eq o Order.Gt
-  | predicate.CmpOp.Gte =>
-    core.cmp.PartialEq.ne.trait_default Order.Insts.CoreCmpPartialEqOrder o
-      Order.Lt
+  match o with
+  | Order.Lt =>
+    match op with
+    | predicate.CmpOp.Lt => ok true
+    | predicate.CmpOp.Lte => ok true
+    | predicate.CmpOp.Gt => ok false
+    | predicate.CmpOp.Gte => ok false
+  | Order.Eq =>
+    match op with
+    | predicate.CmpOp.Lt => ok false
+    | predicate.CmpOp.Lte => ok true
+    | predicate.CmpOp.Gt => ok false
+    | predicate.CmpOp.Gte => ok true
+  | Order.Gt =>
+    match op with
+    | predicate.CmpOp.Lt => ok false
+    | predicate.CmpOp.Lte => ok false
+    | predicate.CmpOp.Gt => ok true
+    | predicate.CmpOp.Gte => ok true
 
 /-- [tclmesh_kernel_core::predicate::compare]:
-    Source: 'src/predicate.rs', lines 297:0-305:1 -/
+    Source: 'src/predicate.rs', lines 312:0-320:1 -/
 def predicate.compare
   (op : predicate.CmpOp) (l : Slice Std.U8) (r : Slice Std.U8) :
   Result (core.result.Result Bool predicate.Error)
@@ -1428,7 +1426,7 @@ def predicate.compare
       ok (core.result.Result.Ok b)
 
 /-- [tclmesh_kernel_core::predicate::leaf]:
-    Source: 'src/predicate.rs', lines 307:0-345:1 -/
+    Source: 'src/predicate.rs', lines 322:0-360:1 -/
 def predicate.leaf
   (p : predicate.Pred) : Result (core.result.Result Bool predicate.Error) := do
   match p with
@@ -1492,7 +1490,7 @@ def predicate.leaf
   | predicate.Pred.Or _ _ => ok (core.result.Result.Ok false)
 
 /-- [tclmesh_kernel_core::predicate::eval]:
-    Source: 'src/predicate.rs', lines 347:0-365:1
+    Source: 'src/predicate.rs', lines 362:0-380:1
     Visibility: public -/
 def predicate.eval
   (p : predicate.Pred) : Result (core.result.Result Bool predicate.Error) := do
