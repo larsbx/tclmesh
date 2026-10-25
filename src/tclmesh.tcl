@@ -17,6 +17,7 @@ foreach file {
     private.tcl
     views.tcl
     certificate.tcl
+    tfhe.tcl
     release.tcl
     release_policy.tcl
 } {

@@ -1,0 +1,131 @@
+# TFHE backend (backends/tfhe): circuits evaluated under real homomorphic
+# encryption by the `tclmesh-tfhe` process. Registered as backend `tfhe` when
+# the binary exists: $TCLMESH_TFHE, or backends/tfhe/target/release.
+#
+# Tokens are `{tfhe ID bytes N}`: an opaque number for a ciphertext held by
+# the process, and its serialized size. Evaluation is recorded through the
+# view harness (`tclmesh views`), so paired runs check the trace of real
+# homomorphic evaluation; sizes are checked separately (tests/tfhe.test).
+
+namespace eval ::tclmesh::tfhe {
+    variable channel {}
+    variable binary {}
+}
+
+proc ::tclmesh::tfhe::_locate {root} {
+    if {[info exists ::env(TCLMESH_TFHE)] && [file executable $::env(TCLMESH_TFHE)]} {
+        return $::env(TCLMESH_TFHE)
+    }
+    set candidate [file join $root backends tfhe target release tclmesh-tfhe]
+    if {[file executable $candidate]} {
+        return $candidate
+    }
+    return {}
+}
+
+proc ::tclmesh::tfhe::_call {request} {
+    variable channel
+    variable binary
+    package require json
+    if {$channel eq ""} {
+        set channel [open |[list $binary] r+]
+        fconfigure $channel -buffering line -translation lf -encoding utf-8
+    }
+    puts $channel $request
+    flush $channel
+    if {[gets $channel line] < 0} {
+        return -code error -errorcode {TCLMESH TFHE PROCESS_EXITED} "tclmesh-tfhe exited"
+    }
+    set response [json::json2dict $line]
+    if {[dict exists $response error]} {
+        return -code error -errorcode [list TCLMESH TFHE [dict get $response error]] \
+            "tfhe backend: [dict get $response error]"
+    }
+    return $response
+}
+
+proc ::tclmesh::tfhe::_s {value} { json::write string $value }
+
+proc ::tclmesh::tfhe::_token {response} {
+    list tfhe [dict get $response token] bytes [dict get $response bytes]
+}
+
+proc ::tclmesh::tfhe::_backend {operation args} {
+    package require json::write
+    json::write indented 0
+    json::write aligned 0
+    switch -- $operation {
+        validate-profile {
+            return true
+        }
+        encrypt {
+            lassign $args profile type value
+            return [_token [_call [json::write object \
+                op [_s encrypt] type [_s $type] value [_s $value]]]]
+        }
+        evaluate {
+            lassign $args profile circuit prepared
+            set types {}
+            set inputs {}
+            dict for {name descriptor} [dict get $circuit inputs] {
+                lappend types $name [_s [::tclmesh::private::_logical_type $descriptor]]
+                lassign [dict get $prepared $name] visibility payload
+                if {$visibility eq "cipher"} {
+                    lappend inputs $name [json::write object cipher [lindex $payload 1]]
+                } else {
+                    lappend inputs $name [json::write object public [_s $payload]]
+                }
+            }
+            set nodes {}
+            dict for {id node} [dict get $circuit nodes] {
+                lappend nodes $id [json::write array {*}[lmap word $node {_s $word}]]
+            }
+            set outputs {}
+            dict for {name id} [dict get $circuit metadata output_nodes] {
+                lappend outputs $name [_s $id]
+            }
+            set response [_call [json::write object \
+                op [_s evaluate] \
+                input_types [json::write object {*}$types] \
+                inputs [json::write object {*}$inputs] \
+                nodes [json::write object {*}$nodes] \
+                output_nodes [json::write object {*}$outputs]]]
+            set tokens {}
+            dict for {name result} [dict get $response outputs] {
+                dict set tokens $name [_token $result]
+            }
+            ::tclmesh::views::_record $circuit $prepared [dict get $response trace] $tokens
+            return $tokens
+        }
+        decrypt {
+            lassign $args profile type token
+            return [dict get [_call [json::write object \
+                op [_s decrypt] token [lindex $token 1]]] value]
+        }
+        combine-release {
+            lassign $args profile type token contributions context
+            if {[dict size $contributions] == 0} {
+                return -code error -errorcode {TCLMESH TFHE RELEASE EMPTY_CONTRIBUTIONS} \
+                    "release requires contributions"
+            }
+            return [dict get [_call [json::write object \
+                op [_s decrypt] token [lindex $token 1]]] value]
+        }
+        destroy {
+            set token [lindex $args end]
+            _call [json::write object op [_s destroy] token [lindex $token 1]]
+            return
+        }
+        default {
+            return -code error \
+                -errorcode [list TCLMESH TFHE INVALID_OPERATION $operation] \
+                "tfhe backend does not support '$operation'"
+        }
+    }
+}
+
+set ::tclmesh::tfhe::binary [::tclmesh::tfhe::_locate [file dirname $::tclmesh::here]]
+if {$::tclmesh::tfhe::binary ne ""} {
+    ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend \
+        {decrypt destroy threshold-release homomorphic}
+}

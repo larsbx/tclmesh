@@ -6,3 +6,4 @@ spec/.lake/
 proof/.lake/
 kernel/core/target/
 security/target/
+backends/tfhe/target/

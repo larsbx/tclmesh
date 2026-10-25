@@ -1,0 +1,75 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+
+# Real homomorphic evaluation (backends/tfhe). Runs when the tclmesh-tfhe
+# binary is built; the nightly workflow builds it.
+
+testConstraint tfhe [expr {"tfhe" in [tclmesh private backend list]}]
+
+source [file join [file dirname [info script]] languages exemplars.tcl]
+
+if {[testConstraint tfhe]} {
+    foreach {name decrypt} {tfhe-open true tfhe-governed false} {
+        if {[catch {tclmesh private profile describe $name}]} {
+            tclmesh private profile define $name [dict create \
+                backend tfhe semantics exact-integer allow_decrypt $decrypt]
+        }
+    }
+}
+
+test T-001-exemplars-under-tfhe {decrypted results equal the plaintext reference} -constraints tfhe -body {
+    lmap e [::exemplars::all] {
+        set run [tclmesh views run tfhe-open [dict get $e circuit] [dict get $e inputs]]
+        expr {[dict get $run recipient] eq
+            [dict get [tclmesh views declared [dict get $e circuit] [dict get $e inputs]] recipient]}
+    }
+} -result {1 1 1 1 1}
+
+test T-002-oblivious-traces {real evaluation traces equal the declared view on all pairs} -constraints tfhe -body {
+    lmap e [::exemplars::all] {
+        tclmesh views paired tfhe-open [dict get $e circuit] [dict get $e inputs] [dict get $e variants]
+    }
+} -result {{} {} {} {} {}}
+
+test T-003-ciphertext-sizes {ciphertext size does not depend on the plaintext} -constraints tfhe -body {
+    set sizes {}
+    foreach {type values} {int {0 1 -1 2147483647 -2147483648 4242} bool {0 1}} {
+        set seen {}
+        foreach v $values {
+            set h [tclmesh private encrypt tfhe-open $type $v]
+            set token [dict get $::tclmesh::private::handles $h token]
+            lappend seen [dict get $token bytes]
+            tclmesh private handle destroy $h
+        }
+        lappend sizes $type [llength [lsort -unique $seen]]
+    }
+    set sizes
+} -result {int 1 bool 1}
+
+test T-004-released-under-tfhe {a 2-of-3 quorum releases the clearing price; direct decryption is forbidden} -constraints tfhe -body {
+    tclmesh release use-store {}
+    set e [::exemplars::second_price]
+    set runtime [dict create \
+        a [tclmesh private encrypt tfhe-governed int 120] \
+        b [tclmesh private encrypt tfhe-governed int 95]]
+    set price [dict get [tclmesh private evaluate tfhe-governed [dict get $e circuit] $runtime] price]
+    set direct [catch {tclmesh private decrypt $price}]
+    set id [dict get [tclmesh release request $price clearing-price 2 {holder:a holder:b holder:c}] id]
+    tclmesh release contribute $id holder:b share-b
+    tclmesh release contribute $id holder:c share-c
+    list $direct [dict get [tclmesh release combine $id] result]
+} -result {1 95}
+
+# Leave no TFHE handles behind for tests that persist every live handle.
+if {[testConstraint tfhe]} {
+    foreach h [tclmesh private handle list] {
+        if {![catch {tclmesh private handle describe $h} d] &&
+            [dict get $d profile] in {tfhe-open tfhe-governed}} {
+            catch {tclmesh private handle destroy $h}
+        }
+    }
+}
+
+cleanupTests
