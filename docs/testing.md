@@ -189,3 +189,7 @@ generate.
 | per-party views, paired runs | `src/views.tcl`, `tests/views.test` | evaluator and recipient views; transparent backend; `lazy` and `sized` calibration breaks detected |
 | declared views from the spec | `spec/TclMesh/Circuit.lean`, `spec-eval --views` | `declared` with `declared_publics` (the view depends on public inputs only) and `schedule_nodup` proved |
 | view conformance | `tools/views.tcl check`, `conformance/circuits.json` | recorded = declared (Tcl) = declared (Lean) on every vector, in CI |
+| IND-CPA games | `security/src/ind_cpa.rs` | battery of five adversaries with Bonferroni-corrected Wilson intervals; toy Regev sound and with five flaws |
+| calibration | `security/tests/games.rs` | every flaw detected, sound scheme passes. The first run caught a blind spot: an unstandardized centroid missed an appended plaintext bit |
+| exact small models | `security/src/exact.rs` | one-time pad advantage exactly 0; toy Regev single-ciphertext advantage exactly `q^{-n}` (the `a = 0` leak) |
+| zero knowledge | `security/src/zk.rs` | Schnorr: completeness and extractor on every witness, nonce and challenge pair of a small group; perfect HVZK (TV = 0) against the simulator; nonce reuse and biased nonces detected; weak Fiat–Shamir forged, strong not |

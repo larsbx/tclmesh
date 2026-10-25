@@ -1,0 +1,13 @@
+[package]
+name = "tclmesh-security"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Empirical security games for TclMesh mechanisms: IND-CPA distinguishers, exact small models, zero-knowledge simulator and extractor tests"
+publish = false
+
+[dependencies]
+
+[[bin]]
+name = "tclmesh-security"
+path = "src/main.rs"

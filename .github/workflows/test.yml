@@ -85,6 +85,19 @@ jobs:
             kernel/target/release/tclmesh-kernel conform vectors.json outcomes.json --min-agreement 0.6
           done
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Format and lint
+        run: |
+          cargo fmt --check --manifest-path security/Cargo.toml
+          cargo clippy --manifest-path security/Cargo.toml --all-targets -- -D warnings
+      - name: Exact small models, zero-knowledge suite, calibrated battery
+        run: cargo test --release --manifest-path security/Cargo.toml
+      - name: Battery verdicts (every calibration break detected, sound scheme passes)
+        run: cargo run --release --manifest-path security/Cargo.toml
+
   spec:
     runs-on: ubuntu-latest
     steps:
