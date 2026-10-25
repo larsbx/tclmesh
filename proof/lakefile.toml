@@ -1,0 +1,16 @@
+name = "tclmesh-proof"
+defaultTargets = ["TclMeshProof"]
+
+# Aeneas' Lean library, at the commit whose translator generated Core/.
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas.git"
+rev = "c49c391fc881a26bf00968e0e967afe5832b981c"
+subDir = "backends/lean"
+
+[[require]]
+name = "tclmesh-spec"
+path = "../spec"
+
+[[lean_lib]]
+name = "TclMeshProof"

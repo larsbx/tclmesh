@@ -109,6 +109,96 @@ Before a v0.3 release or a stronger claim, continue in this order:
 Real cryptographic execution and FULL/PRIVATE conformance remain open. The
 plaintext backend provides neither confidentiality nor cryptographic quorum.
 
+## Encrypted languages
+
+Goal: TclMesh as a meta-language that writes encrypted languages. Their
+programs compute and decide on homomorphic ciphertext that no TclMesh component,
+the kernel included, can decrypt.
+
+Decisions over ciphertext are the point, not something to forbid. What is
+required is that every dependence of an observable on ciphertext is designed,
+declared, and accounted for. There are three kinds of decision:
+
+| Decision | Who learns it | Mechanisms | Leakage |
+|---|---|---|---|
+| oblivious | nobody; the result stays encrypted | homomorphic select (CMUX), programmable bootstrapping / encrypted lookup tables, loops unrolled to a declared bound | none; the trace depends only on public inputs |
+| released | named parties, under policy | threshold decryption of the decision (not the data); functional-encryption keys that reveal only `f(x)` | exactly `f(x)`, charged to a budget |
+| proved | the kernel, without decrypting | zero-knowledge proofs by the key holder (range, membership, correct computation); verifiable decryption shares | only that the statement holds, attested by that holder |
+
+Leaky encodings (deterministic or order-revealing encryption, MPC with public
+output, attested enclaves) are admissible only with their leakage typed
+explicitly.
+
+The manifest declares, for each requirement, what may be learned, by whom, at
+what cost, and under which trust assumptions. The compiler chooses a mechanism
+that satisfies the declaration, or rejects it.
+
+### Formal methods first
+
+The Lean 4 specification in `spec/` is the root of trust. New semantics start
+as a Lean definition and its theorems. Implementations follow:
+
+- the Rust kernel is refined against the spec: `kernel/core` by Aeneas proofs,
+  the rest by exact conformance with the executable spec;
+- the Tcl reference is checked against it by conformance testing;
+- the Tcl meta-language acts as a certifying compiler, whose certificates a
+  checker proved in Lean validates before activation.
+
+CI rejects `sorry` and any axiom outside Lean's standard three
+(`propext`, `Classical.choice`, `Quot.sound`). Cryptographic assumptions enter
+only as named hypotheses of the theorems that use them.
+
+Proof obligations:
+
+- [x] label lattice; declassification-indexed non-interference for typed
+  expressions with oblivious `select`, `release`, and `verify` (`spec/TclMesh/Flow.lean`);
+- [x] actions: public guards, labelled fields and effect fields; non-interference
+  of every public observable modulo agreed releases;
+- [x] obliviousness: the operation trace is determined by public inputs alone;
+- [x] mechanism selection in miniature: a source `if` on secret data compiles
+  to `select`, with semantic preservation, well-typedness, and obliviousness;
+- [x] verified label checker (`infer`), sound and complete for the typing relation;
+- [x] static leakage budget: an accepted action leaks at most its budget;
+- [x] threshold release: an accepted release has a quorum of distinct authorized
+  holders bound to the request;
+- [x] deontic resolution laws, and fail-closed evaluation of the canonical
+  predicate language;
+- [x] canonical numbers as exact decimals: a total preorder, exponent-independent
+  scaling, and parser cases (`Decimal.lean`), with Tcl and Rust migrated;
+- [x] executable spec as the conformance oracle (`Kernel.lean`, `lake exe spec-eval`).
+  The Rust kernel must equal it on every vector, and its own fail-closed
+  `not` and exact-comparison theorems are proved;
+- [x] `kernel/core` in the subset Aeneas can translate. Its deontic resolution,
+  exact decimal parsing and exact decimal comparison are proved equal to the
+  spec through Aeneas (`proof/`), with no axioms;
+- [ ] Aeneas refinement of the whole evaluation, as it moves into `kernel/core`;
+- [ ] ciphertext values and the IFC type system in the kernel IR, with the Tcl
+  compiler emitting label certificates;
+- [ ] mechanism lemmas: CMUX select, threshold release, functional encryption,
+  zero-knowledge range proofs, each "correct and leaks exactly L" under named
+  assumptions;
+- [ ] noise-budget soundness for leveled and bootstrapped circuits;
+- [ ] leakage budgets in bits and in differential-privacy epsilon across runs.
+
+Engineering sequence, after the proofs above:
+
+1. Canonical typed IR for whole manifests, so circuits and release policies hash
+   identically in Tcl and Rust.
+2. The IFC type system with oblivious, released, and proved decisions in the
+   kernel IR. `select` is the first oblivious construct, and the existing release
+   policies become the released path.
+3. A Rust backend trait: a plaintext reference backend, then real FHE (TFHE for
+   integer and boolean circuits, CKKS for approximate arithmetic). The kernel
+   holds evaluation keys and never secret keys.
+4. Threshold release with verifiable decryption shares, checked against manifest
+   policy by the kernel.
+5. `language define`: declares an encrypted language's types, operators lowered
+   to circuits, parameter profile, leakage declarations, and mechanism
+   preferences. Generated languages compile to kernel IR and become delegable
+   language instances.
+6. An optional orchestration tier: a restricted Tcl profile with real budgets
+   that emits only inert proposals.
+
 ## v1.0
 
 v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable workflows, ceremonies, private release, supervision, and the full integrated acceptance scenario.

@@ -1,0 +1,3062 @@
+{
+ "vectors": [
+  {
+   "id": "default-permit-neutral",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {},
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "deny",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "deny"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "permit-if-true",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gte",
+      [
+       "field",
+       "score"
+      ],
+      [
+       "literal",
+       "80"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "permit-if-false",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "field",
+       "score"
+      ],
+      [
+       "literal",
+       "80"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "int-vs-double-exact-gt",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "9007199254740993"
+      ],
+      [
+       "request",
+       "limit"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "int-vs-double-exact-eq",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lte",
+      [
+       "literal",
+       "9007199254740992"
+      ],
+      [
+       "request",
+       "limit"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "exact-decimal-ordering",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gte",
+      [
+       "literal",
+       "0.1"
+      ],
+      [
+       "literal",
+       "0.10000000000000000001"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "bigint-ordering",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "field",
+       "big"
+      ],
+      [
+       "literal",
+       "123456789012345678901234567891"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "negative-zero",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "and",
+      [
+       "lte",
+       [
+        "literal",
+        "-0"
+       ],
+       [
+        "literal",
+        "0"
+       ]
+      ],
+      [
+       "gte",
+       [
+        "literal",
+        "-0.0"
+       ],
+       [
+        "literal",
+        "0"
+       ]
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "large-exponent-is-exact",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "field",
+       "big"
+      ],
+      [
+       "literal",
+       "1e400"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "small-exponent-is-exact",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gte",
+      [
+       "literal",
+       "1e-400"
+      ],
+      [
+       "literal",
+       "0"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "non-numeric-left",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       "abc"
+      ],
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "non-numeric-right-after-both-evaluated",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       "abc"
+      ],
+      [
+       "field",
+       "missing"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "nan-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       "NaN"
+      ],
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "hex-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "0x10"
+      ],
+      [
+       "literal",
+       "15"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "octal-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       "010"
+      ],
+      [
+       "literal",
+       "9"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "padded-number-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [
+       "literal",
+       "1"
+      ],
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ],
+    "validations": [
+     [
+      "assert",
+      [
+       "gte",
+       [
+        "literal",
+        " 1"
+       ],
+       [
+        "literal",
+        "1"
+       ]
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "eq-is-string-equality",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "neq",
+      [
+       "literal",
+       "1.0"
+      ],
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-canonical-list",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "field",
+       "region"
+      ],
+      [
+       "literal",
+       "north east"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-braced-list",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "b c"
+      ],
+      [
+       "literal",
+       "a {b c}"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-json-array",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "b c"
+      ],
+      [
+       "field",
+       "tags"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-quoted-list-is-non-canonical",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "b c"
+      ],
+      [
+       "literal",
+       "a \"b c\""
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "contains",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "contains",
+      [
+       "field",
+       "note"
+      ],
+      [
+       "literal",
+       "ok"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "contains-empty-needle-is-false",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "not",
+      [
+       "contains",
+       [
+        "field",
+        "note"
+       ],
+       [
+        "literal",
+        ""
+       ]
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "short-circuit-and",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "and",
+      [
+       "false"
+      ],
+      [
+       "eq",
+       [
+        "field",
+        "missing"
+       ],
+       [
+        "literal",
+        "x"
+       ]
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "short-circuit-or",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "or",
+      [
+       "true"
+      ],
+      [
+       "eq",
+       [
+        "field",
+        "missing"
+       ],
+       [
+        "literal",
+        "x"
+       ]
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "nested-path",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [
+       "field",
+       "nested",
+       "z",
+       "w"
+      ],
+      [
+       "literal",
+       "deep"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "missing-field",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [
+       "field",
+       "nested",
+       "nope"
+      ],
+      [
+       "literal",
+       "x"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "missing-request",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [
+       "request",
+       "absent"
+      ],
+      [
+       "literal",
+       "x"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "path-through-scalar-refused",
+   "domain": "any",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [
+       "field",
+       "region",
+       "x"
+      ],
+      [
+       "literal",
+       "x"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "dict-as-scalar-refused",
+   "domain": "any",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [
+       "field",
+       "nested"
+      ],
+      [
+       "literal",
+       "x"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "deontic-duplicates-collapse",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "deontic": [
+     "K",
+     "K"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "deontic-conflict",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "deontic": [
+     "W",
+     "H"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "deontic-forbidden",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "deontic": [
+     "H"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "deontic-invalid",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "deontic": [
+     "Z"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "deontic-empty",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "deontic": []
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "authorization-before-deontic",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "deny"
+    ],
+    "deontic": [
+     "H"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "validation-failed",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "validations": [
+     [
+      "assert",
+      [
+       "eq",
+       [
+        "field",
+        "region"
+       ],
+       [
+        "literal",
+        "south"
+       ]
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "validation-sees-pre-change-state",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "validations": [
+     [
+      "assert",
+      [
+       "eq",
+       [
+        "field",
+        "region"
+       ],
+       [
+        "literal",
+        "north"
+       ]
+      ]
+     ]
+    ],
+    "changes": [
+     [
+      "set",
+      "region",
+      [
+       "literal",
+       "south"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "changes-sequential-and-deduplicated",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "changes": [
+     [
+      "set",
+      "a",
+      [
+       "literal",
+       "1"
+      ]
+     ],
+     [
+      "set",
+      "b",
+      [
+       "field",
+       "a"
+      ]
+     ],
+     [
+      "set",
+      "a",
+      [
+       "literal",
+       "2"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "effects-see-post-change-state",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "changes": [
+     [
+      "set",
+      "region",
+      [
+       "literal",
+       "south"
+      ]
+     ]
+    ],
+    "effects": [
+     [
+      "emit",
+      "moved",
+      "to",
+      [
+       "field",
+       "region"
+      ],
+      "by",
+      [
+       "request",
+       "actor_id"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "effect-type-field-overwrites-in-place",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "effects": [
+     [
+      "emit",
+      "t",
+      "k",
+      [
+       "literal",
+       "1"
+      ],
+      "type",
+      [
+       "literal",
+       "u"
+      ],
+      "k",
+      [
+       "literal",
+       "2"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "noncanonical-authorize",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit",
+     "extra"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "noncanonical-empty-value",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "eq",
+      [],
+      [
+       "literal",
+       "x"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "noncanonical-unknown-predicate",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "xor",
+      [
+       "literal",
+       "1"
+      ],
+      [
+       "literal",
+       "2"
+      ]
+     ]
+    ],
+    "deontic": [
+     "M"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "noncanonical-change",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "changes": [
+     [
+      "set",
+      "",
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "noncanonical-effect-odd-fields",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "effects": [
+     [
+      "emit",
+      "t",
+      "k"
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "noncanonical-effect-empty-name",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "effects": [
+     [
+      "emit",
+      "t",
+      "",
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "noncanonical-validation",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "validations": [
+     [
+      "check",
+      [
+       "true"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "validation-order-authorize-first",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit",
+     "x"
+    ],
+    "deontic": [
+     "Z"
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "inf-spelling-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       "Inf"
+      ],
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "leading-dot-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       ".5"
+      ],
+      [
+       "literal",
+       "1"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "trailing-dot-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       "1."
+      ],
+      [
+       "literal",
+       "2"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "plus-sign-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "lt",
+      [
+       "literal",
+       "+1"
+      ],
+      [
+       "literal",
+       "2"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "exponent-integer-vs-int",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "and",
+      [
+       "eq",
+       [
+        "literal",
+        "x"
+       ],
+       [
+        "literal",
+        "x"
+       ]
+      ],
+      [
+       "lte",
+       [
+        "literal",
+        "1e3"
+       ],
+       [
+        "literal",
+        "1000"
+       ]
+      ],
+      [
+       "gte",
+       [
+        "literal",
+        "1e3"
+       ],
+       [
+        "literal",
+        "1000"
+       ]
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-unbalanced-list-is-non-canonical",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "a"
+      ],
+      [
+       "literal",
+       "{a"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-brace-inside-bare-word",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "a{b"
+      ],
+      [
+       "literal",
+       "a{b c}"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-array-with-quote-is-non-canonical",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "x"
+      ],
+      [
+       "field",
+       "quoted"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-empty-list",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "not",
+      [
+       "in",
+       [
+        "literal",
+        ""
+       ],
+       [
+        "literal",
+        ""
+       ]
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-braced-empty-element",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       ""
+      ],
+      [
+       "literal",
+       "a {}"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-tab-separated",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "b"
+      ],
+      [
+       "literal",
+       "a\tb"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a\"b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-array-with-balanced-braces",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "{}"
+      ],
+      [
+       "field",
+       "quoted"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "{a}",
+     "{}"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-array-with-unbalanced-brace-is-non-canonical",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "x"
+      ],
+      [
+       "field",
+       "quoted"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a{b",
+     "x"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "exponent-cap-is-non-numeric",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "1e1001"
+      ],
+      [
+       "literal",
+       "0"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "exponent-leading-zeros",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "1e0001000"
+      ],
+      [
+       "literal",
+       "1e999"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "trailing-fraction-zeros-equal",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "and",
+      [
+       "lte",
+       [
+        "literal",
+        "0.10"
+       ],
+       [
+        "literal",
+        "0.1"
+       ]
+      ],
+      [
+       "gte",
+       [
+        "literal",
+        "0.10"
+       ],
+       [
+        "literal",
+        "0.1"
+       ]
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "negative-exponent-exact",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "gt",
+      [
+       "literal",
+       "1E-2"
+      ],
+      [
+       "literal",
+       "0.009"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-array-match-before-noncanonical-element",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "a"
+      ],
+      [
+       "field",
+       "quoted"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a",
+     "x\\y"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-array-match-before-unbalanced-element",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "a"
+      ],
+      [
+       "field",
+       "quoted"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a",
+     "b{"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  }
+ ]
+}

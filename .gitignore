@@ -1,3 +1,7 @@
 *.swp
 *.tmp
 .tclmesh-cache/
+kernel/target/
+spec/.lake/
+proof/.lake/
+kernel/core/target/

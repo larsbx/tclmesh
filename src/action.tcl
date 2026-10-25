@@ -1,5 +1,5 @@
 namespace eval ::tclmesh::action {
-    namespace export run describe bind_manifest
+    namespace export run describe bind_manifest evaluate
     namespace ensemble create
 }
 
@@ -34,6 +34,48 @@ proc ::tclmesh::action::_eval_value {value state request} {
             return -code error                 -errorcode [::list TCLMESH ACTION VALUE UNKNOWN $op]                 "unknown canonical value operation '$op'"
         }
     }
+}
+
+# number := -?(0|[1-9][0-9]*)(.[0-9]+)?([eE][+-]?[0-9]+)?, |written exponent| <= 1000
+# Returns {sign mantissa exponent} denoting sign * mantissa * 10^exponent
+# exactly, or {} outside the canonical domain (spec/TclMesh/Decimal.lean).
+proc ::tclmesh::action::_decimal {value} {
+    if {![regexp {^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([-+]?)([0-9]+))?$} \
+            $value -> sign int frac esign edigits]} {
+        return {}
+    }
+    set edigits [string trimleft $edigits 0]
+    if {[string length $edigits] > 4 || ($edigits ne "" && $edigits > 1000)} {
+        return {}
+    }
+    if {$edigits eq ""} {
+        set edigits 0
+    }
+    set mantissa [string trimleft $int$frac 0]
+    if {$mantissa eq ""} {
+        set mantissa 0
+    }
+    return [::list [expr {$sign eq "-" ? -1 : 1}] $mantissa \
+        [expr {($esign eq "-" ? -$edigits : $edigits) - [string length $frac]}]]
+}
+
+# Exact order of two canonical decimals: -1, 0, or 1. Both are scaled to the
+# smaller exponent and compared as integers.
+proc ::tclmesh::action::_compare_decimal {a b} {
+    lassign $a sa ma ea
+    lassign $b sb mb eb
+    set e [expr {min($ea, $eb)}]
+    set x [expr {$sa * $ma * 10 ** ($ea - $e)}]
+    set y [expr {$sb * $mb * 10 ** ($eb - $e)}]
+    expr {$x < $y ? -1 : ($x > $y ? 1 : 0)}
+}
+
+# Canonical lists use bare words and brace grouping only, so that their
+# elements do not depend on Tcl's backslash and double-quote substitution.
+proc ::tclmesh::action::_canonical_list {value} {
+    expr {[string first "\\" $value] < 0 &&
+          [string first "\"" $value] < 0 &&
+          [string is list $value]}
 }
 
 proc ::tclmesh::action::_eval_predicate {expr state request} {
@@ -74,21 +116,24 @@ proc ::tclmesh::action::_eval_predicate {expr state request} {
             set left [_eval_value [lindex $expr 1] $state $request]
             set right [_eval_value [lindex $expr 2] $state $request]
 
-            # Tcl recognizes signed/payload NaN spellings as doubles, but
-            # conversion rejects them. A false comparison must not let `not`
-            # turn malformed numeric input into permission.
-            if {![string is double -strict $left] ||
-                ![string is double -strict $right] ||
-                [catch {expr {double($left)}}] ||
-                [catch {expr {double($right)}}]} {
-                return -code error                     -errorcode [::list TCLMESH ACTION PREDICATE NON_NUMERIC $op]                     "predicate '$op' requires numeric operands other than NaN"
+            # Only canonical decimal spellings are numbers: Tcl would also
+            # accept hex, octal (010 == 8), padded, and Inf/NaN spellings.
+            # A rejected operand is an error, so `not` cannot turn malformed
+            # numeric input into permission.
+            set left [_decimal $left]
+            set right [_decimal $right]
+            if {$left eq "" || $right eq ""} {
+                return -code error \
+                    -errorcode [::list TCLMESH ACTION PREDICATE NON_NUMERIC $op] \
+                    "predicate '$op' requires canonical decimal operands"
             }
 
+            set order [_compare_decimal $left $right]
             switch -- $op {
-                lt  { return [expr {$left < $right}] }
-                lte { return [expr {$left <= $right}] }
-                gt  { return [expr {$left > $right}] }
-                gte { return [expr {$left >= $right}] }
+                lt  { return [expr {$order < 0}] }
+                lte { return [expr {$order <= 0}] }
+                gt  { return [expr {$order > 0}] }
+                gte { return [expr {$order >= 0}] }
             }
         }
         in {
@@ -98,6 +143,11 @@ proc ::tclmesh::action::_eval_predicate {expr state request} {
 
             set needle [_eval_value [lindex $expr 1] $state $request]
             set haystack [_eval_value [lindex $expr 2] $state $request]
+            if {![_canonical_list $haystack]} {
+                return -code error \
+                    -errorcode {TCLMESH ACTION PREDICATE NON_CANONICAL_LIST} \
+                    "in predicate requires a canonical list"
+            }
             return [expr {$needle in $haystack}]
         }
         contains {
@@ -417,19 +467,22 @@ proc ::tclmesh::action::_build_effect {spec state request} {
     return $effect
 }
 
-proc ::tclmesh::action::_guarded_execute {
-    action_id
-    descriptor
-    adapter
-    request
-    pin
-} {
-    set state [{*}$adapter load $request]
+# Pure Tier A evaluation: validates the canonical descriptor and computes the
+# authorization, deontic judgment, transformed state, and proposed effects.
+# No registry, adapter, or ambient input is consulted; the Rust kernel
+# implements the same function and is checked against this one.
+proc ::tclmesh::action::evaluate {action_id descriptor state request} {
+    _validate_descriptor $action_id $descriptor
 
-    set authorization [_authorization         [expr {[dict exists $descriptor authorize] ? [dict get $descriptor authorize] : {permit}}]         $state         $request]
+    set authorization [_authorization \
+        [expr {[dict exists $descriptor authorize] ? [dict get $descriptor authorize] : {permit}}] \
+        $state \
+        $request]
 
     if {[dict get $authorization decision] ne "permit"} {
-        return -code error             -errorcode {TCLMESH ACTION AUTHORIZATION DENIED}             "action authorization did not permit execution"
+        return -code error \
+            -errorcode {TCLMESH ACTION AUTHORIZATION DENIED} \
+            "action authorization did not permit execution"
     }
 
     set verdicts [expr {[dict exists $descriptor deontic] ? [dict get $descriptor deontic] : {M}}]
@@ -455,9 +508,38 @@ proc ::tclmesh::action::_guarded_execute {
         }
     }
 
-    set persisted [{*}$adapter persist $request $state]
+    return [dict create \
+        authorization $authorization \
+        deontic $judgment \
+        execution $execution \
+        state $state \
+        effects $effects]
+}
 
-    return [dict create         status ok         action $action_id         actor_id [dict get $request actor_id]         application_id [dict get $pin application_id]         manifest_version [dict get $pin version]         manifest_hash [dict get $pin manifest_hash]         authorization $authorization         deontic $judgment         execution $execution         result $persisted         effects [dict create proposed $effects executed {}]]
+proc ::tclmesh::action::_guarded_execute {
+    action_id
+    descriptor
+    adapter
+    request
+    pin
+} {
+    set evaluation [evaluate $action_id $descriptor \
+        [{*}$adapter load $request] $request]
+
+    set persisted [{*}$adapter persist $request [dict get $evaluation state]]
+
+    return [dict create \
+        status ok \
+        action $action_id \
+        actor_id [dict get $request actor_id] \
+        application_id [dict get $pin application_id] \
+        manifest_version [dict get $pin version] \
+        manifest_hash [dict get $pin manifest_hash] \
+        authorization [dict get $evaluation authorization] \
+        deontic [dict get $evaluation deontic] \
+        execution [dict get $evaluation execution] \
+        result $persisted \
+        effects [dict create proposed [dict get $evaluation effects] executed {}]]
 }
 
 proc ::tclmesh::action::describe {application_id action_id {version {}}} {

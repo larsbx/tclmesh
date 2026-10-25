@@ -2,6 +2,30 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- pure Tier A evaluation, `action evaluate action_id descriptor state request`,
+  which `action run` now wraps;
+- **breaking:** ordered comparisons accept only canonical decimal numbers
+  (hex, octal, padded, signed, and `Inf`/`NaN` spellings raise `NON_NUMERIC`).
+  `in` accepts only quote- and backslash-free lists (`NON_CANONICAL_LIST`);
+- **breaking:** ordered comparisons use exact decimals (no floating-point
+  rounding), with written exponents capped at 1000;
+- `kernel/core`: a dependency-free crate (decimal parsing and comparison, deontic
+  resolution) that the kernel calls. Aeneas translates it to Lean, and
+  `proof/` proves the translated `deontic::resolve`, `deontic::admits`,
+  `decimal::parse`, and `decimal::compare` equal to the specification, with no
+  axioms (CI job `proof`);
+- executable Lean specification of the Tier A kernel (`lake exe spec-eval`). The
+  Rust kernel must equal it on every conformance vector;
+- Rust Tier A kernel (`kernel/`) refining the Tcl evaluator, with curated and
+  seeded random differential conformance (`tools/conformance.tcl`,
+  `conformance/`) run in CI;
+- Lean 4 specification (`spec/`, `docs/proofs.md`) proving declassification-
+  indexed non-interference with oblivious `select`, typed `release` and `verify`,
+  action-level non-interference, obliviousness of `if`→`select` compilation,
+  sound and complete label checkers, leakage-budget soundness, threshold-release
+  quorum safety, deontic admission laws, and fail-closed canonical predicates.
+  An axiom audit in CI rejects `sorry`;
+
 - backend protocol, immutable parameter profiles, opaque ciphertext handles, and
   plaintext/backend differential evaluation;
 - threshold release, backend-controlled handle persistence, and independent-process

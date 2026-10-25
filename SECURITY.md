@@ -13,6 +13,11 @@ TclMesh treats the installed manifest as authoritative semantics.
 Important boundaries:
 
 - action semantics are canonical data, not mutable procedure callbacks;
+- ordered comparisons and list membership accept only a canonical domain
+  (decimal numbers, quote- and backslash-free lists), so Tcl's hex/octal number
+  parsing and string substitution cannot change a policy decision;
+- the Rust kernel refines the Tcl evaluator and fails closed on input whose
+  meaning depends on Tcl's lack of value types;
 - manifest activation is versioned and hash-bound;
 - action invocation requires an active language, matching holder identity, granted command, and granted capability;
 - state-dependent mutation checks run inside the storage transaction or equivalent atomic guard;

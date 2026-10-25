@@ -1,0 +1,11 @@
+[package]
+name = "tclmesh-kernel"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Tier A canonical action kernel for TclMesh, refining the Tcl reference evaluator"
+publish = false
+
+[dependencies]
+tclmesh-kernel-core = { path = "core" }
+serde_json = { version = "1", features = ["preserve_order"] }
