@@ -67,6 +67,8 @@
     "exponent-cap-is-non-numeric": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_NUMERIC","gt"]},
     "exponent-leading-zeros": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "trailing-fraction-zeros-equal": {"status":"ok","verdict":"M","changes":[],"effects":[]},
-    "negative-exponent-exact": {"status":"ok","verdict":"M","changes":[],"effects":[]}
+    "negative-exponent-exact": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "in-array-match-before-noncanonical-element": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_CANONICAL_LIST"]},
+    "in-array-match-before-unbalanced-element": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_CANONICAL_LIST"]}
   }
 }

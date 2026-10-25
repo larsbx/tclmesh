@@ -236,9 +236,13 @@ fn member(needle: &str, haystack: &Value) -> R<bool> {
         Value::String(text) => Ok(list::parse(text)
             .ok_or_else(noncanonical_list)?
             .contains(&needle)),
-        Value::Array(items) => items.iter().try_fold(false, |found, item| {
-            Ok(found || plain_element(item)? == needle)
-        }),
+        // Every element is validated before membership is decided: Tcl renders
+        // the whole list, so one non-canonical element rejects it.
+        Value::Array(items) => Ok(items
+            .iter()
+            .map(plain_element)
+            .collect::<R<Vec<_>>>()?
+            .contains(&needle)),
         _ => Err(Fault::kernel("list")),
     }
 }

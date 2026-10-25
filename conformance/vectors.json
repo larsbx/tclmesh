@@ -2965,6 +2965,98 @@
     "attempts": "2",
     "limit": "9007199254740992.0"
    }
+  },
+  {
+   "id": "in-array-match-before-noncanonical-element",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "a"
+      ],
+      [
+       "field",
+       "quoted"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a",
+     "x\\y"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
+  },
+  {
+   "id": "in-array-match-before-unbalanced-element",
+   "domain": "canonical",
+   "action_id": "Curated::act",
+   "descriptor": {
+    "authorize": [
+     "permit-if",
+     [
+      "in",
+      [
+       "literal",
+       "a"
+      ],
+      [
+       "field",
+       "quoted"
+      ]
+     ]
+    ]
+   },
+   "state": {
+    "score": "85",
+    "region": "north",
+    "note": "review ok",
+    "big": "123456789012345678901234567890",
+    "nested": {
+     "x": "1",
+     "z": {
+      "w": "deep"
+     }
+    },
+    "tags": [
+     "a",
+     "b c"
+    ],
+    "quoted": [
+     "a",
+     "b{"
+    ]
+   },
+   "request": {
+    "actor_id": "user:1",
+    "attempts": "2",
+    "limit": "9007199254740992.0"
+   }
   }
  ]
 }

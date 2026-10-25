@@ -220,20 +220,20 @@ def number (op text : String) : R Decimal.Dec :=
 
 def nonCanonicalList {α} : R α := throw (fault ["ACTION", "PREDICATE", "NON_CANONICAL_LIST"])
 
-/-- Membership; over a list value, stops at the first match. -/
+/-- Membership. Over a list value every element is validated first, as Tcl
+renders the whole list: one non-canonical element rejects it. -/
 def member (needle : String) : Value → R Bool
   | .str text => match parseList text with
     | some items => pure (items.contains needle)
     | none => nonCanonicalList
-  | .arr items => go items
+  | .arr items => do pure ((← elements items).contains needle)
   | _ => refuse "list"
 where
-  go : List Value → R Bool
-    | [] => pure false
+  elements : List Value → R (List String)
+    | [] => pure []
     | x :: xs => do
       let s ← string x
-      if !plainElement s then nonCanonicalList
-      else if s = needle then pure true else go xs
+      if !plainElement s then nonCanonicalList else (s :: ·) <$> elements xs
 
 def isInfix (needle hay : List Char) : Bool :=
   match hay with
