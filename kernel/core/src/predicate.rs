@@ -74,9 +74,7 @@ fn range_eq(a: &[u8], from: usize, to: usize, b: &[u8]) -> bool {
         let mut same = true;
         let mut i = 0;
         while i < b.len() {
-            if a[from + i] != b[i] {
-                same = false;
-            }
+            same &= a[from + i] == b[i];
             i += 1;
         }
         same
@@ -89,15 +87,17 @@ fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
 
 /// Whether `needle` occurs in `hay`.
 fn is_infix(needle: &[u8], hay: &[u8]) -> bool {
-    let mut found = needle.len() == 0;
-    let mut i = 0;
-    while i + needle.len() <= hay.len() {
-        if range_eq(hay, i, i + needle.len(), needle) {
-            found = true;
+    if needle.len() == 0 {
+        true
+    } else {
+        let mut found = false;
+        let mut i = 0;
+        while i < hay.len() && needle.len() <= hay.len() - i {
+            found |= range_eq(hay, i, i + needle.len(), needle);
+            i += 1;
         }
-        i += 1;
+        found
     }
-    found
 }
 
 fn is_space(b: u8) -> bool {
@@ -108,6 +108,28 @@ fn is_quote(b: u8) -> bool {
     b == b'\\' || b == b'"'
 }
 
+/// One byte of `plain_element`: whether the element is still plain, and its
+/// brace depth (which never reaches `cap`, the element's length).
+fn plain_step(ok: bool, depth: usize, b: u8, cap: usize) -> (bool, usize) {
+    if is_quote(b) {
+        (false, depth)
+    } else if b == b'{' {
+        if depth < cap {
+            (ok, depth + 1)
+        } else {
+            (ok, depth)
+        }
+    } else if b == b'}' {
+        if depth == 0 {
+            (false, depth)
+        } else {
+            (ok, depth - 1)
+        }
+    } else {
+        (ok, depth)
+    }
+}
+
 /// An element Tcl renders without backslashes or quotes: none of either,
 /// braces balanced.
 fn plain_element(b: &[u8]) -> bool {
@@ -115,19 +137,9 @@ fn plain_element(b: &[u8]) -> bool {
     let mut depth: usize = 0;
     let mut i = 0;
     while i < b.len() {
-        if is_quote(b[i]) {
-            ok = false;
-        } else if b[i] == b'{' {
-            if depth < b.len() {
-                depth += 1;
-            }
-        } else if b[i] == b'}' {
-            if depth == 0 {
-                ok = false;
-            } else {
-                depth -= 1;
-            }
-        }
+        let (o, d) = plain_step(ok, depth, b[i], b.len());
+        ok = o;
+        depth = d;
         i += 1;
     }
     ok && depth == 0
@@ -137,9 +149,7 @@ fn has_quote(b: &[u8]) -> bool {
     let mut found = false;
     let mut i = 0;
     while i < b.len() {
-        if is_quote(b[i]) {
-            found = true;
-        }
+        found |= is_quote(b[i]);
         i += 1;
     }
     found
@@ -161,21 +171,47 @@ fn word_end(b: &[u8], mut i: usize) -> usize {
     i
 }
 
+/// One byte of a brace group at positive `depth` (which never reaches `cap`).
+fn group_step(depth: usize, b: u8, cap: usize) -> usize {
+    if b == b'{' {
+        if depth < cap {
+            depth + 1
+        } else {
+            depth
+        }
+    } else if b == b'}' {
+        depth - 1
+    } else {
+        depth
+    }
+}
+
 /// Scans a brace group whose body starts at `i`: the index just past its
 /// matching close, or `b.len()` with depth left over if it never closes.
 fn group_end(b: &[u8], mut i: usize) -> (usize, usize) {
     let mut depth: usize = 1;
     while depth > 0 && i < b.len() {
-        if b[i] == b'{' {
-            if depth < b.len() {
-                depth += 1;
-            }
-        } else if b[i] == b'}' {
-            depth -= 1;
-        }
+        depth = group_step(depth, b[i], b.len());
         i += 1;
     }
     (depth, i)
+}
+
+/// The list element starting at the non-space `text[i]`: whether it is
+/// well formed, whether it equals `needle`, and where it ends.
+fn list_item(text: &[u8], needle: &[u8], i: usize) -> (bool, bool, usize) {
+    if text[i] == b'{' {
+        let (depth, end) = group_end(text, i + 1);
+        if depth != 0 {
+            (false, false, end)
+        } else {
+            let hit = range_eq(text, i + 1, end - 1, needle);
+            (end == text.len() || is_space(text[end]), hit, end)
+        }
+    } else {
+        let end = word_end(text, i);
+        (true, range_eq(text, i, end, needle), end)
+    }
 }
 
 /// Membership of `needle` in the canonical list `text`; `None` if `text` is
@@ -188,26 +224,10 @@ fn list_member(text: &[u8], needle: &[u8]) -> Option<bool> {
         let mut found = false;
         let mut i = skip_space(text, 0);
         while ok && i < text.len() {
-            if text[i] == b'{' {
-                let (depth, end) = group_end(text, i + 1);
-                if depth != 0 {
-                    ok = false;
-                } else {
-                    if range_eq(text, i + 1, end - 1, needle) {
-                        found = true;
-                    }
-                    if end < text.len() && !is_space(text[end]) {
-                        ok = false;
-                    }
-                }
-                i = skip_space(text, end);
-            } else {
-                let end = word_end(text, i);
-                if range_eq(text, i, end, needle) {
-                    found = true;
-                }
-                i = skip_space(text, end);
-            }
+            let (o, hit, end) = list_item(text, needle, i);
+            ok = o;
+            found |= hit;
+            i = skip_space(text, end);
         }
         if ok {
             Some(found)
@@ -231,15 +251,23 @@ fn item_member(item: &Option<Vec<u8>>, needle: &[u8], found: bool) -> Result<boo
     }
 }
 
+fn item_step(
+    status: Result<bool, Error>,
+    item: &Option<Vec<u8>>,
+    needle: &[u8],
+) -> Result<bool, Error> {
+    match status {
+        Ok(found) => item_member(item, needle, found),
+        Err(e) => Err(e),
+    }
+}
+
 /// Membership in a list value: every element must be a plain scalar.
 fn items_member(items: &[Option<Vec<u8>>], needle: &[u8]) -> Result<bool, Error> {
     let mut status: Result<bool, Error> = Ok(false);
     let mut i = 0;
     while i < items.len() {
-        status = match status {
-            Ok(found) => item_member(&items[i], needle, found),
-            Err(e) => Err(e),
-        };
+        status = item_step(status, &items[i], needle);
         i += 1;
     }
     status

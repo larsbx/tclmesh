@@ -997,7 +997,7 @@ def predicate.scalar
     ok (core.result.Result.Err predicate.Error.NotScalar)
 
 /-- [tclmesh_kernel_core::predicate::range_eq]: loop 0:
-    Source: 'src/predicate.rs', lines 76:8-81:9 -/
+    Source: 'src/predicate.rs', lines 76:8-79:9 -/
 @[rust_loop]
 def predicate.range_eq_loop
   (a : Slice Std.U8) («from» : Std.Usize) (b : Slice Std.U8) (same : Bool)
@@ -1010,16 +1010,13 @@ def predicate.range_eq_loop
     let i2 ← «from» + i
     let i3 ← Slice.index_usize a i2
     let i4 ← Slice.index_usize b i
-    let same1 ← if i3 != i4
-                  then ok false
-                  else ok same
     let i5 ← i + 1#usize
-    predicate.range_eq_loop a «from» b same1 i5
+    predicate.range_eq_loop a «from» b (same && (i3 = i4)) i5
   else ok same
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::range_eq]:
-    Source: 'src/predicate.rs', lines 70:0-84:1 -/
+    Source: 'src/predicate.rs', lines 70:0-82:1 -/
 def predicate.range_eq
   (a : Slice Std.U8) («from» : Std.Usize) («to» : Std.Usize)
   (b : Slice Std.U8) :
@@ -1032,41 +1029,44 @@ def predicate.range_eq
   else predicate.range_eq_loop a «from» b true 0#usize
 
 /-- [tclmesh_kernel_core::predicate::bytes_eq]:
-    Source: 'src/predicate.rs', lines 86:0-88:1 -/
+    Source: 'src/predicate.rs', lines 84:0-86:1 -/
 def predicate.bytes_eq
   (a : Slice Std.U8) (b : Slice Std.U8) : Result Bool := do
   let i := Slice.len a
   predicate.range_eq a 0#usize i b
 
 /-- [tclmesh_kernel_core::predicate::is_infix]: loop 0:
-    Source: 'src/predicate.rs', lines 94:4-99:5 -/
+    Source: 'src/predicate.rs', lines 95:8-98:9 -/
 @[rust_loop]
 def predicate.is_infix_loop
   (needle : Slice Std.U8) (hay : Slice Std.U8) (found : Bool) (i : Std.Usize) :
   Result Bool
   := do
-  let i1 := Slice.len needle
-  let i2 ← i + i1
-  let i3 := Slice.len hay
-  if i2 <= i3
+  let i1 := Slice.len hay
+  if i < i1
   then
-    let i4 := Slice.len needle
-    let i5 ← i + i4
-    let b ← predicate.range_eq hay i i5 needle
-    let found1 ← if b
-                   then ok true
-                   else ok found
-    let i6 ← i + 1#usize
-    predicate.is_infix_loop needle hay found1 i6
+    let i2 := Slice.len needle
+    let i3 := Slice.len hay
+    let i4 ← i3 - i
+    if i2 <= i4
+    then
+      let i5 := Slice.len needle
+      let i6 ← i + i5
+      let b ← predicate.range_eq hay i i6 needle
+      let i7 ← i + 1#usize
+      predicate.is_infix_loop needle hay (found || b) i7
+    else ok found
   else ok found
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::is_infix]:
-    Source: 'src/predicate.rs', lines 91:0-101:1 -/
+    Source: 'src/predicate.rs', lines 89:0-101:1 -/
 def predicate.is_infix
   (needle : Slice Std.U8) (hay : Slice Std.U8) : Result Bool := do
   let i := Slice.len needle
-  predicate.is_infix_loop needle hay (i = 0#usize) 0#usize
+  if i = 0#usize
+  then ok true
+  else predicate.is_infix_loop needle hay false 0#usize
 
 /-- [tclmesh_kernel_core::predicate::is_space]:
     Source: 'src/predicate.rs', lines 103:0-105:1 -/
@@ -1093,8 +1093,33 @@ def predicate.is_quote (b : Std.U8) : Result Bool := do
   then ok true
   else ok (b = 34#u8)
 
+/-- [tclmesh_kernel_core::predicate::plain_step]:
+    Source: 'src/predicate.rs', lines 113:0-131:1 -/
+def predicate.plain_step
+  (ok1 : Bool) (depth : Std.Usize) (b : Std.U8) (cap : Std.Usize) :
+  Result (Bool × Std.Usize)
+  := do
+  let b1 ← predicate.is_quote b
+  if b1
+  then ok (false, depth)
+  else
+    if b = 123#u8
+    then
+      if depth < cap
+      then let i ← depth + 1#usize
+           ok (ok1, i)
+      else ok (ok1, depth)
+    else
+      if b = 125#u8
+      then
+        if depth = 0#usize
+        then ok (false, depth)
+        else let i ← depth - 1#usize
+             ok (ok1, i)
+      else ok (ok1, depth)
+
 /-- [tclmesh_kernel_core::predicate::plain_element]: loop 0:
-    Source: 'src/predicate.rs', lines 117:4-132:5 -/
+    Source: 'src/predicate.rs', lines 139:4-144:5 -/
 @[rust_loop]
 def predicate.plain_element_loop
   (b : Slice Std.U8) (ok1 : Bool) (depth : Std.Usize) (i : Std.Usize) :
@@ -1104,35 +1129,15 @@ def predicate.plain_element_loop
   if i < i1
   then
     let i2 ← Slice.index_usize b i
-    let b1 ← predicate.is_quote i2
-    let (ok2, depth1) ←
-      if b1
-      then ok (false, depth)
-      else
-        if i2 = 123#u8
-        then
-          do
-          let i3 := Slice.len b
-          let i4 ← if depth < i3
-                     then depth + 1#usize
-                     else ok depth
-          ok (ok1, i4)
-        else
-          if i2 = 125#u8
-          then
-            if depth = 0#usize
-            then ok (false, depth)
-            else do
-                 let depth2 ← depth - 1#usize
-                 ok (ok1, depth2)
-          else ok (ok1, depth)
-    let i3 ← i + 1#usize
-    predicate.plain_element_loop b ok2 depth1 i3
+    let i3 := Slice.len b
+    let (o, d) ← predicate.plain_step ok1 depth i2 i3
+    let i4 ← i + 1#usize
+    predicate.plain_element_loop b o d i4
   else ok (ok1, depth)
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::plain_element]:
-    Source: 'src/predicate.rs', lines 113:0-134:1 -/
+    Source: 'src/predicate.rs', lines 135:0-146:1 -/
 def predicate.plain_element (b : Slice Std.U8) : Result Bool := do
   let (ok1, depth) ← predicate.plain_element_loop b true 0#usize 0#usize
   if ok1
@@ -1140,7 +1145,7 @@ def predicate.plain_element (b : Slice Std.U8) : Result Bool := do
   else ok false
 
 /-- [tclmesh_kernel_core::predicate::has_quote]: loop 0:
-    Source: 'src/predicate.rs', lines 139:4-144:5 -/
+    Source: 'src/predicate.rs', lines 151:4-154:5 -/
 @[rust_loop]
 def predicate.has_quote_loop
   (b : Slice Std.U8) (found : Bool) (i : Std.Usize) : Result Bool := do
@@ -1149,22 +1154,19 @@ def predicate.has_quote_loop
   then
     let i2 ← Slice.index_usize b i
     let b1 ← predicate.is_quote i2
-    let found1 ← if b1
-                   then ok true
-                   else ok found
     let i3 ← i + 1#usize
-    predicate.has_quote_loop b found1 i3
+    predicate.has_quote_loop b (found || b1) i3
   else ok found
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::has_quote]:
-    Source: 'src/predicate.rs', lines 136:0-146:1 -/
+    Source: 'src/predicate.rs', lines 148:0-156:1 -/
 @[reducible]
 def predicate.has_quote (b : Slice Std.U8) : Result Bool := do
   predicate.has_quote_loop b false 0#usize
 
 /-- [tclmesh_kernel_core::predicate::skip_space]: loop 0:
-    Source: 'src/predicate.rs', lines 150:4-152:5 -/
+    Source: 'src/predicate.rs', lines 160:4-162:5 -/
 @[rust_loop]
 def predicate.skip_space_loop
   (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
@@ -1181,14 +1183,14 @@ def predicate.skip_space_loop
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::skip_space]:
-    Source: 'src/predicate.rs', lines 149:0-154:1 -/
+    Source: 'src/predicate.rs', lines 159:0-164:1 -/
 @[reducible]
 def predicate.skip_space
   (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
   predicate.skip_space_loop b i
 
 /-- [tclmesh_kernel_core::predicate::word_end]: loop 0:
-    Source: 'src/predicate.rs', lines 158:4-160:5 -/
+    Source: 'src/predicate.rs', lines 168:4-170:5 -/
 @[rust_loop]
 def predicate.word_end_loop
   (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
@@ -1205,14 +1207,26 @@ def predicate.word_end_loop
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::word_end]:
-    Source: 'src/predicate.rs', lines 157:0-162:1 -/
+    Source: 'src/predicate.rs', lines 167:0-172:1 -/
 @[reducible]
 def predicate.word_end
   (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
   predicate.word_end_loop b i
 
+/-- [tclmesh_kernel_core::predicate::group_step]:
+    Source: 'src/predicate.rs', lines 175:0-187:1 -/
+def predicate.group_step
+  (depth : Std.Usize) (b : Std.U8) (cap : Std.Usize) : Result Std.Usize := do
+  if b = 123#u8
+  then if depth < cap
+       then depth + 1#usize
+       else ok depth
+  else if b = 125#u8
+       then depth - 1#usize
+       else ok depth
+
 /-- [tclmesh_kernel_core::predicate::group_end]: loop 0:
-    Source: 'src/predicate.rs', lines 168:4-177:5 -/
+    Source: 'src/predicate.rs', lines 193:4-196:5 -/
 @[rust_loop]
 def predicate.group_end_loop
   (b : Slice Std.U8) (i : Std.Usize) (depth : Std.Usize) :
@@ -1224,31 +1238,51 @@ def predicate.group_end_loop
     if i < i1
     then
       let i2 ← Slice.index_usize b i
-      let depth1 ←
-        if i2 = 123#u8
-        then
-          let i3 := Slice.len b
-          if depth < i3
-          then depth + 1#usize
-          else ok depth
-        else if i2 = 125#u8
-             then depth - 1#usize
-             else ok depth
-      let i3 ← i + 1#usize
-      predicate.group_end_loop b i3 depth1
+      let i3 := Slice.len b
+      let depth1 ← predicate.group_step depth i2 i3
+      let i4 ← i + 1#usize
+      predicate.group_end_loop b i4 depth1
     else ok (depth, i)
   else ok (depth, i)
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::group_end]:
-    Source: 'src/predicate.rs', lines 166:0-179:1 -/
+    Source: 'src/predicate.rs', lines 191:0-198:1 -/
 @[reducible]
 def predicate.group_end
   (b : Slice Std.U8) (i : Std.Usize) : Result (Std.Usize × Std.Usize) := do
   predicate.group_end_loop b i 1#usize
 
+/-- [tclmesh_kernel_core::predicate::list_item]:
+    Source: 'src/predicate.rs', lines 202:0-215:1 -/
+def predicate.list_item
+  (text : Slice Std.U8) (needle : Slice Std.U8) (i : Std.Usize) :
+  Result (Bool × Bool × Std.Usize)
+  := do
+  let i1 ← Slice.index_usize text i
+  if i1 = 123#u8
+  then
+    let i2 ← i + 1#usize
+    let (depth, «end») ← predicate.group_end text i2
+    if depth != 0#usize
+    then ok (false, false, «end»)
+    else
+      let i3 ← «end» - 1#usize
+      let hit ← predicate.range_eq text i2 i3 needle
+      let i4 := Slice.len text
+      if «end» = i4
+      then ok (true, hit, «end»)
+      else
+        let i5 ← Slice.index_usize text «end»
+        let b ← predicate.is_space i5
+        ok (b, hit, «end»)
+  else
+    let «end» ← predicate.word_end text i
+    let b ← predicate.range_eq text i «end» needle
+    ok (true, b, «end»)
+
 /-- [tclmesh_kernel_core::predicate::list_member]: loop 0:
-    Source: 'src/predicate.rs', lines 190:8-211:9 -/
+    Source: 'src/predicate.rs', lines 226:8-231:9 -/
 @[rust_loop]
 def predicate.list_member_loop
   (text : Slice Std.U8) (needle : Slice Std.U8) (ok1 : Bool) (found : Bool)
@@ -1260,49 +1294,15 @@ def predicate.list_member_loop
     let i1 := Slice.len text
     if i < i1
     then
-      let i2 ← Slice.index_usize text i
-      if i2 = 123#u8
-      then
-        let i3 ← i + 1#usize
-        let (depth, «end») ← predicate.group_end text i3
-        let (ok2, found1) ←
-          if depth != 0#usize
-          then ok (false, found)
-          else
-            do
-            let i4 ← «end» - 1#usize
-            let b ← predicate.range_eq text i3 i4 needle
-            let found2 ← if b
-                           then ok true
-                           else ok found
-            let i5 := Slice.len text
-            let b1 ←
-              if «end» < i5
-              then
-                do
-                let i6 ← Slice.index_usize text «end»
-                let b2 ← predicate.is_space i6
-                if b2
-                then ok ok1
-                else ok false
-              else ok ok1
-            ok (b1, found2)
-        let i4 ← predicate.skip_space text «end»
-        predicate.list_member_loop text needle ok2 found1 i4
-      else
-        let «end» ← predicate.word_end text i
-        let b ← predicate.range_eq text i «end» needle
-        let found1 ← if b
-                       then ok true
-                       else ok found
-        let i3 ← predicate.skip_space text «end»
-        predicate.list_member_loop text needle ok1 found1 i3
+      let (o, hit, «end») ← predicate.list_item text needle i
+      let i2 ← predicate.skip_space text «end»
+      predicate.list_member_loop text needle o (found || hit) i2
     else ok (ok1, found)
   else ok (ok1, found)
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::list_member]:
-    Source: 'src/predicate.rs', lines 183:0-218:1 -/
+    Source: 'src/predicate.rs', lines 219:0-238:1 -/
 def predicate.list_member
   (text : Slice Std.U8) (needle : Slice Std.U8) : Result (Option Bool) := do
   let b ← predicate.has_quote text
@@ -1316,7 +1316,7 @@ def predicate.list_member
     else ok none
 
 /-- [tclmesh_kernel_core::predicate::item_member]:
-    Source: 'src/predicate.rs', lines 221:0-232:1 -/
+    Source: 'src/predicate.rs', lines 241:0-252:1 -/
 def predicate.item_member
   (item : Option (alloc.vec.Vec Std.U8)) (needle : Slice Std.U8) (found : Bool)
   :
@@ -1337,8 +1337,19 @@ def predicate.item_member
         ok (core.result.Result.Ok b2)
     else ok (core.result.Result.Err predicate.Error.NonCanonicalList)
 
+/-- [tclmesh_kernel_core::predicate::item_step]:
+    Source: 'src/predicate.rs', lines 254:0-263:1 -/
+def predicate.item_step
+  (status : core.result.Result Bool predicate.Error)
+  (item : Option (alloc.vec.Vec Std.U8)) (needle : Slice Std.U8) :
+  Result (core.result.Result Bool predicate.Error)
+  := do
+  match status with
+  | core.result.Result.Ok found => predicate.item_member item needle found
+  | core.result.Result.Err _ => ok status
+
 /-- [tclmesh_kernel_core::predicate::items_member]: loop 0:
-    Source: 'src/predicate.rs', lines 238:4-244:5 -/
+    Source: 'src/predicate.rs', lines 269:4-272:5 -/
 @[rust_loop]
 def predicate.items_member_loop
   (items : Slice (Option (alloc.vec.Vec Std.U8))) (needle : Slice Std.U8)
@@ -1348,20 +1359,15 @@ def predicate.items_member_loop
   let i1 := Slice.len items
   if i < i1
   then
-    let status1 ←
-      match status with
-      | core.result.Result.Ok found =>
-        do
-        let o ← Slice.index_usize items i
-        predicate.item_member o needle found
-      | core.result.Result.Err _ => ok status
+    let o ← Slice.index_usize items i
+    let status1 ← predicate.item_step status o needle
     let i2 ← i + 1#usize
     predicate.items_member_loop items needle status1 i2
   else ok status
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::predicate::items_member]:
-    Source: 'src/predicate.rs', lines 235:0-246:1 -/
+    Source: 'src/predicate.rs', lines 266:0-274:1 -/
 @[reducible]
 def predicate.items_member
   (items : Slice (Option (alloc.vec.Vec Std.U8))) (needle : Slice Std.U8) :
@@ -1371,7 +1377,7 @@ def predicate.items_member
     0#usize
 
 /-- [tclmesh_kernel_core::predicate::member]:
-    Source: 'src/predicate.rs', lines 248:0-258:1 -/
+    Source: 'src/predicate.rs', lines 276:0-286:1 -/
 def predicate.member
   (needle : Slice Std.U8) (haystack : predicate.Res) :
   Result (core.result.Result Bool predicate.Error)
@@ -1391,7 +1397,7 @@ def predicate.member
   | predicate.Res.Other => ok (core.result.Result.Err predicate.Error.NotList)
 
 /-- [tclmesh_kernel_core::predicate::holds]:
-    Source: 'src/predicate.rs', lines 260:0-267:1 -/
+    Source: 'src/predicate.rs', lines 288:0-295:1 -/
 def predicate.holds (op : predicate.CmpOp) (o : Order) : Result Bool := do
   match op with
   | predicate.CmpOp.Lt => Order.Insts.CoreCmpPartialEqOrder.eq o Order.Lt
@@ -1404,7 +1410,7 @@ def predicate.holds (op : predicate.CmpOp) (o : Order) : Result Bool := do
       Order.Lt
 
 /-- [tclmesh_kernel_core::predicate::compare]:
-    Source: 'src/predicate.rs', lines 269:0-277:1 -/
+    Source: 'src/predicate.rs', lines 297:0-305:1 -/
 def predicate.compare
   (op : predicate.CmpOp) (l : Slice Std.U8) (r : Slice Std.U8) :
   Result (core.result.Result Bool predicate.Error)
@@ -1422,7 +1428,7 @@ def predicate.compare
       ok (core.result.Result.Ok b)
 
 /-- [tclmesh_kernel_core::predicate::leaf]:
-    Source: 'src/predicate.rs', lines 279:0-317:1 -/
+    Source: 'src/predicate.rs', lines 307:0-345:1 -/
 def predicate.leaf
   (p : predicate.Pred) : Result (core.result.Result Bool predicate.Error) := do
   match p with
@@ -1486,7 +1492,7 @@ def predicate.leaf
   | predicate.Pred.Or _ _ => ok (core.result.Result.Ok false)
 
 /-- [tclmesh_kernel_core::predicate::eval]:
-    Source: 'src/predicate.rs', lines 319:0-337:1
+    Source: 'src/predicate.rs', lines 347:0-365:1
     Visibility: public -/
 def predicate.eval
   (p : predicate.Pred) : Result (core.result.Result Bool predicate.Error) := do
