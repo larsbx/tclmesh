@@ -200,8 +200,136 @@ def decimal.bounded_exp
   then ok (some value)
   else ok none
 
+/-- [tclmesh_kernel_core::decimal::sign_end]:
+    Source: 'src/decimal.rs', lines 70:0-76:1 -/
+def decimal.sign_end (s : Slice Std.U8) : Result Std.Usize := do
+  let i := Slice.len s
+  if i > 0#usize
+  then
+    let i1 ← Slice.index_usize s 0#usize
+    if i1 = 45#u8
+    then ok 1#usize
+    else ok 0#usize
+  else ok 0#usize
+
+/-- [tclmesh_kernel_core::decimal::fraction_end]:
+    Source: 'src/decimal.rs', lines 80:0-91:1 -/
+def decimal.fraction_end
+  (s : Slice Std.U8) (i : Std.Usize) : Result (Option Std.Usize) := do
+  let i1 := Slice.len s
+  if i < i1
+  then
+    let i2 ← Slice.index_usize s i
+    if i2 = 46#u8
+    then
+      let i3 ← i + 1#usize
+      let «end» ← decimal.digits_end s i3
+      if «end» = i3
+      then ok none
+      else ok (some «end»)
+    else ok (some i)
+  else ok (some i)
+
+/-- [tclmesh_kernel_core::decimal::is_exp_marker]:
+    Source: 'src/decimal.rs', lines 93:0-95:1 -/
+def decimal.is_exp_marker (b : Std.U8) : Result Bool := do
+  if b = 101#u8
+  then ok true
+  else ok (b = 69#u8)
+
+/-- [tclmesh_kernel_core::decimal::is_sign]:
+    Source: 'src/decimal.rs', lines 97:0-99:1 -/
+def decimal.is_sign (b : Std.U8) : Result Bool := do
+  if b = 45#u8
+  then ok true
+  else ok (b = 43#u8)
+
+/-- [tclmesh_kernel_core::decimal::exponent]:
+    Source: 'src/decimal.rs', lines 102:0-122:1 -/
+def decimal.exponent
+  (s : Slice Std.U8) (i : Std.Usize) :
+  Result (Option (Std.I32 × Std.Usize))
+  := do
+  let i1 := Slice.len s
+  if i < i1
+  then
+    let i2 ← Slice.index_usize s i
+    let b ← decimal.is_exp_marker i2
+    if b
+    then
+      let sign ← i + 1#usize
+      let i3 := Slice.len s
+      let minus ←
+        if sign < i3
+        then do
+             let i4 ← Slice.index_usize s sign
+             ok (i4 = 45#u8)
+        else ok false
+      let i4 := Slice.len s
+      let start ←
+        if sign < i4
+        then
+          do
+          let i5 ← Slice.index_usize s sign
+          let b1 ← decimal.is_sign i5
+          if b1
+          then sign + 1#usize
+          else ok sign
+        else ok sign
+      let «end» ← decimal.digits_end s start
+      if «end» = start
+      then ok none
+      else
+        let o ← decimal.bounded_exp s start «end»
+        match o with
+        | none => ok none
+        | some m =>
+          if minus
+          then
+            let i5 ← lift (UScalar.hcast .I32 m)
+            let i6 ← -. i5
+            ok (some (i6, «end»))
+          else let i5 ← lift (UScalar.hcast .I32 m)
+               ok (some (i5, «end»))
+    else ok (some (0#i32, i))
+  else ok (some (0#i32, i))
+
+/-- [tclmesh_kernel_core::decimal::integer_ok]:
+    Source: 'src/decimal.rs', lines 125:0-127:1 -/
+def decimal.integer_ok
+  (s : Slice Std.U8) (start : Std.Usize) («end» : Std.Usize) :
+  Result Bool
+  := do
+  if «end» != start
+  then
+    let i ← «end» - start
+    if i = 1#usize
+    then ok true
+    else let i1 ← Slice.index_usize s start
+         ok (i1 != 48#u8)
+  else ok false
+
+/-- [tclmesh_kernel_core::decimal::mantissa]:
+    Source: 'src/decimal.rs', lines 131:0-140:1 -/
+def decimal.mantissa
+  (s : Slice Std.U8) (int_start : Std.Usize) (int_end : Std.Usize)
+  (frac_end : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U8) × Std.U32)
+  := do
+  let digits ←
+    decimal.push_digits (alloc.vec.Vec.new Std.U8) s int_start int_end
+  if frac_end > int_end
+  then
+    let i ← int_end + 1#usize
+    let digits1 ← decimal.push_digits digits s i frac_end
+    let i1 ← frac_end - int_end
+    let i2 ← i1 - 1#usize
+    let i3 ← lift (UScalar.cast .U32 i2)
+    ok (digits1, i3)
+  else ok (digits, 0#u32)
+
 /-- [tclmesh_kernel_core::decimal::parse]:
-    Source: 'src/decimal.rs', lines 69:0-124:1
+    Source: 'src/decimal.rs', lines 142:0-169:1
     Visibility: public -/
 def decimal.parse (s : Slice Std.U8) : Result (Option decimal.Dec) := do
   let i := Slice.len s
@@ -209,603 +337,31 @@ def decimal.parse (s : Slice Std.U8) : Result (Option decimal.Dec) := do
   if i > i1
   then ok none
   else
-    let i2 := Slice.len s
-    let negative ←
-      if 0#usize < i2
-      then do
-           let i3 ← Slice.index_usize s 0#usize
-           ok (i3 = 45#u8)
-      else ok false
-    let int_start ← if negative
-                      then 0#usize + 1#usize
-                      else ok 0#usize
+    let int_start ← decimal.sign_end s
     let int_end ← decimal.digits_end s int_start
-    if int_end = int_start
-    then ok none
-    else
-      let i3 ← int_end - int_start
-      if i3 > 1#usize
-      then
-        let i4 ← Slice.index_usize s int_start
-        if i4 = 48#u8
-        then ok none
-        else
-          let digits ←
-            decimal.push_digits (alloc.vec.Vec.new Std.U8) s int_start int_end
-          let i5 := Slice.len s
-          if int_end < i5
-          then
-            let i6 ← Slice.index_usize s int_end
-            if i6 = 46#u8
-            then
-              let i7 ← int_end + 1#usize
-              let frac_end ← decimal.digits_end s i7
-              if frac_end = i7
-              then ok none
-              else
-                let digits1 ← decimal.push_digits digits s i7 frac_end
-                let i8 ← frac_end - i7
-                let frac_len ← lift (UScalar.cast .U32 i8)
-                let i9 := Slice.len s
-                if frac_end < i9
-                then
-                  let i10 ← Slice.index_usize s frac_end
-                  if i10 = 101#u8
-                  then
-                    let i11 ← frac_end + 1#usize
-                    let i12 := Slice.len s
-                    let (i13, minus) ←
-                      if i11 < i12
-                      then
-                        do
-                        let i14 ← Slice.index_usize s i11
-                        if i14 = 45#u8
-                        then let i15 ← i11 + 1#usize
-                             ok (i15, i14 = 45#u8)
-                        else
-                          if i14 = 43#u8
-                          then let i15 ← i11 + 1#usize
-                               ok (i15, i14 = 45#u8)
-                          else ok (i11, false)
-                      else ok (i11, false)
-                    let exp_end ← decimal.digits_end s i13
-                    if exp_end = i13
-                    then ok none
-                    else
-                      let o ← decimal.bounded_exp s i13 exp_end
-                      match o with
-                      | none => ok none
-                      | some m =>
-                        let magnitude ← lift (UScalar.hcast .I32 m)
-                        let exp ←
-                          if minus
-                          then -. magnitude
-                          else ok magnitude
-                        let i14 := Slice.len s
-                        if exp_end != i14
-                        then ok none
-                        else
-                          ok (some
-                            { negative, digits := digits1, exp, frac_len })
-                  else
-                    if i10 = 69#u8
-                    then
-                      let i11 ← frac_end + 1#usize
-                      let i12 := Slice.len s
-                      let (i13, minus) ←
-                        if i11 < i12
-                        then
-                          do
-                          let i14 ← Slice.index_usize s i11
-                          if i14 = 45#u8
-                          then let i15 ← i11 + 1#usize
-                               ok (i15, i14 = 45#u8)
-                          else
-                            if i14 = 43#u8
-                            then
-                              let i15 ← i11 + 1#usize
-                              ok (i15, i14 = 45#u8)
-                            else ok (i11, false)
-                        else ok (i11, false)
-                      let exp_end ← decimal.digits_end s i13
-                      if exp_end = i13
-                      then ok none
-                      else
-                        let o ← decimal.bounded_exp s i13 exp_end
-                        match o with
-                        | none => ok none
-                        | some m =>
-                          let magnitude ← lift (UScalar.hcast .I32 m)
-                          let exp ←
-                            if minus
-                            then -. magnitude
-                            else ok magnitude
-                          let i14 := Slice.len s
-                          if exp_end != i14
-                          then ok none
-                          else
-                            ok (some
-                              { negative, digits := digits1, exp, frac_len })
-                    else
-                      let i11 := Slice.len s
-                      if frac_end != i11
-                      then ok none
-                      else
-                        ok (some
-                          { negative, digits := digits1, exp := 0#i32, frac_len
-                          })
-                else
-                  let i10 := Slice.len s
-                  if frac_end != i10
-                  then ok none
-                  else
-                    ok (some
-                      { negative, digits := digits1, exp := 0#i32, frac_len })
-            else
-              let i7 := Slice.len s
-              if int_end < i7
-              then
-                if i6 = 101#u8
-                then
-                  let i8 ← int_end + 1#usize
-                  let i9 := Slice.len s
-                  let (i10, minus) ←
-                    if i8 < i9
-                    then
-                      do
-                      let i11 ← Slice.index_usize s i8
-                      if i11 = 45#u8
-                      then let i12 ← i8 + 1#usize
-                           ok (i12, i11 = 45#u8)
-                      else
-                        if i11 = 43#u8
-                        then let i12 ← i8 + 1#usize
-                             ok (i12, i11 = 45#u8)
-                        else ok (i8, false)
-                    else ok (i8, false)
-                  let exp_end ← decimal.digits_end s i10
-                  if exp_end = i10
-                  then ok none
-                  else
-                    let o ← decimal.bounded_exp s i10 exp_end
-                    match o with
-                    | none => ok none
-                    | some m =>
-                      let magnitude ← lift (UScalar.hcast .I32 m)
-                      let exp ← if minus
-                                  then -. magnitude
-                                  else ok magnitude
-                      let i11 := Slice.len s
-                      if exp_end != i11
-                      then ok none
-                      else
-                        ok (some { negative, digits, exp, frac_len := 0#u32 })
-                else
-                  if i6 = 69#u8
-                  then
-                    let i8 ← int_end + 1#usize
-                    let i9 := Slice.len s
-                    let (i10, minus) ←
-                      if i8 < i9
-                      then
-                        do
-                        let i11 ← Slice.index_usize s i8
-                        if i11 = 45#u8
-                        then let i12 ← i8 + 1#usize
-                             ok (i12, i11 = 45#u8)
-                        else
-                          if i11 = 43#u8
-                          then let i12 ← i8 + 1#usize
-                               ok (i12, i11 = 45#u8)
-                          else ok (i8, false)
-                      else ok (i8, false)
-                    let exp_end ← decimal.digits_end s i10
-                    if exp_end = i10
-                    then ok none
-                    else
-                      let o ← decimal.bounded_exp s i10 exp_end
-                      match o with
-                      | none => ok none
-                      | some m =>
-                        let magnitude ← lift (UScalar.hcast .I32 m)
-                        let exp ←
-                          if minus
-                          then -. magnitude
-                          else ok magnitude
-                        let i11 := Slice.len s
-                        if exp_end != i11
-                        then ok none
-                        else
-                          ok (some
-                            { negative, digits, exp, frac_len := 0#u32 })
-                  else
-                    let i8 := Slice.len s
-                    if int_end != i8
-                    then ok none
-                    else
-                      ok (some
-                        { negative, digits, exp := 0#i32, frac_len := 0#u32 })
-              else
-                let i8 := Slice.len s
-                if int_end != i8
-                then ok none
-                else
-                  ok (some
-                    { negative, digits, exp := 0#i32, frac_len := 0#u32 })
+    let b ← decimal.integer_ok s int_start int_end
+    if b
+    then
+      let o ← decimal.fraction_end s int_end
+      match o with
+      | none => ok none
+      | some e =>
+        let o1 ← decimal.exponent s e
+        match o1 with
+        | none => ok none
+        | some x =>
+          let (exp, «end») := x
+          let i2 := Slice.len s
+          if «end» != i2
+          then ok none
           else
-            let i6 := Slice.len s
-            if int_end < i6
-            then
-              let i7 ← Slice.index_usize s int_end
-              if i7 = 101#u8
-              then
-                let i8 ← int_end + 1#usize
-                let i9 := Slice.len s
-                let (i10, minus) ←
-                  if i8 < i9
-                  then
-                    do
-                    let i11 ← Slice.index_usize s i8
-                    if i11 = 45#u8
-                    then let i12 ← i8 + 1#usize
-                         ok (i12, i11 = 45#u8)
-                    else
-                      if i11 = 43#u8
-                      then let i12 ← i8 + 1#usize
-                           ok (i12, i11 = 45#u8)
-                      else ok (i8, false)
-                  else ok (i8, false)
-                let exp_end ← decimal.digits_end s i10
-                if exp_end = i10
-                then ok none
-                else
-                  let o ← decimal.bounded_exp s i10 exp_end
-                  match o with
-                  | none => ok none
-                  | some m =>
-                    let magnitude ← lift (UScalar.hcast .I32 m)
-                    let exp ← if minus
-                                then -. magnitude
-                                else ok magnitude
-                    let i11 := Slice.len s
-                    if exp_end != i11
-                    then ok none
-                    else ok (some { negative, digits, exp, frac_len := 0#u32 })
-              else
-                if i7 = 69#u8
-                then
-                  let i8 ← int_end + 1#usize
-                  let i9 := Slice.len s
-                  let (i10, minus) ←
-                    if i8 < i9
-                    then
-                      do
-                      let i11 ← Slice.index_usize s i8
-                      if i11 = 45#u8
-                      then let i12 ← i8 + 1#usize
-                           ok (i12, i11 = 45#u8)
-                      else
-                        if i11 = 43#u8
-                        then let i12 ← i8 + 1#usize
-                             ok (i12, i11 = 45#u8)
-                        else ok (i8, false)
-                    else ok (i8, false)
-                  let exp_end ← decimal.digits_end s i10
-                  if exp_end = i10
-                  then ok none
-                  else
-                    let o ← decimal.bounded_exp s i10 exp_end
-                    match o with
-                    | none => ok none
-                    | some m =>
-                      let magnitude ← lift (UScalar.hcast .I32 m)
-                      let exp ← if minus
-                                  then -. magnitude
-                                  else ok magnitude
-                      let i11 := Slice.len s
-                      if exp_end != i11
-                      then ok none
-                      else
-                        ok (some { negative, digits, exp, frac_len := 0#u32 })
-                else
-                  let i8 := Slice.len s
-                  if int_end != i8
-                  then ok none
-                  else
-                    ok (some
-                      { negative, digits, exp := 0#i32, frac_len := 0#u32 })
-            else
-              let i7 := Slice.len s
-              if int_end != i7
-              then ok none
-              else
-                ok (some { negative, digits, exp := 0#i32, frac_len := 0#u32 })
-      else
-        let digits ←
-          decimal.push_digits (alloc.vec.Vec.new Std.U8) s int_start int_end
-        let i4 := Slice.len s
-        if int_end < i4
-        then
-          let i5 ← Slice.index_usize s int_end
-          if i5 = 46#u8
-          then
-            let i6 ← int_end + 1#usize
-            let frac_end ← decimal.digits_end s i6
-            if frac_end = i6
-            then ok none
-            else
-              let digits1 ← decimal.push_digits digits s i6 frac_end
-              let i7 ← frac_end - i6
-              let frac_len ← lift (UScalar.cast .U32 i7)
-              let i8 := Slice.len s
-              if frac_end < i8
-              then
-                let i9 ← Slice.index_usize s frac_end
-                if i9 = 101#u8
-                then
-                  let i10 ← frac_end + 1#usize
-                  let i11 := Slice.len s
-                  let (i12, minus) ←
-                    if i10 < i11
-                    then
-                      do
-                      let i13 ← Slice.index_usize s i10
-                      if i13 = 45#u8
-                      then let i14 ← i10 + 1#usize
-                           ok (i14, i13 = 45#u8)
-                      else
-                        if i13 = 43#u8
-                        then let i14 ← i10 + 1#usize
-                             ok (i14, i13 = 45#u8)
-                        else ok (i10, false)
-                    else ok (i10, false)
-                  let exp_end ← decimal.digits_end s i12
-                  if exp_end = i12
-                  then ok none
-                  else
-                    let o ← decimal.bounded_exp s i12 exp_end
-                    match o with
-                    | none => ok none
-                    | some m =>
-                      let magnitude ← lift (UScalar.hcast .I32 m)
-                      let exp ← if minus
-                                  then -. magnitude
-                                  else ok magnitude
-                      let i13 := Slice.len s
-                      if exp_end != i13
-                      then ok none
-                      else
-                        ok (some
-                          { negative, digits := digits1, exp, frac_len })
-                else
-                  if i9 = 69#u8
-                  then
-                    let i10 ← frac_end + 1#usize
-                    let i11 := Slice.len s
-                    let (i12, minus) ←
-                      if i10 < i11
-                      then
-                        do
-                        let i13 ← Slice.index_usize s i10
-                        if i13 = 45#u8
-                        then let i14 ← i10 + 1#usize
-                             ok (i14, i13 = 45#u8)
-                        else
-                          if i13 = 43#u8
-                          then let i14 ← i10 + 1#usize
-                               ok (i14, i13 = 45#u8)
-                          else ok (i10, false)
-                      else ok (i10, false)
-                    let exp_end ← decimal.digits_end s i12
-                    if exp_end = i12
-                    then ok none
-                    else
-                      let o ← decimal.bounded_exp s i12 exp_end
-                      match o with
-                      | none => ok none
-                      | some m =>
-                        let magnitude ← lift (UScalar.hcast .I32 m)
-                        let exp ←
-                          if minus
-                          then -. magnitude
-                          else ok magnitude
-                        let i13 := Slice.len s
-                        if exp_end != i13
-                        then ok none
-                        else
-                          ok (some
-                            { negative, digits := digits1, exp, frac_len })
-                  else
-                    let i10 := Slice.len s
-                    if frac_end != i10
-                    then ok none
-                    else
-                      ok (some
-                        { negative, digits := digits1, exp := 0#i32, frac_len })
-              else
-                let i9 := Slice.len s
-                if frac_end != i9
-                then ok none
-                else
-                  ok (some
-                    { negative, digits := digits1, exp := 0#i32, frac_len })
-          else
-            let i6 := Slice.len s
-            if int_end < i6
-            then
-              if i5 = 101#u8
-              then
-                let i7 ← int_end + 1#usize
-                let i8 := Slice.len s
-                let (i9, minus) ←
-                  if i7 < i8
-                  then
-                    do
-                    let i10 ← Slice.index_usize s i7
-                    if i10 = 45#u8
-                    then let i11 ← i7 + 1#usize
-                         ok (i11, i10 = 45#u8)
-                    else
-                      if i10 = 43#u8
-                      then let i11 ← i7 + 1#usize
-                           ok (i11, i10 = 45#u8)
-                      else ok (i7, false)
-                  else ok (i7, false)
-                let exp_end ← decimal.digits_end s i9
-                if exp_end = i9
-                then ok none
-                else
-                  let o ← decimal.bounded_exp s i9 exp_end
-                  match o with
-                  | none => ok none
-                  | some m =>
-                    let magnitude ← lift (UScalar.hcast .I32 m)
-                    let exp ← if minus
-                                then -. magnitude
-                                else ok magnitude
-                    let i10 := Slice.len s
-                    if exp_end != i10
-                    then ok none
-                    else ok (some { negative, digits, exp, frac_len := 0#u32 })
-              else
-                if i5 = 69#u8
-                then
-                  let i7 ← int_end + 1#usize
-                  let i8 := Slice.len s
-                  let (i9, minus) ←
-                    if i7 < i8
-                    then
-                      do
-                      let i10 ← Slice.index_usize s i7
-                      if i10 = 45#u8
-                      then let i11 ← i7 + 1#usize
-                           ok (i11, i10 = 45#u8)
-                      else
-                        if i10 = 43#u8
-                        then let i11 ← i7 + 1#usize
-                             ok (i11, i10 = 45#u8)
-                        else ok (i7, false)
-                    else ok (i7, false)
-                  let exp_end ← decimal.digits_end s i9
-                  if exp_end = i9
-                  then ok none
-                  else
-                    let o ← decimal.bounded_exp s i9 exp_end
-                    match o with
-                    | none => ok none
-                    | some m =>
-                      let magnitude ← lift (UScalar.hcast .I32 m)
-                      let exp ← if minus
-                                  then -. magnitude
-                                  else ok magnitude
-                      let i10 := Slice.len s
-                      if exp_end != i10
-                      then ok none
-                      else
-                        ok (some { negative, digits, exp, frac_len := 0#u32 })
-                else
-                  let i7 := Slice.len s
-                  if int_end != i7
-                  then ok none
-                  else
-                    ok (some
-                      { negative, digits, exp := 0#i32, frac_len := 0#u32 })
-            else
-              let i7 := Slice.len s
-              if int_end != i7
-              then ok none
-              else
-                ok (some { negative, digits, exp := 0#i32, frac_len := 0#u32 })
-        else
-          let i5 := Slice.len s
-          if int_end < i5
-          then
-            let i6 ← Slice.index_usize s int_end
-            if i6 = 101#u8
-            then
-              let i7 ← int_end + 1#usize
-              let i8 := Slice.len s
-              let (i9, minus) ←
-                if i7 < i8
-                then
-                  do
-                  let i10 ← Slice.index_usize s i7
-                  if i10 = 45#u8
-                  then let i11 ← i7 + 1#usize
-                       ok (i11, i10 = 45#u8)
-                  else
-                    if i10 = 43#u8
-                    then let i11 ← i7 + 1#usize
-                         ok (i11, i10 = 45#u8)
-                    else ok (i7, false)
-                else ok (i7, false)
-              let exp_end ← decimal.digits_end s i9
-              if exp_end = i9
-              then ok none
-              else
-                let o ← decimal.bounded_exp s i9 exp_end
-                match o with
-                | none => ok none
-                | some m =>
-                  let magnitude ← lift (UScalar.hcast .I32 m)
-                  let exp ← if minus
-                              then -. magnitude
-                              else ok magnitude
-                  let i10 := Slice.len s
-                  if exp_end != i10
-                  then ok none
-                  else ok (some { negative, digits, exp, frac_len := 0#u32 })
-            else
-              if i6 = 69#u8
-              then
-                let i7 ← int_end + 1#usize
-                let i8 := Slice.len s
-                let (i9, minus) ←
-                  if i7 < i8
-                  then
-                    do
-                    let i10 ← Slice.index_usize s i7
-                    if i10 = 45#u8
-                    then let i11 ← i7 + 1#usize
-                         ok (i11, i10 = 45#u8)
-                    else
-                      if i10 = 43#u8
-                      then let i11 ← i7 + 1#usize
-                           ok (i11, i10 = 45#u8)
-                      else ok (i7, false)
-                  else ok (i7, false)
-                let exp_end ← decimal.digits_end s i9
-                if exp_end = i9
-                then ok none
-                else
-                  let o ← decimal.bounded_exp s i9 exp_end
-                  match o with
-                  | none => ok none
-                  | some m =>
-                    let magnitude ← lift (UScalar.hcast .I32 m)
-                    let exp ← if minus
-                                then -. magnitude
-                                else ok magnitude
-                    let i10 := Slice.len s
-                    if exp_end != i10
-                    then ok none
-                    else ok (some { negative, digits, exp, frac_len := 0#u32 })
-              else
-                let i7 := Slice.len s
-                if int_end != i7
-                then ok none
-                else
-                  ok (some
-                    { negative, digits, exp := 0#i32, frac_len := 0#u32 })
-          else
-            let i6 := Slice.len s
-            if int_end != i6
-            then ok none
-            else
-              ok (some { negative, digits, exp := 0#i32, frac_len := 0#u32 })
+            let (digits, frac_len) ← decimal.mantissa s int_start int_end e
+            ok (some
+              { negative := (int_start = 1#usize), digits, exp, frac_len })
+    else ok none
 
 /-- [tclmesh_kernel_core::decimal::padded]:
-    Source: 'src/decimal.rs', lines 127:0-133:1 -/
+    Source: 'src/decimal.rs', lines 172:0-178:1 -/
 def decimal.padded (digits : Slice Std.U8) (i : Std.U64) : Result Std.U8 := do
   let i1 := Slice.len digits
   let i2 ← lift (UScalar.cast .U64 i1)
@@ -815,7 +371,7 @@ def decimal.padded (digits : Slice Std.U8) (i : Std.U64) : Result Std.U8 := do
   else ok 0#u8
 
 /-- [tclmesh_kernel_core::Order]
-    Source: 'src/lib.rs', lines 25:0-29:1
+    Source: 'src/lib.rs', lines 26:0-30:1
     Visibility: public -/
 @[discriminant isize]
 inductive Order where
@@ -824,7 +380,7 @@ inductive Order where
 | Gt : Order
 
 /-- [tclmesh_kernel_core::decimal::compare_magnitude]: loop 0:
-    Source: 'src/decimal.rs', lines 149:4-160:5 -/
+    Source: 'src/decimal.rs', lines 194:4-205:5 -/
 @[rust_loop]
 def decimal.compare_magnitude_loop
   (a : Slice Std.U8) (b : Slice Std.U8) (la : Std.U64) (order : Order)
@@ -852,7 +408,7 @@ def decimal.compare_magnitude_loop
 partial_fixpoint
 
 /-- [tclmesh_kernel_core::decimal::compare_magnitude]:
-    Source: 'src/decimal.rs', lines 137:0-162:1 -/
+    Source: 'src/decimal.rs', lines 182:0-207:1 -/
 def decimal.compare_magnitude
   (a : Slice Std.U8) (pa : Std.U64) (b : Slice Std.U8) (pb : Std.U64) :
   Result Order
@@ -871,7 +427,7 @@ def decimal.compare_magnitude
     else decimal.compare_magnitude_loop a b la Order.Eq 0#u64
 
 /-- [tclmesh_kernel_core::decimal::reverse]:
-    Source: 'src/decimal.rs', lines 164:0-170:1 -/
+    Source: 'src/decimal.rs', lines 209:0-215:1 -/
 def decimal.reverse (o : Order) : Result Order := do
   match o with
   | Order.Lt => ok Order.Gt
@@ -879,7 +435,7 @@ def decimal.reverse (o : Order) : Result Order := do
   | Order.Gt => ok Order.Lt
 
 /-- [tclmesh_kernel_core::decimal::magnitude]:
-    Source: 'src/decimal.rs', lines 174:0-179:1 -/
+    Source: 'src/decimal.rs', lines 219:0-224:1 -/
 def decimal.magnitude (a : decimal.Dec) (b : decimal.Dec) : Result Order := do
   let i ← lift (IScalar.cast .I64 a.exp)
   let i1 ← lift (UScalar.hcast .I64 a.frac_len)
@@ -899,7 +455,7 @@ def decimal.magnitude (a : decimal.Dec) (b : decimal.Dec) : Result Order := do
   decimal.compare_magnitude s i5 s1 i7
 
 /-- [tclmesh_kernel_core::decimal::compare]:
-    Source: 'src/decimal.rs', lines 182:0-210:1
+    Source: 'src/decimal.rs', lines 227:0-255:1
     Visibility: public -/
 def decimal.compare (a : decimal.Dec) (b : decimal.Dec) : Result Order := do
   let i := alloc.vec.Vec.len a.digits
@@ -1163,34 +719,34 @@ def deontic.admits (vs : Slice deontic.Verdict) : Result Bool := do
   | deontic.Judgment.Conflicted => ok false
 
 /-- [tclmesh_kernel_core::{impl core::clone::Clone for tclmesh_kernel_core::Order}::clone]:
-    Source: 'src/lib.rs', lines 24:9-24:14
+    Source: 'src/lib.rs', lines 25:9-25:14
     Visibility: public -/
 def Order.Insts.CoreCloneClone.clone (self : Order) : Result Order := do
   ok self
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::clone::Clone for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 24:9-24:14 -/
+    Source: 'src/lib.rs', lines 25:9-25:14 -/
 @[reducible]
 def Order.Insts.CoreCloneClone : core.clone.Clone Order := {
   clone := Order.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::marker::Copy for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 24:16-24:20 -/
+    Source: 'src/lib.rs', lines 25:16-25:20 -/
 @[reducible]
 def Order.Insts.CoreMarkerCopy : core.marker.Copy Order := {
   cloneInst := Order.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::marker::StructuralPartialEq for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 24:22-24:31 -/
+    Source: 'src/lib.rs', lines 25:22-25:31 -/
 @[reducible]
 def Order.Insts.CoreMarkerStructuralPartialEq : core.marker.StructuralPartialEq
   Order := {
 }
 
 /-- [tclmesh_kernel_core::{impl core::cmp::PartialEq<tclmesh_kernel_core::Order> for tclmesh_kernel_core::Order}::eq]:
-    Source: 'src/lib.rs', lines 24:22-24:31
+    Source: 'src/lib.rs', lines 25:22-25:31
     Visibility: public -/
 def Order.Insts.CoreCmpPartialEqOrder.eq
   (self : Order) (other : Order) : Result Bool := do
@@ -1199,14 +755,14 @@ def Order.Insts.CoreCmpPartialEqOrder.eq
   ok (self1 = other1)
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::cmp::PartialEq<tclmesh_kernel_core::Order> for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 24:22-24:31 -/
+    Source: 'src/lib.rs', lines 25:22-25:31 -/
 @[reducible]
 def Order.Insts.CoreCmpPartialEqOrder : core.cmp.PartialEq Order Order := {
   eq := Order.Insts.CoreCmpPartialEqOrder.eq
 }
 
 /-- Trait implementation: [tclmesh_kernel_core::{impl core::cmp::Eq for tclmesh_kernel_core::Order}]
-    Source: 'src/lib.rs', lines 24:33-24:35 -/
+    Source: 'src/lib.rs', lines 25:33-25:35 -/
 @[reducible]
 impl_def Order.Insts.CoreCmpEq : core.cmp.Eq Order := {
   partialEqInst := Order.Insts.CoreCmpPartialEqOrder

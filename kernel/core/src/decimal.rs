@@ -66,57 +66,102 @@ fn bounded_exp(s: &[u8], from: usize, to: usize) -> Option<u32> {
     }
 }
 
+/// End of an optional leading `-`.
+fn sign_end(s: &[u8]) -> usize {
+    if s.len() > 0 && s[0] == b'-' {
+        1
+    } else {
+        0
+    }
+}
+
+/// End of an optional fraction `.digits` starting at `i`; `None` if a `.`
+/// is not followed by a digit.
+fn fraction_end(s: &[u8], i: usize) -> Option<usize> {
+    if i < s.len() && s[i] == b'.' {
+        let end = digits_end(s, i + 1);
+        if end == i + 1 {
+            None
+        } else {
+            Some(end)
+        }
+    } else {
+        Some(i)
+    }
+}
+
+fn is_exp_marker(b: u8) -> bool {
+    b == b'e' || b == b'E'
+}
+
+fn is_sign(b: u8) -> bool {
+    b == b'-' || b == b'+'
+}
+
+/// An optional exponent `[eE][+-]?digits` starting at `i`: its value and end.
+fn exponent(s: &[u8], i: usize) -> Option<(i32, usize)> {
+    if i < s.len() && is_exp_marker(s[i]) {
+        let sign = i + 1;
+        let minus = sign < s.len() && s[sign] == b'-';
+        let start = if sign < s.len() && is_sign(s[sign]) {
+            sign + 1
+        } else {
+            sign
+        };
+        let end = digits_end(s, start);
+        if end == start {
+            return None;
+        }
+        match bounded_exp(s, start, end) {
+            Some(m) => Some((if minus { -(m as i32) } else { m as i32 }, end)),
+            None => None,
+        }
+    } else {
+        Some((0, i))
+    }
+}
+
+/// A nonempty integer part without a leading zero, unless it is `0` itself.
+fn integer_ok(s: &[u8], start: usize, end: usize) -> bool {
+    end != start && (end - start == 1 || s[start] != b'0')
+}
+
+/// Mantissa digits of `int[.frac]` without leading zeros, and the number of
+/// fraction digits.
+fn mantissa(s: &[u8], int_start: usize, int_end: usize, frac_end: usize) -> (Vec<u8>, u32) {
+    let mut digits = Vec::new();
+    push_digits(&mut digits, s, int_start, int_end);
+    if frac_end > int_end {
+        push_digits(&mut digits, s, int_end + 1, frac_end);
+        (digits, (frac_end - int_end - 1) as u32)
+    } else {
+        (digits, 0)
+    }
+}
+
 pub fn parse(s: &[u8]) -> Option<Dec> {
     if s.len() > u32::MAX as usize {
         return None;
     }
-    let mut i = 0;
-    let negative = i < s.len() && s[i] == b'-';
-    if negative {
-        i += 1;
-    }
-    let int_start = i;
-    let int_end = digits_end(s, i);
-    if int_end == int_start || (int_end - int_start > 1 && s[int_start] == b'0') {
+    let int_start = sign_end(s);
+    let int_end = digits_end(s, int_start);
+    if !integer_ok(s, int_start, int_end) {
         return None;
     }
-    let mut digits = Vec::new();
-    push_digits(&mut digits, s, int_start, int_end);
-    i = int_end;
-    let mut frac_len: u32 = 0;
-    if i < s.len() && s[i] == b'.' {
-        let frac_end = digits_end(s, i + 1);
-        if frac_end == i + 1 {
-            return None;
-        }
-        push_digits(&mut digits, s, i + 1, frac_end);
-        frac_len = (frac_end - (i + 1)) as u32;
-        i = frac_end;
-    }
-    let mut exp: i32 = 0;
-    if i < s.len() && (s[i] == b'e' || s[i] == b'E') {
-        i += 1;
-        let mut minus = false;
-        if i < s.len() && (s[i] == b'-' || s[i] == b'+') {
-            minus = s[i] == b'-';
-            i += 1;
-        }
-        let exp_end = digits_end(s, i);
-        if exp_end == i {
-            return None;
-        }
-        let magnitude = match bounded_exp(s, i, exp_end) {
-            Some(m) => m as i32,
-            None => return None,
-        };
-        exp = if minus { -magnitude } else { magnitude };
-        i = exp_end;
-    }
-    if i != s.len() {
+    let frac_end = match fraction_end(s, int_end) {
+        Some(e) => e,
+        None => return None,
+    };
+    let (exp, end) = match exponent(s, frac_end) {
+        Some(x) => x,
+        None => return None,
+    };
+    if end != s.len() {
         return None;
     }
+    let (digits, frac_len) = mantissa(s, int_start, int_end, frac_end);
     Some(Dec {
-        negative,
+        negative: int_start == 1,
         digits,
         exp,
         frac_len,

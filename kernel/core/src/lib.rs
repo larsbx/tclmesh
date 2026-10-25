@@ -6,14 +6,15 @@
 //! derives, no closures, no iterators.
 
 // Range patterns, iterator adaptors, `?` on Option, and `Vec::is_empty` are
-// avoided: Aeneas has no Lean model for them, and the translation must stay
+// avoided (as are closures): Aeneas has no Lean model for them, and the translation must stay
 // free of axioms. Loops have no early returns.
 
 #![allow(
     clippy::manual_range_contains,
     clippy::len_zero,
     clippy::question_mark,
-    clippy::if_same_then_else
+    clippy::if_same_then_else,
+    clippy::manual_map
 )]
 
 pub mod decimal;
