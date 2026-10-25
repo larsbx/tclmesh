@@ -170,6 +170,21 @@ proc ::tclmesh::views::_backend {mode operation args} {
             lassign $args profile type token
             return [dict get $token value]
         }
+        export-handle -
+        restore-handle {
+            # test backend: tokens hold plaintext, like the reference backend
+            lassign $args profile type token
+            return $token
+        }
+        combine-release {
+            lassign $args profile type token contributions context
+            if {[dict size $contributions] == 0} {
+                return -code error \
+                    -errorcode {TCLMESH VIEWS RELEASE EMPTY_CONTRIBUTIONS} \
+                    "release requires contributions"
+            }
+            return [dict get $token value]
+        }
         destroy {
             return
         }
@@ -190,7 +205,7 @@ proc ::tclmesh::views::_token {mode value} {
 
 foreach mode {transparent lazy sized} {
     ::tclmesh::private::backend::register views-$mode \
-        [::list ::tclmesh::views::_backend $mode] {decrypt destroy reference}
+        [::list ::tclmesh::views::_backend $mode] {decrypt destroy reference threshold-release persistent-handles}
 }
 unset mode
 

@@ -1,0 +1,88 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+
+# The exemplar corpus, through every layer (docs/testing.md).
+
+source [file join [file dirname [info script]] languages exemplars.tcl]
+
+if {[catch {tclmesh private profile describe views-transparent}]} {
+    tclmesh private profile define views-transparent [dict create \
+        backend views-transparent semantics exact-integer allow_decrypt true]
+}
+if {[catch {tclmesh private profile describe views-governed}]} {
+    tclmesh private profile define views-governed [dict create \
+        backend views-transparent semantics exact-integer allow_decrypt false]
+}
+
+test L-001-certificates {every exemplar's emitted certificate is accepted} -body {
+    lmap e [::exemplars::all] {
+        llength [tclmesh certificate check [dict get $e circuit] \
+            [tclmesh certificate emit [dict get $e circuit]]]
+    }
+} -result {0 0 0 0 0}
+
+test L-002-views-and-pairs {every exemplar's views match the declared views on all pairs} -body {
+    lmap e [::exemplars::all] {
+        tclmesh views paired views-transparent [dict get $e circuit] [dict get $e inputs] \
+            [dict get $e variants]
+    }
+} -result {{} {} {} {} {}}
+
+test L-003-correctness {backend results equal the plaintext reference} -body {
+    lmap e [::exemplars::all] {
+        set view [tclmesh views run views-transparent [dict get $e circuit] [dict get $e inputs]]
+        set declared [tclmesh views declared [dict get $e circuit] [dict get $e inputs]]
+        expr {[dict get $view recipient] eq [dict get $declared recipient]}
+    }
+} -result {1 1 1 1 1}
+
+test L-004-results {the exemplars compute what they claim} -body {
+    lmap e [::exemplars::all] {
+        dict get [tclmesh views run views-transparent [dict get $e circuit] [dict get $e inputs]] recipient
+    }
+} -result {{clears 1 margin 25 winner 120} {price 95} {ok 1} {ok 1} {member 1}}
+
+test L-005-metamorphic-policy {two encodings of one policy agree on every input} -body {
+    set b [::exemplars::policy_boolean]
+    set a [::exemplars::policy_arithmetic]
+    set disagreements {}
+    foreach member {0 1} {
+        foreach age {0 17 18 19 99} {
+            set in [dict create member $member age $age limit 18]
+            set rb [dict get [tclmesh views run views-transparent [dict get $b circuit] $in] recipient ok]
+            set ra [dict get [tclmesh views run views-transparent [dict get $a circuit] $in] recipient ok]
+            if {$rb != $ra} { lappend disagreements $in }
+        }
+    }
+    set disagreements
+} -result {}
+
+test L-006-released-decision {the clearing price is released by a quorum and nothing else} -body {
+    tclmesh release use-store {}
+    set e [::exemplars::second_price]
+    set rel [dict get $e release]
+    set inputs [dict get $e inputs]
+    set runtime [dict create \
+        a [tclmesh private encrypt views-governed int [dict get $inputs a]] \
+        b [tclmesh private encrypt views-governed int [dict get $inputs b]]]
+    set price [dict get [tclmesh private evaluate views-governed [dict get $e circuit] $runtime] price]
+
+    set direct [catch {tclmesh private decrypt $price} - directOptions]
+    set request [tclmesh release request $price clearing-price \
+        [dict get $rel threshold] [dict get $rel holders]]
+    set id [dict get $request id]
+    tclmesh release contribute $id holder:a share-a
+    set early [catch {tclmesh release combine $id}]
+    tclmesh release contribute $id holder:c share-c
+    set released [tclmesh release combine $id]
+    list $direct [lrange [dict get $directOptions -errorcode] 0 3] $early \
+        [dict get $released status] [dict get $released result]
+} -result {1 {TCLMESH PRIVATE DECRYPT FORBIDDEN} 1 released 95}
+
+test L-007-pending-patterns {decision patterns the runtime cannot express yet} -body {
+    ::exemplars::pending
+} -result {proved typed-leak}
+
+cleanupTests

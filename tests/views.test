@@ -7,8 +7,10 @@ package require tclmesh 0.2.0
 # the manifest lets it learn, and runs that agree on that must look the same.
 
 foreach mode {transparent lazy sized} {
-    tclmesh private profile define views-$mode [dict create \
-        backend views-$mode semantics exact-integer allow_decrypt true]
+    if {[catch {tclmesh private profile describe views-$mode}]} {
+        tclmesh private profile define views-$mode [dict create \
+            backend views-$mode semantics exact-integer allow_decrypt true]
+    }
 }
 
 # Oblivious decisions over two secret bids and a public reserve: the larger
