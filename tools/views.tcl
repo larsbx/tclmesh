@@ -61,8 +61,8 @@ proc check {circuits_path spec_path} {
         set inputs [dict get $vector inputs]
         set variants [dict get $vector variants]
 
-        set recorded [canonical_view [lindex [dict get \
-            [tclmesh views run views-transparent $circuit $inputs] evaluator] 0]]
+        set recorded [canonical_view [lindex [tclmesh views structure [dict get \
+            [tclmesh views run views-transparent $circuit $inputs] evaluator]] 0]]
         set declared [canonical_view [lindex [dict get \
             [tclmesh views declared $circuit $inputs] evaluator] 0]]
         set lean [canonical_view [dict get $spec $id]]

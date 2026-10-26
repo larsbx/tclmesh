@@ -78,7 +78,7 @@
     "output_nodes": {"ok": "ok"}
    },
    "inputs": {"member": "1", "age": "20", "limit": "18"},
-   "variants": [{"member": "0", "age": "12"}, {"member": "0", "age": "40"}]
+   "variants": [{"member": "0", "age": "12"}, {"member": "0", "age": "40"}, {"member": "1", "age": "7"}]
   }
  ]
 }

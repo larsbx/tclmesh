@@ -16,7 +16,7 @@
 
 namespace eval ::tclmesh::views {
     variable log {}
-    namespace export run declared paired schedule
+    namespace export run declared paired schedule structure
     namespace ensemble create
 }
 
@@ -67,13 +67,35 @@ proc ::tclmesh::views::_input_view {circuit prepared} {
     return $result
 }
 
-# A ciphertext is observed through its type and, if the token exposes one,
-# its size; never through its contents.
+# A ciphertext is observed through its type and, if the token exposes one
+# (`size`, or `bytes` for serialized ciphertexts), its size; never through its
+# contents.
 proc ::tclmesh::views::_cipher_view {type token} {
-    if {[dict exists $token size]} {
-        return [::list cipher $type size [dict get $token size]]
+    foreach key {size bytes} {
+        if {[dict exists $token $key]} {
+            return [::list cipher $type size [dict get $token $key]]
+        }
     }
     return [::list cipher $type]
+}
+
+# A view without ciphertext sizes: the declared view fixes the structure, but
+# not the sizes a backend's ciphertexts happen to have. Sizes are compared
+# across paired runs instead, where they must not change.
+proc ::tclmesh::views::structure {view} {
+    lmap event $view {
+        foreach part {inputs outputs} {
+            set stripped {}
+            dict for {name seen} [dict get $event $part] {
+                if {[lindex $seen 0] eq "cipher"} {
+                    set seen [lrange $seen 0 1]
+                }
+                lappend stripped $name $seen
+            }
+            dict set event $part $stripped
+        }
+        set event
+    }
 }
 
 proc ::tclmesh::views::_output_view {circuit tokens} {
@@ -268,16 +290,18 @@ proc ::tclmesh::views::declared {circuit inputs} {
 
 # The views of `run` against `declared` on the given inputs, and the
 # evaluator's views on pairs of inputs that agree on everything public:
-# `variants` lists alternative values for the ciphertext inputs. Returns the
-# mismatches found; an empty list means none.
+# `variants` lists alternative values for the ciphertext inputs. The declared
+# view is compared on structure; paired runs on everything, sizes included.
+# Returns the mismatches found; an empty list means none.
 proc ::tclmesh::views::paired {profile circuit inputs variants} {
     set findings {}
     set base [run $profile $circuit $inputs]
     set expected [declared $circuit $inputs]
-    foreach party {evaluator recipient} {
-        if {[dict get $base $party] ne [dict get $expected $party]} {
-            lappend findings [::list declared $party $inputs]
-        }
+    if {[structure [dict get $base evaluator]] ne [dict get $expected evaluator]} {
+        lappend findings [::list declared evaluator $inputs]
+    }
+    if {[dict get $base recipient] ne [dict get $expected recipient]} {
+        lappend findings [::list declared recipient $inputs]
     }
     foreach variant $variants {
         set other [dict merge $inputs $variant]

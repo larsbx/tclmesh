@@ -2,6 +2,11 @@
 # encryption by the `tclmesh-tfhe` process. Registered as backend `tfhe` when
 # the binary exists: $TCLMESH_TFHE, or backends/tfhe/target/release.
 #
+# Integers are `FheInt32`: arithmetic wraps modulo 2^32, as profiles must
+# declare (`semantics int32-wrapping`); a profile claiming exact integers is
+# rejected, since an overflow under encryption cannot be detected. Results
+# equal the exact reference only while every intermediate value fits.
+#
 # Tokens are `{tfhe ID bytes N}`: an opaque number for a ciphertext held by
 # the process, and its serialized size. Evaluation is recorded through the
 # view harness (`tclmesh views`), so paired runs check the trace of real
@@ -56,7 +61,8 @@ proc ::tclmesh::tfhe::_backend {operation args} {
     json::write aligned 0
     switch -- $operation {
         validate-profile {
-            return true
+            lassign $args profile
+            return [expr {[dict get $profile semantics] eq "int32-wrapping"}]
         }
         encrypt {
             lassign $args profile type value

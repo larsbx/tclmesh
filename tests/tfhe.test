@@ -14,7 +14,7 @@ if {[testConstraint tfhe]} {
     foreach {name decrypt} {tfhe-open true tfhe-governed false} {
         if {[catch {tclmesh private profile describe $name}]} {
             tclmesh private profile define $name [dict create \
-                backend tfhe semantics exact-integer allow_decrypt $decrypt]
+                backend tfhe semantics int32-wrapping allow_decrypt $decrypt]
         }
     }
 }
@@ -61,6 +61,21 @@ test T-004-released-under-tfhe {a 2-of-3 quorum releases the clearing price; dir
     tclmesh release contribute $id holder:c share-c
     list $direct [dict get [tclmesh release combine $id] result]
 } -result {1 95}
+
+test T-005-no-exact-integer-claim {TFHE refuses to advertise exact integers} -constraints tfhe -body {
+    catch {tclmesh private profile define tfhe-exact [dict create \
+        backend tfhe semantics exact-integer allow_decrypt true]} - options
+    lrange [dict get $options -errorcode] 0 3
+} -result {TCLMESH PRIVATE PROFILE BACKEND_REJECTED}
+
+test T-006-wrapping-arithmetic {overflow wraps modulo 2^32, as the profile declares} -constraints tfhe -body {
+    set c [tclmesh private circuit wrap \
+        [dict create x {cipher int} y {cipher int}] [dict create s {cipher int}] \
+        [dict create nx [tclmesh private node input x] ny [tclmesh private node input y] \
+            s [tclmesh private node add nx ny]] \
+        [dict create output_nodes [dict create s s]]]
+    dict get [tclmesh views run tfhe-open $c {x 2147483647 y 1}] recipient
+} -result {s -2147483648}
 
 # Leave no TFHE handles behind for tests that persist every live handle.
 if {[testConstraint tfhe]} {
