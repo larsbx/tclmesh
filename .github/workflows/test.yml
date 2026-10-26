@@ -76,6 +76,13 @@ jobs:
           tclsh tools/views.tcl certificates conformance/circuits.json > certs.json
           spec/.lake/build/bin/spec-eval --certificates certs.json > spec-certs.json
           tclsh tools/views.tcl check-certificates certs.json spec-certs.json
+      - name: Range certificates (Tcl checker = proved Lean checker; emitted = least; mutations rejected)
+        run: |
+          tclsh tools/views.tcl ranges conformance/circuits.json > ranges.json
+          spec/.lake/build/bin/spec-eval --ranges ranges.json > spec-ranges.json
+          tclsh tools/views.tcl check-ranges ranges.json spec-ranges.json
+      - name: Upstream word-range corpus (the Lean model replays the vendored finite-kernels corpus)
+        run: spec/.lake/build/bin/spec-eval --word-range conformance/word_range_v1.txt
       - name: Random differential conformance (kernel = spec exactly; kernel refines Tcl)
         env:
           RUN_SEED: ${{ github.run_id }}
@@ -143,3 +150,32 @@ jobs:
       - name: Audit axioms (no sorry, standard axioms only)
         working-directory: proof
         run: lake env lean Audit.lean
+
+  upstream:
+    # The vendored corpus is the file at the UPSTREAM.toml pin, which the
+    # pinned finite-math-kernels toolchain regenerates and its Mojo kernel replays.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the pin
+        id: pin
+        run: echo "commit=$(sed -n 's/^commit = "\(.*\)"$/\1/p' UPSTREAM.toml)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: larsbx/finite-math-kernels
+          ref: ${{ steps.pin.outputs.commit }}
+          path: .cache/finite-math-kernels
+          persist-credentials: false
+      - name: Vendored files equal the pinned upstream files
+        run: |
+          test "$(git -C .cache/finite-math-kernels rev-parse HEAD)" = "${{ steps.pin.outputs.commit }}"
+          cmp conformance/word_range_v1.txt .cache/finite-math-kernels/conformance/word_range_v1.txt
+          echo "$(sed -n 's/^sha256 = "\(.*\)"$/\1/p' UPSTREAM.toml)  conformance/word_range_v1.txt" | sha256sum -c
+      - uses: prefix-dev/setup-pixi@v0.9.1
+        with:
+          manifest-path: .cache/finite-math-kernels/pixi.toml
+      - name: Upstream reference regenerates the corpus; the canonical Mojo kernel replays it
+        working-directory: .cache/finite-math-kernels
+        run: |
+          pixi run word-range-vectors
+          pixi run test-word-range

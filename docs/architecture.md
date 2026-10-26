@@ -250,7 +250,10 @@ and operations. Other metadata values are opaque; callers must use stable scalar
 representations for them. `private digest circuit` hashes the UTF-8 Tcl list
 `{tclmesh-private-circuit-v1 <canonical-circuit>}` with SHA-256. The domain tag
 separates this identity from manifest identity. Packing identity is included;
-packing validity, type inference, and overflow proofs remain separate obligations.
+packing validity and type inference remain separate obligations. Overflow is
+decided by range certificates (`src/range.tcl`, `spec/TclMesh/Range.lean`):
+an `int<W>-checked` profile evaluates only circuits whose least ranges, from
+declared input ranges, stay inside the `W`-bit word.
 
 `private evaluate-bound profile application circuit-id inputs` reads the active
 manifest, verifies its hash, and resolves the named installed circuit. An optional

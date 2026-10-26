@@ -58,9 +58,22 @@ typing rule:
 | `Kernel` | `not_permits` | in the executable kernel, `not c` permits iff `c` evaluated to `false` |
 | | `cmp_ok` | in the executable kernel, a successful comparison had two canonical decimals and reports their exact order |
 | `Canonical` | `cmp_ok_canonical` | in the canonical domain, comparison success implies exact decimal order |
+| `Range` | `wrap_id` | reduction modulo `2^w` into the signed word is the identity on the word |
+| | `mul_mem` | a product lies in any range holding the four products of its operands' bounds |
+| | `check_sound` | **if the range checker accepts a circuit and every input lies in its declared range, then wherever exact evaluation over `ℤ` is defined, `w`-bit wrapped evaluation (TFHE `FheInt32` at `w = 32`) is defined and equal to it, and every node's value lies in its certified range: no intermediate wraps** |
+| | 9 cases checked by `decide` | canonical integer spellings; `maxBid` over whole words is rejected (`a − b` can leave the word), accepted with bids in `[0, 10⁶]`, and rejected when a range is narrowed; the upstream word-range contract (`fit`, `wordOp`) at the word edge |
 | | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
 | | `cmp_ok`, `mem_ok` | a successful comparison had both operands in the canonical numeric domain; a successful membership test had a canonical list |
 | | `and_fault_left`, `and_false_left`, `or_true_left` | fault propagation and short-circuiting, as in the Tcl and Rust evaluators |
+
+`Range` takes TFHE's correctness as a named hypothesis outside the model: each
+homomorphic operation decrypts to the wrapped result of its plaintext
+operation (`wrapped w`), within its noise budget. What it proves is that the
+wrapping never happens on an accepted circuit. Its arithmetic is the contract
+of `finite_exact/word_range.mojo` in `larsbx/finite-math-kernels`, pinned in
+`UPSTREAM.toml`; `spec-eval --word-range` replays the vendored upstream corpus
+against `fit`, `wordOp` and `wrap`, and CI checks the vendored file against
+the pinned upstream file, which the upstream Mojo kernel replays.
 
 ## Executable specification
 

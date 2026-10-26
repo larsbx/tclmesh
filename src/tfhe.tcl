@@ -3,9 +3,12 @@
 # the binary exists: $TCLMESH_TFHE, or backends/tfhe/target/release.
 #
 # Integers are `FheInt32`: arithmetic wraps modulo 2^32, as profiles must
-# declare (`semantics int32-wrapping`); a profile claiming exact integers is
-# rejected, since an overflow under encryption cannot be detected. Results
-# equal the exact reference only while every intermediate value fits.
+# declare. Under `semantics int32-wrapping` results equal the exact reference
+# only while every intermediate value fits; under `int32-checked` the runtime
+# evaluates only circuits whose range certificate proves that they all do
+# (src/range.tcl, spec/TclMesh/Range.lean). A profile claiming exact integers
+# unconditionally is rejected, since an overflow under encryption cannot be
+# detected.
 #
 # Tokens are `{tfhe ID bytes N}`: an opaque number for a ciphertext held by
 # the process, and its serialized size. Evaluation is recorded through the
@@ -62,7 +65,7 @@ proc ::tclmesh::tfhe::_backend {operation args} {
     switch -- $operation {
         validate-profile {
             lassign $args profile
-            return [expr {[dict get $profile semantics] eq "int32-wrapping"}]
+            return [expr {[dict get $profile semantics] in {int32-wrapping int32-checked}}]
         }
         encrypt {
             lassign $args profile type value

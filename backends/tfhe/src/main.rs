@@ -15,9 +15,11 @@
 //! Every node is computed in the syntactic schedule (`spec/TclMesh/Circuit.lean`),
 //! whatever the data: `select` is a homomorphic multiplexer.
 //!
-//! Integers are `FheInt32` and wrap modulo 2^32 (profile semantics
-//! `int32-wrapping`): an overflow under encryption cannot be detected, so the
-//! runtime never advertises these results as exact integers.
+//! Integers are `FheInt32` and wrap modulo 2^32: an overflow under encryption
+//! cannot be detected. The runtime advertises results as exact only under
+//! profile semantics `int32-checked`, which admits only circuits whose range
+//! certificate proves that no intermediate leaves the word
+//! (`spec/TclMesh/Range.lean`).
 //!
 //! Test deployment: this process holds the client key as well as the server
 //! key. A production deployment keeps the client key with the data owner.

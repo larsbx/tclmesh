@@ -2,6 +2,16 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- range certificates for private circuits (`tclmesh range emit|check|require`,
+  `spec/TclMesh/Range.lean`): least ranges by interval arithmetic from declared
+  input ranges (`{cipher int range LO HI}`), with a Lean checker proved sound —
+  if it accepts, `w`-bit wrapped evaluation equals exact evaluation and no
+  intermediate leaves the word (`check_sound`). Profile semantics
+  `int<W>-checked` (TFHE: `int32-checked`) evaluates only accepted circuits on
+  inputs inside their declared ranges; handles carry their ranges. The
+  arithmetic is the contract of `finite_exact/word_range.mojo` in
+  larsbx/finite-math-kernels, whose corpus is vendored, pinned in
+  `UPSTREAM.toml` and replayed by Tcl and Lean;
 - pure Tier A evaluation, `action evaluate action_id descriptor state request`,
   which `action run` now wraps;
 - **breaking:** ordered comparisons accept only canonical decimal numbers
