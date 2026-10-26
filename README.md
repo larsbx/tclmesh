@@ -38,9 +38,17 @@ and carries its version/hash and output provenance into release requests.
 
 Manifest-declared threshold-release policies now enforce holder/language roles,
 context, revocation, and current manifest authority on governed outputs.
+Range certificates make encrypted integer arithmetic exact by proof: under an
+`int<W>-checked` profile a circuit is evaluated only if interval arithmetic from
+its declared input ranges keeps every intermediate inside the `W`-bit word, and
+the Lean checker is proved sound for that (`spec/TclMesh/Range.lean`), so
+wrapping (TFHE `FheInt32`) can never occur. The arithmetic is the
+`finite_exact/word_range` contract of larsbx/finite-math-kernels (`UPSTREAM.toml`).
+
 This remains trusted-adapter plumbing: identity authentication, keyset/share
-verification, type/range enforcement, and cryptographic confidentiality remain
-application/backend obligations. The bundled backend executes plaintext. See the [roadmap](docs/roadmap.md)
+verification, type enforcement, range proofs for ciphertext inputs (the
+encrypting party's declared range is checked at `encrypt`), and cryptographic
+confidentiality remain application/backend obligations. The bundled backend executes plaintext. See the [roadmap](docs/roadmap.md)
 and [security boundaries](SECURITY.md) before integrating it.
 
 ## Install

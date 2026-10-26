@@ -25,6 +25,14 @@ Important boundaries:
 - delegated language authority can only narrow;
 - the private runtime uses opaque backend handles; the bundled plaintext backend
   is a reference implementation and provides no cryptographic confidentiality;
+- under an `int<W>-checked` profile, encrypted integer results are exact: a
+  circuit is evaluated only if its range certificate, checked by a checker
+  proved sound in Lean, keeps every intermediate inside the `W`-bit word.
+  Public inputs and handles are checked against their declared ranges; a fresh
+  ciphertext's range is the encrypting party's claim, checked against the
+  plaintext at `encrypt`, which a deployment that keeps plaintext away from the
+  runtime must replace with a range proof. Profiles declaring
+  `int32-wrapping` make no exactness claim;
 - governed circuits require manifest-declared release policy and role-specific
   holder/language authorization; caller identity must be authenticated by the
   trusted adapter. These checks do not authenticate cryptographic shares.

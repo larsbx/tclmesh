@@ -17,6 +17,7 @@ foreach file {
     private.tcl
     views.tcl
     certificate.tcl
+    range.tcl
     tfhe.tcl
     release.tcl
     release_policy.tcl
@@ -40,6 +41,7 @@ namespace eval ::tclmesh {
         private  ::tclmesh::private
         views    ::tclmesh::views
         certificate ::tclmesh::certificate
+        range    ::tclmesh::range
         release  ::tclmesh::release
     }
 }

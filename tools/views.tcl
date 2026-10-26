@@ -4,6 +4,8 @@
 #   tclsh tools/views.tcl check CIRCUITS SPEC_VIEWS
 #   tclsh tools/views.tcl certificates CIRCUITS > CERTS
 #   tclsh tools/views.tcl check-certificates CERTS SPEC_CERTIFICATES
+#   tclsh tools/views.tcl ranges CIRCUITS > RANGES
+#   tclsh tools/views.tcl check-ranges RANGES SPEC_RANGES
 #
 # For every circuit vector: the evaluator's view recorded by the oblivious
 # backend, the view the Tcl harness declares, and the view the Lean model
@@ -189,13 +191,109 @@ proc check_certificates {certs_path spec_path} {
     puts "certificates: $count checked; Tcl = Lean verdicts; emitted = least; every mutation rejected"
 }
 
+# Range certificates: for every circuit as declared, with every int input
+# declared in [-1000, 1000], and with the k-th int input in [-k, 1000(k+1)]
+# (so that branches differ), at widths 32 and 8, the emitted certificate and,
+# when it is accepted, its mutations (each node's range narrowed past its
+# least range, each node dropped), with the Tcl checker's verdict.
+proc ranges {circuits_path} {
+    set out {}
+    foreach vector [dict get [read_json $circuits_path] vectors] {
+        set raw [dict get $vector circuit]
+        set bounded $raw
+        set skewed $raw
+        set k 0
+        foreach name [lsort [dict keys [dict get $raw inputs]]] {
+            set d [dict get $raw inputs $name]
+            if {[lindex $d 1] eq "int"} {
+                dict set bounded inputs $name [list [lindex $d 0] int range -1000 1000]
+                dict set skewed inputs $name [list [lindex $d 0] int range [expr {-$k}] [expr {1000 * [incr k]}]]
+            }
+        }
+        foreach {variant c} [list declared $raw bounded $bounded skewed $skewed] {
+            set circuit [circuit_of $c]
+            foreach width {32 8} {
+                set id "[dict get $vector id]/$variant/$width"
+                set cert [tclmesh range emit $circuit $width]
+                set variants [list $id $cert]
+                if {[tclmesh range check $circuit $cert $width] eq ""} {
+                    dict for {node r} $cert {
+                        lassign $r lo hi
+                        set narrowed [expr {$lo < $hi ? [list [expr {$lo + 1}] $hi] : [list [expr {$lo + 1}] [expr {$lo + 1}]]}]
+                        lappend variants "$id/narrow/$node" [dict replace $cert $node $narrowed] \
+                            "$id/drop/$node" [dict remove $cert $node]
+                    }
+                }
+                foreach {vid r} $variants {
+                    set accepted [expr {[tclmesh range check $circuit $r $width] eq ""}]
+                    set rs {}
+                    dict for {node pair} $r { lappend rs $node [jlist $pair] }
+                    lappend out [json::write object \
+                        id [js $vid] width $width circuit [circuit_json $c] \
+                        ranges [json::write object {*}$rs] \
+                        emitted_nodes [llength [dict keys $r]] \
+                        tcl_accepted [expr {$accepted ? "true" : "false"}]]
+                }
+            }
+        }
+    }
+    puts [json::write object vectors [json::write array {*}$out]]
+}
+
+proc check_ranges {ranges_path spec_path} {
+    set spec [dict get [read_json $spec_path] ranges]
+    set failures 0
+    set count 0
+    set accepted_count 0
+    foreach vector [dict get [read_json $ranges_path] vectors] {
+        incr count
+        set id [dict get $vector id]
+        set lean [dict get $spec $id]
+        set tcl_accepted [string is true [dict get $vector tcl_accepted]]
+        incr accepted_count $tcl_accepted
+        if {$tcl_accepted != [string is true [dict get $lean accepted]]} {
+            puts "$id: Tcl checker says $tcl_accepted, Lean checker says [dict get $lean accepted]"
+            incr failures
+        }
+        if {[regexp {/(narrow|drop)/} $id] && $tcl_accepted} {
+            puts "$id: mutation accepted"
+            incr failures
+        }
+        if {![regexp {/(narrow|drop)/} $id]} {
+            set mine {}
+            dict for {k v} [dict get $vector ranges] { lappend mine $k $v }
+            set mine [lsort -stride 2 $mine]
+            set least [dict get $lean least]
+            set nodes [llength [dict keys [dict get $vector circuit nodes]]]
+            if {$least eq "null"} {
+                set agree [expr {[dict size [dict get $vector ranges]] < $nodes}]
+            } else {
+                set theirs {}
+                dict for {k v} $least { lappend theirs $k $v }
+                set agree [expr {$mine eq [lsort -stride 2 $theirs]}]
+            }
+            if {!$agree} {
+                puts "$id: emitted ranges differ from Lean's least certificate"
+                incr failures
+            }
+        }
+    }
+    if {$failures} {
+        puts "$failures range failure(s)"
+        exit 1
+    }
+    puts "ranges: $count checked ($accepted_count accepted); Tcl = Lean verdicts; emitted = least; every mutation rejected"
+}
+
 lassign $argv command a b
 switch -- $command {
     check { check $a $b }
     certificates { certificates $a }
     check-certificates { check_certificates $a $b }
+    ranges { ranges $a }
+    check-ranges { check_ranges $a $b }
     default {
-        puts stderr "usage: views.tcl check CIRCUITS SPEC_VIEWS | certificates CIRCUITS | check-certificates CERTS SPEC"
+        puts stderr "usage: views.tcl check CIRCUITS SPEC_VIEWS | certificates CIRCUITS | check-certificates CERTS SPEC | ranges CIRCUITS | check-ranges RANGES SPEC"
         exit 2
     }
 }

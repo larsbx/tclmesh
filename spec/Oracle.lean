@@ -1,6 +1,7 @@
 import Lean.Data.Json
 import TclMesh.Kernel
 import TclMesh.Certificate
+import TclMesh.Range
 
 /-!
 `lake exe spec-eval VECTORS` evaluates every conformance vector with the
@@ -13,6 +14,15 @@ evaluator's declared view (`TclMesh.Circuit.declared`): `{"views": {id: view}}`.
 `lake exe spec-eval --certificates CERTS` checks every certificate with the
 proved checker (`TclMesh.Circuit.check`) and prints the verdict and the least
 certificate (`certify`): `{"certificates": {id: {accepted, least}}}`.
+
+`lake exe spec-eval --ranges RANGES` checks every range certificate with the
+proved checker (`TclMesh.Range.check`) and prints the verdict and the least
+certificate, or `null`: `{"ranges": {id: {accepted, least}}}`.
+
+`lake exe spec-eval --word-range CORPUS` replays the upstream word-range
+corpus (larsbx/finite-math-kernels, `UPSTREAM.toml`) against
+`TclMesh.Range.fit`, `wordOp` and `wrap`, prints
+`{"word_range": {"rows": n, "mismatches": [row]}}`, and fails on a mismatch.
 -/
 
 open Lean TclMesh.Kernel
@@ -90,9 +100,59 @@ def certificates (path : String) : IO UInt32 := do
   IO.println (Json.mkObj [("certificates", Json.mkObj out)]).compress
   return 0
 
+def rngOf (j : Json) : TclMesh.Range.Rng :=
+  match strings j with
+  | [lo, hi] => ((TclMesh.Range.intOf lo).getD 0, (TclMesh.Range.intOf hi).getD 0)
+  | _ => (1, 0)
+
+def rngJson (r : TclMesh.Range.Rng) : Json := Json.arr #[toString r.1, toString r.2]
+
+def ranges (path : String) : IO UInt32 := do
+  let json ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
+  let vectors ← IO.ofExcept ((json.getObjVal? "vectors").bind Json.getArr?)
+  let out := vectors.toList.map fun v =>
+    let id := (field v "id").getStr?.toOption.getD "?"
+    let c := circuitOf (field v "circuit")
+    let w := (field v "width").getNat?.toOption.getD 0
+    let cert := (entries (field v "ranges")).map fun (k, r) => (k, rngOf r)
+    (id, Json.mkObj [
+      ("accepted", Json.bool (TclMesh.Range.check c cert w)),
+      ("least", match TclMesh.Range.certify c w with
+        | some least => Json.mkObj (least.map fun (k, r) => (k, rngJson r))
+        | none => Json.null)])
+  IO.println (Json.mkObj [("ranges", Json.mkObj out)]).compress
+  return 0
+
+def cellOf (s : String) : Option TclMesh.Range.Rng :=
+  match s.splitOn "," with
+  | [lo, hi] => do pure ((← lo.toInt?), (← hi.toInt?))
+  | _ => none
+
+/-- `none` when the row is malformed, else whether the model agrees with it. -/
+def wordRow (row : String) : Option Bool :=
+  match row.splitOn "\t" with
+  | ["make", w, lo, hi, want] => do
+    pure (TclMesh.Range.fit (← w.toNat?) ((← lo.toInt?), (← hi.toInt?)) = cellOf want)
+  | ["wrap", w, x, want] => do
+    pure (TclMesh.Range.wrap (← w.toNat?) (← x.toInt?) = (← want.toInt?))
+  | ["range", op, w, a, b, want] => do
+    let args ← (if b = "-" then [a] else [a, b]).mapM fun t =>
+      if t = "refused" then some (1, 0) else cellOf t
+    pure (TclMesh.Range.wordOp (← w.toNat?) op args = cellOf want)
+  | _ => none
+
+def wordRange (path : String) : IO UInt32 := do
+  let rows := ((← IO.FS.readFile path).splitOn "\n").filter fun r => !r.isEmpty && !r.startsWith "#"
+  let bad := rows.filter fun r => wordRow r != some true
+  IO.println (Json.mkObj [("word_range", Json.mkObj [
+    ("rows", Json.num rows.length), ("mismatches", Json.arr (bad.toArray.map Json.str))])]).compress
+  return if bad.isEmpty && !rows.isEmpty then 0 else 1
+
 def main (args : List String) : IO UInt32 := do
   if let ["--views", path] := args then return ← views path
   if let ["--certificates", path] := args then return ← certificates path
+  if let ["--ranges", path] := args then return ← ranges path
+  if let ["--word-range", path] := args then return ← wordRange path
   let [path] := args | IO.eprintln "usage: spec-eval VECTORS | spec-eval --views CIRCUITS"; return 2
   let json ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
   let vectors ← IO.ofExcept ((json.getObjVal? "vectors").bind Json.getArr?)

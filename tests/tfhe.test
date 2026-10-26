@@ -11,10 +11,13 @@ testConstraint tfhe [expr {"tfhe" in [tclmesh private backend list]}]
 source [file join [file dirname [info script]] languages exemplars.tcl]
 
 if {[testConstraint tfhe]} {
-    foreach {name decrypt} {tfhe-open true tfhe-governed false} {
+    foreach {name semantics decrypt} {
+        tfhe-open int32-wrapping true tfhe-governed int32-wrapping false
+        tfhe-checked int32-checked true
+    } {
         if {[catch {tclmesh private profile describe $name}]} {
             tclmesh private profile define $name [dict create \
-                backend tfhe semantics int32-wrapping allow_decrypt $decrypt]
+                backend tfhe semantics $semantics allow_decrypt $decrypt]
         }
     }
 }
@@ -62,7 +65,7 @@ test T-004-released-under-tfhe {a 2-of-3 quorum releases the clearing price; dir
     list $direct [dict get [tclmesh release combine $id] result]
 } -result {1 95}
 
-test T-005-no-exact-integer-claim {TFHE refuses to advertise exact integers} -constraints tfhe -body {
+test T-005-no-exact-integer-claim {TFHE refuses to advertise exact integers unconditionally} -constraints tfhe -body {
     catch {tclmesh private profile define tfhe-exact [dict create \
         backend tfhe semantics exact-integer allow_decrypt true]} - options
     lrange [dict get $options -errorcode] 0 3
@@ -77,11 +80,40 @@ test T-006-wrapping-arithmetic {overflow wraps modulo 2^32, as the profile decla
     dict get [tclmesh views run tfhe-open $c {x 2147483647 y 1}] recipient
 } -result {s -2147483648}
 
+# Checked profiles (src/range.tcl, spec/TclMesh/Range.lean): a circuit is
+# evaluated only when no intermediate can leave the 32-bit word, so the
+# wrapped result is the exact one.
+test T-007-checked-exact {under int32-checked, encrypted results equal the exact reference} -constraints tfhe -body {
+    set c [dict get [::exemplars::sealed_bid] circuit]
+    foreach name {a b} { dict set c inputs $name {cipher int range 0 1000000} }
+    set inputs {a 120 b 95 reserve 100}
+    set runtime [dict create \
+        a [tclmesh private encrypt tfhe-checked int 120 {0 1000000}] \
+        b [tclmesh private encrypt tfhe-checked int 95 {0 1000000}] reserve 100]
+    set out [tclmesh private evaluate tfhe-checked $c $runtime]
+    set reference [::tclmesh::private::_reference_evaluate $c $inputs]
+    lmap name {winner clears margin} {
+        expr {[tclmesh private decrypt [dict get $out $name]] eq [dict get $reference $name]}
+    }
+} -result {1 1 1}
+
+test T-008-checked-overflow {the circuit that wraps under int32-wrapping is refused under int32-checked} -constraints tfhe -body {
+    set c [tclmesh private circuit wrap \
+        [dict create x {cipher int} y {cipher int}] [dict create s {cipher int}] \
+        [dict create nx [tclmesh private node input x] ny [tclmesh private node input y] \
+            s [tclmesh private node add nx ny]] \
+        [dict create output_nodes [dict create s s]]]
+    set runtime [dict create x [tclmesh private encrypt tfhe-checked int 2147483647] \
+        y [tclmesh private encrypt tfhe-checked int 1]]
+    catch {tclmesh private evaluate tfhe-checked $c $runtime} - options
+    lrange [dict get $options -errorcode] 0 3
+} -result {TCLMESH PRIVATE RANGE REJECTED}
+
 # Leave no TFHE handles behind for tests that persist every live handle.
 if {[testConstraint tfhe]} {
     foreach h [tclmesh private handle list] {
         if {![catch {tclmesh private handle describe $h} d] &&
-            [dict get $d profile] in {tfhe-open tfhe-governed}} {
+            [dict get $d profile] in {tfhe-open tfhe-governed tfhe-checked}} {
             catch {tclmesh private handle destroy $h}
         }
     }

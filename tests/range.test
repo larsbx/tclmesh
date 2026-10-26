@@ -1,0 +1,186 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+package require sha256
+
+# Range certificates (src/range.tcl, spec/TclMesh/Range.lean): no
+# intermediate of an accepted circuit leaves its word, so wrapped evaluation
+# equals exact evaluation; checked profiles enforce it at evaluation.
+
+source [file join [file dirname [info script]] languages exemplars.tcl]
+
+set root [file dirname [file dirname [file normalize [info script]]]]
+
+proc bounded {circuit ranges} {
+    dict for {name r} $ranges {
+        dict set circuit inputs $name [list cipher int range {*}$r]
+    }
+    return $circuit
+}
+
+proc verdict {circuit {width 32}} {
+    tclmesh range check $circuit [tclmesh range emit $circuit $width] $width
+}
+
+set bid [dict get [::exemplars::sealed_bid] circuit]
+set bounded_bid [bounded $bid {a {0 1000000} b {0 1000000}}]
+
+test R-001-exemplars {least certificates: only subtraction of whole words can overflow} -body {
+    lmap e [::exemplars::all] { list [dict get $e name] [verdict [dict get $e circuit]] }
+} -result {{sealed-bid {{outside-word ab} {outside-word ba} {outside-word margin}}}\
+    {second-price {}} {policy-boolean {}} {policy-arithmetic {}} {set-membership {}}}
+
+test R-002-least-ranges {declared bid ranges propagate through subtraction and select} -body {
+    set cert [tclmesh range emit $bounded_bid]
+    list [verdict $bounded_bid] [dict get $cert ab] [dict get $cert margin] [dict get $cert clears] \
+        [dict get $cert nr]
+} -result {{} {-1000000 1000000} {-1000000 1000000} {0 1} {-2147483648 2147483647}}
+
+test R-003-mutations {narrowed, missing, out-of-word and unsupported ranges are rejected} -body {
+    set cert [tclmesh range emit $bounded_bid]
+    set narrowed [dict replace $cert ab {0 1000000}]
+    set missing [dict remove $cert gt]
+    set outside [dict replace $cert winner {0 2147483648}]
+    set poly [dict get [lindex [::exemplars::all] 0] circuit]
+    dict set poly nodes p [tclmesh private node polynomial na {1 2 3}]
+    list [tclmesh range check $bounded_bid $narrowed] [tclmesh range check $bounded_bid $missing] \
+        [tclmesh range check $bounded_bid $outside] [lsearch -all -inline [verdict $poly] {* p}] \
+        [tclmesh range check $poly [dict replace [tclmesh range emit $poly] p {0 0}]]
+} -result {{{under-range ab}} {{unranged gt} {unranged-operand winner gt} {unranged-operand margin gt}}\
+    {{outside-word winner}} {{unranged p}} {{outside-word ab} {outside-word ba} {outside-word margin}\
+    {unsupported p}}}
+
+test R-004-canonical-integers {constants and declared bounds have one spelling} -body {
+    lmap k {0 -7 007 +1 -0 0x10 1e3} {
+        set c [tclmesh private circuit k {} [dict create y {cipher int}] \
+            [dict create y [tclmesh private node constant $k]] \
+            [dict create output_nodes [dict create y y]]]
+        expr {[verdict $c] eq ""}
+    }
+} -result {1 1 0 0 0 0 0}
+
+test R-005-narrow-words {the same circuit fits a 32-bit word but not an 8-bit one} -body {
+    set signed [bounded $bid {a {-100 100} b {-100 100}}]
+    list [verdict $signed 32] [verdict $signed 8] [verdict [bounded $bid {a {0 100} b {0 100}}] 8]
+} -result {{} {{outside-word ab} {outside-word ba} {outside-word margin}} {}}
+
+# The upstream corpus (larsbx/finite-math-kernels, UPSTREAM.toml), replayed.
+proc pinned {path} {
+    set fh [open [file join $::root UPSTREAM.toml] r]
+    set toml [read $fh]
+    close $fh
+    regexp "path = \"$path\"\\s+upstream = \"\[^\"\]+\"\\s+sha256 = \"(\[0-9a-f\]{64})\"" $toml -> sum
+    return $sum
+}
+
+test R-006-upstream-pin {the vendored word-range corpus is the pinned upstream file} -body {
+    set path conformance/word_range_v1.txt
+    expr {[::sha2::sha256 -hex -filename [file join $root $path]] eq [pinned $path]}
+} -result 1
+
+test R-007-upstream-corpus {interval arithmetic equals finite_exact/word_range.mojo on every row} -body {
+    set fh [open [file join $root conformance word_range_v1.txt] r]
+    set rows [split [string trimright [read $fh] \n] \n]
+    close $fh
+    set cell {{text} { expr {$text eq "refused" ? "refused" : [split $text ,]} }}
+    set checked 0
+    set failures {}
+    foreach row $rows {
+        set cols [split $row \t]
+        switch -- [lindex $cols 0] {
+            make {
+                lassign $cols - width lo hi want
+                set got [tclmesh range op hull $width [list $lo $hi] [list $lo $hi]]
+            }
+            range {
+                lassign $cols - op width a b want
+                set operands [list [apply $cell $a]]
+                if {$b ne "-"} {
+                    lappend operands [apply $cell $b]
+                }
+                set got [tclmesh range op $op $width {*}$operands]
+            }
+            default { continue }
+        }
+        incr checked
+        if {$got ne [apply $cell $want]} {
+            lappend failures $row
+        }
+    }
+    list [expr {$checked > 1000}] [lrange $failures 0 4]
+} -result {1 {}}
+
+# Checked profiles: evaluation admits only accepted circuits on inputs in range.
+foreach name {checked-open} {
+    if {[catch {tclmesh private profile describe $name}]} {
+        tclmesh private profile define $name [dict create \
+            backend plaintext semantics int32-checked allow_decrypt true]
+    }
+}
+
+test R-008-checked-evaluation {an accepted circuit evaluates; its outputs carry certified ranges} -body {
+    set h [dict create \
+        a [tclmesh private encrypt checked-open int 120 {0 1000000}] \
+        b [tclmesh private encrypt checked-open int 95 {0 1000000}]]
+    set out [tclmesh private evaluate checked-open $bounded_bid [dict merge $h {reserve 100}]]
+    lmap name {winner margin clears} {
+        list [tclmesh private decrypt [dict get $out $name]] \
+            [dict get [tclmesh private handle describe [dict get $out $name]] range]
+    }
+} -result {{120 {0 1000000}} {25 {-1000000 1000000}} {1 {0 1}}}
+
+test R-009-overflow-rejected {a circuit that may overflow is not evaluated} -body {
+    set h [dict create a [tclmesh private encrypt checked-open int 1] \
+        b [tclmesh private encrypt checked-open int 2]]
+    catch {tclmesh private evaluate checked-open $bid [dict merge $h {reserve 0}]} - options
+    lrange [dict get $options -errorcode] 0 3
+} -result {TCLMESH PRIVATE RANGE REJECTED}
+
+proc refusal {script} {
+    catch {uplevel 1 $script} - options
+    lrange [dict get $options -errorcode] 0 4
+}
+
+test R-010-inputs-in-range {values, handles and public inputs outside their ranges are refused} -body {
+    set wide [tclmesh private encrypt checked-open int 5]
+    set ok [tclmesh private encrypt checked-open int 5 {0 1000000}]
+    list \
+        [refusal {tclmesh private encrypt checked-open int 2000000 {0 1000000}}] \
+        [refusal {tclmesh private encrypt checked-open int 2147483648}] \
+        [refusal {tclmesh private encrypt checked-open int 007}] \
+        [refusal {tclmesh private evaluate checked-open $bounded_bid [dict create a $wide b $ok reserve 0]}] \
+        [refusal {tclmesh private evaluate checked-open $bounded_bid [dict create a $ok b $ok reserve 2147483648]}]
+} -result {{TCLMESH PRIVATE RANGE OUT_OF_RANGE encrypt} {TCLMESH PRIVATE RANGE OUT_OF_RANGE encrypt}\
+    {TCLMESH PRIVATE RANGE OUT_OF_RANGE encrypt} {TCLMESH PRIVATE RANGE OUT_OF_RANGE a}\
+    {TCLMESH PRIVATE RANGE OUT_OF_RANGE reserve}}
+
+test R-011-composition {a certified output feeds a circuit that declares its range} -body {
+    set h [dict create \
+        a [tclmesh private encrypt checked-open int 7 {0 1000000}] \
+        b [tclmesh private encrypt checked-open int 3 {0 1000000}]]
+    set margin [dict get [tclmesh private evaluate checked-open $bounded_bid \
+        [dict merge $h {reserve 0}]] margin]
+    set square [tclmesh private circuit square \
+        [dict create x {cipher int range -1000000 1000000}] [dict create y {cipher int}] \
+        [dict create nx [tclmesh private node input x] y [tclmesh private node multiply nx nx]] \
+        [dict create output_nodes [dict create y y]]]
+    set narrow [dict replace $square inputs [dict create x {cipher int range -10 10}]]
+    list [lindex [verdict $square] 0] \
+        [tclmesh private decrypt [dict get [tclmesh private evaluate checked-open $narrow \
+            [dict create x [tclmesh private encrypt checked-open int 4 {-10 10}]]] y]] \
+        [refusal {tclmesh private evaluate checked-open $narrow [dict create x $margin]}]
+} -result {{outside-word y} 16 {TCLMESH PRIVATE RANGE OUT_OF_RANGE x}}
+
+test R-012-unchecked-profiles {ranges belong to checked profiles of a supported width} -setup {
+    if {[catch {tclmesh private profile describe unchecked-open}]} {
+        tclmesh private profile define unchecked-open [dict create \
+            backend plaintext semantics exact-integer allow_decrypt true]
+    }
+} -body {
+    list [refusal {tclmesh private encrypt unchecked-open int 1 {0 1}}] \
+        [refusal {tclmesh private profile define checked-64 [dict create \
+            backend plaintext semantics int64-checked]}]
+} -result {{TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} {TCLMESH RANGE INVALID_WIDTH 64}}
+
+cleanupTests

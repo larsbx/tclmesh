@@ -288,6 +288,10 @@ proc ::tclmesh::private::profile::define {name descriptor} {
 
     set backend [dict get $descriptor backend]
     set backend_descriptor [::tclmesh::private::backend::describe $backend]
+    set width [::tclmesh::private::_checked_width $descriptor]
+    if {$width ne ""} {
+        ::tclmesh::range::word $width
+    }
 
     if {![dict exists $descriptor parameters]} {
         dict set descriptor parameters {}
@@ -414,7 +418,7 @@ proc ::tclmesh::private::_use_handle_store {store_id} {
     }
 }
 
-proc ::tclmesh::private::_new_handle {profile type backend token origin {binding {}}} {
+proc ::tclmesh::private::_new_handle {profile type backend token origin {binding {}} {range {}}} {
     variable handles
     variable next_handle
 
@@ -422,6 +426,9 @@ proc ::tclmesh::private::_new_handle {profile type backend token origin {binding
     set id "ct:$next"
     set candidate $handles
     dict set candidate $id [dict create         id $id         status active         profile $profile         type $type         backend $backend         origin $origin         binding $binding         token $token]
+    if {$range ne ""} {
+        dict set candidate $id range $range
+    }
     _commit_handles $candidate $next
     return $id
 }
@@ -472,18 +479,59 @@ proc ::tclmesh::private::handle::list {} {
     return [lsort -dictionary [dict keys $handles]]
 }
 
-proc ::tclmesh::private::encrypt {profile_name type value} {
+# The word width W of an `int<W>-checked` profile, or {} for any other.
+proc ::tclmesh::private::_checked_width {profile} {
+    if {[regexp {^int([0-9]+)-checked$} [dict get $profile semantics] -> width]} {
+        return $width
+    }
+    return {}
+}
+
+# Under an `int<W>-checked` profile the plaintext is checked here, once, and
+# only its declared range (by default the whole word) is kept with the
+# handle: the encrypting party's range claim, which a deployment that keeps
+# the plaintext away from the runtime must replace by a range proof.
+proc ::tclmesh::private::encrypt {profile_name type value {range {}}} {
     set profile [::tclmesh::private::profile::describe $profile_name]
     set backend [dict get $profile backend]
     set backend_descriptor [::tclmesh::private::backend::describe $backend]
     set command [dict get $backend_descriptor command]
 
+    set width [_checked_width $profile]
+    if {$width ne ""} {
+        set range [_checked_value $width $type $value $range encrypt]
+    } elseif {$range ne ""} {
+        return -code error -errorcode {TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} \
+            "only int<W>-checked profiles carry ranges"
+    }
     set token [{*}$command encrypt $profile $type $value]
-    return [_new_handle $profile_name $type $backend $token encrypt]
+    return [_new_handle $profile_name $type $backend $token encrypt {} $range]
+}
+
+# The range a checked value of TYPE carries: RANGE (int; the word when empty)
+# or {0 1} (bool), after checking that VALUE lies in it.
+proc ::tclmesh::private::_checked_value {width type value range what} {
+    set word [::tclmesh::range::word $width]
+    switch -- $type {
+        int { set allowed [expr {$range eq "" ? $word : $range}] }
+        bool { set allowed {0 1} }
+        default {
+            return -code error -errorcode [::list TCLMESH PRIVATE RANGE UNSUPPORTED_TYPE $type] \
+                "int$width-checked supports int and bool, not '$type'"
+        }
+    }
+    if {![::tclmesh::range::_valid $allowed] || ![::tclmesh::range::_within $allowed $word] ||
+        ![::tclmesh::range::_int $value] ||
+        ![::tclmesh::range::_within [::list $value $value] $allowed]} {
+        return -code error -errorcode [::list TCLMESH PRIVATE RANGE OUT_OF_RANGE $what] \
+            "$what: value outside its declared range"
+    }
+    return $allowed
 }
 
 proc ::tclmesh::private::_prepare_inputs {profile_name circuit inputs} {
     set prepared {}
+    set width [_checked_width [::tclmesh::private::profile::describe $profile_name]]
 
     dict for {name type_descriptor} [dict get $circuit inputs] {
         if {![dict exists $inputs $name]} {
@@ -494,7 +542,18 @@ proc ::tclmesh::private::_prepare_inputs {profile_name circuit inputs} {
         set type [_logical_type $type_descriptor]
         set value [dict get $inputs $name]
 
+        if {$width ne ""} {
+            set declared [::tclmesh::range::_input $type_descriptor $width]
+            if {$declared eq ""} {
+                return -code error -errorcode [::list TCLMESH PRIVATE RANGE UNSUPPORTED_INPUT $name] \
+                    "input '$name' has no range under int$width-checked"
+            }
+        }
+
         if {$visibility eq "public"} {
+            if {$width ne ""} {
+                _checked_value $width $type $value $declared $name
+            }
             dict set prepared $name [::list public $value]
             continue
         }
@@ -505,6 +564,11 @@ proc ::tclmesh::private::_prepare_inputs {profile_name circuit inputs} {
         }
         if {[dict get $handle type] ne $type} {
             return -code error                 -errorcode [::list TCLMESH PRIVATE HANDLE TYPE_MISMATCH $name]                 "input '$name' handle has the wrong logical type"
+        }
+        if {$width ne "" && !([dict exists $handle range] &&
+                [::tclmesh::range::_within [dict get $handle range] $declared])} {
+            return -code error -errorcode [::list TCLMESH PRIVATE RANGE OUT_OF_RANGE $name] \
+                "input '$name' handle is not known to lie in its declared range"
         }
 
         dict set prepared $name [::list cipher [dict get $handle token]]
@@ -551,6 +615,11 @@ proc ::tclmesh::private::_evaluate {profile_name circuit inputs manifest_binding
     set backend [dict get $profile backend]
     set backend_descriptor [::tclmesh::private::backend::describe $backend]
     set command [dict get $backend_descriptor command]
+    set width [_checked_width $profile]
+    set ranges {}
+    if {$width ne ""} {
+        set ranges [::tclmesh::range::require $circuit $width]
+    }
     set prepared [_prepare_inputs $profile_name $circuit $inputs]
 
     set circuit_hash [digest $circuit]
@@ -570,8 +639,12 @@ proc ::tclmesh::private::_evaluate {profile_name circuit inputs manifest_binding
             circuit_hash $circuit_hash \
             output_name $name \
             output_spec [::tclmesh::manifest::_canonical_sequence $type_descriptor]]]
+        set range {}
+        if {$width ne ""} {
+            set range [dict get $ranges [dict get $circuit metadata output_nodes $name]]
+        }
         dict set outputs $name [_new_handle \
-            $profile_name $type $backend [dict get $output_tokens $name] evaluate $binding]
+            $profile_name $type $backend [dict get $output_tokens $name] evaluate $binding $range]
     }
 
     return $outputs
