@@ -4,7 +4,7 @@
 
 [finite_math_kernels]
 repository = "larsbx/finite-math-kernels"
-commit = "6388c82a3ec03bc9c516a156d2b6527ca10afe23"
+commit = "c48568f57e1970ccfd5e20c6bb972ccda5c1ea46"
 contract = "kernel/finite_exact/word_range.mojo"
 specification = "docs/word-range-analysis.md"
 
