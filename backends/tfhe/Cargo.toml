@@ -1,0 +1,11 @@
+[package]
+name = "tclmesh-tfhe"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "TFHE-rs backend for TclMesh private circuits, over a JSON-lines protocol"
+publish = false
+
+[dependencies]
+tfhe = { version = "=1.8.2", features = ["integer"] }
+serde_json = "1"

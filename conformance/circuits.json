@@ -1,0 +1,84 @@
+{
+ "vectors": [
+  {
+   "id": "max-bid",
+   "circuit": {
+    "name": "max-bid",
+    "inputs": {"a": ["cipher", "int"], "b": ["cipher", "int"], "reserve": ["public", "int"]},
+    "outputs": {"winner": ["cipher", "int"], "above": ["cipher", "bool"], "margin": ["cipher", "int"]},
+    "nodes": {
+     "na": ["input", "a"], "nb": ["input", "b"], "nr": ["input", "reserve"],
+     "gt": ["greater-than", "na", "nb"], "best": ["select", "gt", "na", "nb"],
+     "above": ["greater-than", "best", "nr"], "ab": ["subtract", "na", "nb"],
+     "ba": ["subtract", "nb", "na"], "margin": ["select", "gt", "ab", "ba"]
+    },
+    "output_nodes": {"winner": "best", "above": "above", "margin": "margin"}
+   },
+   "inputs": {"a": "70", "b": "40", "reserve": "50"},
+   "variants": [{"a": "10", "b": "90"}, {"a": "5", "b": "5"}, {"a": "-3", "b": "2"}]
+  },
+  {
+   "id": "nested-select",
+   "circuit": {
+    "name": "clamp",
+    "inputs": {"x": ["cipher", "int"], "lo": ["public", "int"], "hi": ["public", "int"]},
+    "outputs": {"y": ["cipher", "int"]},
+    "nodes": {
+     "nx": ["input", "x"], "nlo": ["input", "lo"], "nhi": ["input", "hi"],
+     "below": ["less-than", "nx", "nlo"], "over": ["greater-than", "nx", "nhi"],
+     "inner": ["select", "over", "nhi", "nx"], "y": ["select", "below", "nlo", "inner"]
+    },
+    "output_nodes": {"y": "y"}
+   },
+   "inputs": {"x": "15", "lo": "0", "hi": "10"},
+   "variants": [{"x": "-4"}, {"x": "7"}, {"x": "10"}]
+  },
+  {
+   "id": "polynomial-score",
+   "circuit": {
+    "name": "score",
+    "inputs": {"x": ["cipher", "int"], "w": ["public", "int"]},
+    "outputs": {"s": ["cipher", "int"], "pass": ["cipher", "bool"]},
+    "nodes": {
+     "nx": ["input", "x"], "nw": ["input", "w"],
+     "p": ["polynomial", "nx", "1 2 3"], "s": ["multiply", "p", "nw"],
+     "t": ["constant", "100"], "pass": ["greater-or-equal", "s", "t"]
+    },
+    "output_nodes": {"s": "s", "pass": "pass"}
+   },
+   "inputs": {"x": "2", "w": "3"},
+   "variants": [{"x": "0"}, {"x": "-5"}, {"x": "9"}]
+  },
+  {
+   "id": "vector-sum",
+   "circuit": {
+    "name": "sum",
+    "inputs": {"v": ["cipher", "list"], "k": ["public", "int"]},
+    "outputs": {"total": ["cipher", "int"], "first": ["cipher", "int"]},
+    "nodes": {
+     "nv": ["input", "v"], "r": ["rotate", "nv", "1"], "total": ["reduce-sum", "r"],
+     "zero": ["constant", "0"], "first": ["add", "total", "zero"]
+    },
+    "output_nodes": {"total": "total", "first": "first"}
+   },
+   "inputs": {"v": "1 2 3", "k": "1"},
+   "variants": [{"v": "4 5 6"}, {"v": "0 0 0"}]
+  },
+  {
+   "id": "boolean-policy",
+   "circuit": {
+    "name": "policy",
+    "inputs": {"member": ["cipher", "bool"], "age": ["cipher", "int"], "limit": ["public", "int"]},
+    "outputs": {"ok": ["cipher", "bool"]},
+    "nodes": {
+     "nm": ["input", "member"], "na": ["input", "age"], "nl": ["input", "limit"],
+     "adult": ["greater-or-equal", "na", "nl"], "notm": ["not", "nm"],
+     "either": ["or", "nm", "adult"], "ok": ["and", "either", "adult"]
+    },
+    "output_nodes": {"ok": "ok"}
+   },
+   "inputs": {"member": "1", "age": "20", "limit": "18"},
+   "variants": [{"member": "0", "age": "12"}, {"member": "0", "age": "40"}, {"member": "1", "age": "7"}]
+  }
+ ]
+}

@@ -6,4 +6,7 @@ import TclMesh.Release
 import TclMesh.Deontic
 import TclMesh.Canonical
 import TclMesh.Decimal
+import TclMesh.Predicate
 import TclMesh.Kernel
+import TclMesh.Circuit
+import TclMesh.Certificate

@@ -1,4 +1,5 @@
 a3d868cf9b3066a770380c74e72b3aea2026ac7114a5431971eecf3917fa1b8f  kernel/core/Cargo.toml
 f28dab9ca595f6fdde0945149d6b004144bbaeb416ac6a0ecbd782788a237ff7  kernel/core/src/decimal.rs
 347dad1cbec337cab7e1d5578701815fb6f94a2886a5a05c8ed668ff071ac857  kernel/core/src/deontic.rs
-3cbb73f5761f6e30d3ee97e22c545142daa51c60cb011de0db0c57a2dc5ff888  kernel/core/src/lib.rs
+918185cbbf3e25ef759672cecc3ddeaeb9752e29429fd3817270ce19708e91a0  kernel/core/src/lib.rs
+490d4e02feb63026bc0e445e04a425d395a38d4ddb03d2324a15b792019a57f7  kernel/core/src/predicate.rs

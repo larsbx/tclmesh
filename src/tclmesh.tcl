@@ -15,6 +15,9 @@ foreach file {
     language.tcl
     workflow.tcl
     private.tcl
+    views.tcl
+    certificate.tcl
+    tfhe.tcl
     release.tcl
     release_policy.tcl
 } {
@@ -35,6 +38,8 @@ namespace eval ::tclmesh {
         language ::tclmesh::language
         workflow ::tclmesh::workflow
         private  ::tclmesh::private
+        views    ::tclmesh::views
+        certificate ::tclmesh::certificate
         release  ::tclmesh::release
     }
 }

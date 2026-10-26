@@ -1,4 +1,4 @@
-import TclMesh.Decimal
+import TclMesh.Predicate
 import TclMesh.Deontic
 
 /-!
@@ -24,11 +24,6 @@ inductive Value where
   | other
   deriving Repr, Inhabited
 
-abbrev Fault := List String
-abbrev R := Except Fault
-
-def fault (code : List String) : Fault := "TCLMESH" :: code
-def refuse {α} (reason : String) : R α := .error (fault ["KERNEL", "NON_CANONICAL", reason])
 def noncanonical {α} (id field : String) : R α := .error (fault ["ACTION", "NON_CANONICAL", id, field])
 
 def string : Value → R String
@@ -55,46 +50,6 @@ def sequence (d : List (String × Value)) (k : String) : R (List Value) :=
   match get d k with
   | none => pure []
   | some v => array v
-
-/-! ## Canonical lists -/
-
-def isSpace (c : Char) : Bool := c = ' ' || c = '\t' || c = '\n' || c = '\x0b' || c = '\x0c' || c = '\r'
-
-/-- Content of a brace group up to its matching close, and the rest. -/
-def braced : Nat → List Char → List Char → Option (List Char × List Char)
-  | _, [], _ => none
-  | 0, '}' :: rest, acc => some (acc.reverse, rest)
-  | d + 1, '}' :: rest, acc => braced d rest ('}' :: acc)
-  | d, '{' :: rest, acc => braced (d + 1) rest ('{' :: acc)
-  | d, c :: rest, acc => braced d rest (c :: acc)
-
-def listElems : (fuel : Nat) → List Char → Option (List String)
-  | 0, _ => none
-  | fuel + 1, cs =>
-    match cs.dropWhile isSpace with
-    | [] => some []
-    | '{' :: rest => do
-        let (body, rest) ← braced 0 rest []
-        match rest with
-        | c :: _ => if isSpace c then (String.ofList body :: ·) <$> listElems fuel rest else none
-        | [] => some [String.ofList body]
-    | cs' =>
-        let word := cs'.takeWhile (fun c => !isSpace c)
-        (String.ofList word :: ·) <$> listElems fuel (cs'.dropWhile (fun c => !isSpace c))
-
-/-- Bare words and brace groups only: no backslash, no double quote. -/
-def parseList (s : String) : Option (List String) :=
-  let cs := s.toList
-  if cs.any (fun c => c = '\\' || c = '"') then none else listElems (cs.length + 1) cs
-
-/-- A list element Tcl renders without backslashes or quotes. -/
-def plainElement (s : String) : Bool :=
-  let step : Option Nat → Char → Option Nat := fun d c => d.bind fun d =>
-    if c = '\\' || c = '"' then none
-    else if c = '{' then some (d + 1)
-    else if c = '}' then (if d = 0 then none else some (d - 1))
-    else some d
-  s.toList.foldl step (some 0) = some 0
 
 /-! ## Validation -/
 
@@ -213,74 +168,48 @@ def scalar (s : Scope) (v : Value) : R String := do
   | .str x => pure x
   | _ => refuse "scalar"
 
-def number (op text : String) : R Decimal.Dec :=
-  match Decimal.parse text with
-  | some n => pure n
-  | none => throw (fault ["ACTION", "PREDICATE", "NON_NUMERIC", op])
+/-- A resolved operand: bytes, list elements, or the fault resolution raised. -/
+def res (s : Scope) (v : Value) : Res :=
+  match value s v with
+  | .error f => .fault f
+  | .ok (.str x) => .str (utf8 x)
+  | .ok (.arr xs) => .arr (xs.map fun | .str y => some (utf8 y) | _ => none)
+  | .ok _ => .other
 
-def nonCanonicalList {α} : R α := throw (fault ["ACTION", "PREDICATE", "NON_CANONICAL_LIST"])
+/-- Constants, comparisons, membership, containment. -/
+def lowerLeaf (s : Scope) : String → List Value → Pred
+  | "true", _ => .tt
+  | "false", _ => .ff
+  | "eq", [a, b] => .eq (res s a) (res s b)
+  | "neq", [a, b] => .neq (res s a) (res s b)
+  | "lt", [a, b] => .cmp .lt (res s a) (res s b)
+  | "lte", [a, b] => .cmp .lte (res s a) (res s b)
+  | "gt", [a, b] => .cmp .gt (res s a) (res s b)
+  | "gte", [a, b] => .cmp .gte (res s a) (res s b)
+  | "in", [n, h] => .mem (res s n) (res s h)
+  | "contains", [h, n] => .contains (res s h) (res s n)
+  | _, _ => .fail (refusal "shape")
 
-/-- Membership. Over a list value every element is validated first, as Tcl
-renders the whole list: one non-canonical element rejects it. -/
-def member (needle : String) : Value → R Bool
-  | .str text => match parseList text with
-    | some items => pure (items.contains needle)
-    | none => nonCanonicalList
-  | .arr items => do pure ((← elements items).contains needle)
-  | _ => refuse "list"
-where
-  elements : List Value → R (List String)
-    | [] => pure []
-    | x :: xs => do
-      let s ← string x
-      if !plainElement s then nonCanonicalList else (s :: ·) <$> elements xs
-
-def isInfix (needle hay : List Char) : Bool :=
-  match hay with
-  | [] => needle.isEmpty
-  | _ :: rest => needle.isPrefixOf hay || isInfix needle rest
-
-def holds (op : String) (o : Ordering) : Bool :=
-  match op with
-  | "lt" => o == .lt
-  | "lte" => o != .gt
-  | "gt" => o == .gt
-  | _ => o != .lt
-
-/-- Non-recursive predicates: constants, comparisons, membership, containment. -/
-def leaf (s : Scope) (op : String) (args : List Value) : R Bool :=
-  match op, args with
-  | "true", _ => pure true
-  | "false", _ => pure false
-  | "eq", [a, b] => do pure ((← scalar s a) == (← scalar s b))
-  | "neq", [a, b] => do pure ((← scalar s a) != (← scalar s b))
-  | "in", [n, h] => do
-      let needle ← scalar s n
-      member needle (← value s h)
-  | "contains", [h, n] => do
-      let hay ← scalar s h
-      let needle ← scalar s n
-      pure (!needle.isEmpty && isInfix needle.toList hay.toList)
-  | op, [a, b] => do
-      -- lt, lte, gt, gte (validated); both operands evaluate before parsing
-      let l ← scalar s a
-      let r ← scalar s b
-      pure (holds op ((← number op l).cmp (← number op r)))
-  | _, _ => refuse "shape"
-
-def predicate (s : Scope) : Value → R Bool
-  | .arr [.str "not", child] => (!·) <$> predicate s child
+/-- Resolves every operand of a predicate; `and`/`or` become right-nested. -/
+def lower (s : Scope) : Value → Pred
+  | .arr [.str "not", child] => .not (lower s child)
   | .arr (.str "and" :: cs) => all cs
   | .arr (.str "or" :: cs) => any cs
-  | .arr (op :: args) => do leaf s (← string op) args
-  | _ => refuse "shape"
+  | .arr (op :: args) => match string op with
+    | .ok o => lowerLeaf s o args
+    | .error f => .fail f
+  | _ => .fail (refusal "shape")
 where
-  all : List Value → R Bool
-    | [] => pure true
-    | c :: cs => do if ← predicate s c then all cs else pure false
-  any : List Value → R Bool
-    | [] => pure false
-    | c :: cs => do if ← predicate s c then pure true else any cs
+  all : List Value → Pred
+    | [] => .tt
+    | c :: cs => .and (lower s c) (all cs)
+  any : List Value → Pred
+    | [] => .ff
+    | c :: cs => .or (lower s c) (any cs)
+
+/-- Predicate evaluation: resolution, then decision. Resolution is pure, so
+resolving operands that short-circuiting never inspects changes nothing. -/
+def predicate (s : Scope) (v : Value) : R Bool := (lower s v).eval
 
 /-- Insert or overwrite in place (Tcl `dict set`). -/
 def dictSet (kvs : List (String × α)) (k : String) (v : α) : List (String × α) :=
@@ -341,34 +270,7 @@ namespace TclMesh.Kernel
 /-- **Negation cannot launder a fault**, in the executable kernel itself. -/
 theorem not_permits (s : Scope) (c : Value) :
     predicate s (.arr [.str "not", c]) = .ok true ↔ predicate s c = .ok false := by
-  rw [predicate]
-  cases predicate s c with
-  | error f => simp [Functor.map, Except.map]
-  | ok b => cases b <;> simp [Functor.map, Except.map]
-
-/-- **Ordered comparisons are fail-closed** in the executable kernel: success
-means both operands were canonical decimals, compared exactly. -/
-theorem cmp_ok (s : Scope) (op : String) (a b : Value) (r : Bool)
-    (hop : op ∈ ["lt", "lte", "gt", "gte"])
-    (h : leaf s op [a, b] = .ok r) :
-    ∃ l r' x y, scalar s a = .ok l ∧ scalar s b = .ok r' ∧ Decimal.parse l = some x ∧
-      Decimal.parse r' = some y ∧ r = holds op (x.cmp y) := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hop
-  rcases hop with rfl | rfl | rfl | rfl <;>
-  · simp only [leaf, bind, Except.bind, pure, Except.pure] at h
-    cases ha : scalar s a with
-    | error f => simp [ha] at h
-    | ok l =>
-      cases hb : scalar s b with
-      | error f => simp [ha, hb] at h
-      | ok r' =>
-        cases hx : Decimal.parse l with
-        | none => simp [ha, hb, number, hx, throw, throwThe, MonadExceptOf.throw] at h
-        | some x =>
-          cases hy : Decimal.parse r' with
-          | none => simp [ha, hb, number, hx, hy, throw, throwThe, MonadExceptOf.throw, pure, Except.pure] at h
-          | some y =>
-            simp [ha, hb, number, hx, hy, pure, Except.pure] at h
-            exact ⟨l, r', x, y, rfl, rfl, hx, hy, h.symm⟩
+  simp only [predicate, lower]
+  exact not_ok_true _
 
 end TclMesh.Kernel

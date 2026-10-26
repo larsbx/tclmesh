@@ -69,6 +69,11 @@
     "trailing-fraction-zeros-equal": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "negative-exponent-exact": {"status":"ok","verdict":"M","changes":[],"effects":[]},
     "in-array-match-before-noncanonical-element": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_CANONICAL_LIST"]},
-    "in-array-match-before-unbalanced-element": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_CANONICAL_LIST"]}
+    "in-array-match-before-unbalanced-element": {"status":"error","code":["TCLMESH","ACTION","PREDICATE","NON_CANONICAL_LIST"]},
+    "contains-utf8": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "contains-utf8-absent": {"status":"error","code":["TCLMESH","ACTION","AUTHORIZATION","DENIED"]},
+    "in-list-text-utf8": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "in-array-utf8": {"status":"ok","verdict":"M","changes":[],"effects":[]},
+    "eq-utf8": {"status":"ok","verdict":"M","changes":[],"effects":[]}
   }
 }

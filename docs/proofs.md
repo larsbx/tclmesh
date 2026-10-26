@@ -67,14 +67,21 @@ typing rule:
 `TclMesh/Kernel.lean` is a total model of the Tier A kernel over the typed data
 model: descriptor validation with the same fault codes, authorization,
 deontic resolution through `Deontic.resolve`, validations, sequential changes,
-and effects. `lake exe spec-eval VECTORS` runs it, and CI requires the Rust
+and effects. Predicates are evaluated in two stages: `Kernel.lower` resolves
+every operand against the state and request (to UTF-8 bytes, list elements,
+or the fault resolution raised) and makes `and`/`or` binary; then
+`TclMesh/Predicate.lean`'s `Pred.eval` decides the result. Resolution is pure, so
+resolving operands that short-circuiting never inspects changes nothing. `lake exe spec-eval VECTORS` runs it, and CI requires the Rust
 kernel to reproduce every outcome exactly, on the curated vectors and on
 seeded random ones.
 
 ## Rust refinement (Aeneas)
 
 `kernel/core` is the dependency-free part of the Rust kernel that the running
-kernel calls for decimal parsing and comparison and for deontic resolution. It is written in
+kernel calls for predicate decisions (with decimal parsing and comparison,
+canonical lists, and byte-level containment) and for deontic resolution. The
+kernel lowers each JSON predicate to `predicate::Pred` exactly as
+`Kernel.lower` does, and `predicate::eval` decides it. It is written in
 the subset Aeneas translates: loops without early return, slices, `Vec`, enums,
 no `?` on `Option`, no traits beyond derives.
 
@@ -96,7 +103,32 @@ fails if they change without regeneration. The model contains no axioms.
 | | `push_digits_loop_spec`, `mantissa_spec` | dropping leading zeros preserves the value `digitsVal (int ++ frac)` and yields digits without a leading zero |
 | | `parse_spec` | **Rust `decimal::parse` returns exactly `TclMesh.Decimal.parseBytes` of the input bytes (under `absDec`), refusing only inputs longer than `u32::MAX` bytes, and every decimal it returns is well formed** |
 | | `parse_compare_spec` | **end to end: parsing two operands and comparing them in Rust is the specification's comparison of their bytes** |
+| `Predicate` | `range_eq_spec`, `bytes_eq_spec`, `is_infix_spec` | byte equality, and containment exactly as `isInfix` |
+| | `plain_element_spec`, `has_quote_loop_spec` | the plain-element scan is `plainElement`; the quote scan is `List.any` |
+| | `group_end_loop_spec`, `list_item_spec`, `list_member_loop_spec`, `list_member_spec` | brace groups scan as `braced`; one element as `listElems` takes it; **membership in a text list is `parseList` then `contains`** |
+| | `items_member_loop_spec`, `member_spec` | membership in a list value validates every element as `elements` does, then tests containment |
+| | `compare_spec`, `holds_spec` | ordered comparisons parse both operands with `parseBytes` and test the order |
+| | `eval_spec` | **Rust `predicate::eval` decides every resolved predicate exactly as `TclMesh.Kernel.Pred.eval`, faults included, for comparison operands of at most `u32::MAX` bytes** |
 | `Digits` | `lex_eq_compare`, `val_lt`, `val_ge`, `val_append_zeros` | lexicographic order of equal-length digit strings is numeric order; length bounds; zero padding multiplies by `10^p` |
+
+### Computational security
+
+`proof/TclMeshProof/Security.lean` connects the structural theorems to
+computational security by a concrete-security hybrid argument. A
+distinguisher `D` of two views of `n` ciphertexts under one key yields
+explicit non-adaptive IND-CPA adversaries: `reduction D i` queries the
+encryption oracle on the other `n − 1` hybrid messages and runs `D` once.
+
+| Theorem | Statement |
+|---|---|
+| `game_reduction` | the IND-CPA game against `reduction D i` is exactly a view with the challenge at position `i` |
+| `view_hybrid` | `Adv_view(D) ≤ Σ i, Adv_cpa(reduction D i)` |
+| `view_bound` | if every non-adaptive IND-CPA adversary has advantage at most `ε` (a named hypothesis), views are `n·ε`-close |
+| `leakage_bound` | views that agree on their public part (as the structural theorems guarantee for leakage-equivalent inputs) are `n·ε`-close |
+| `completeness`, `special_soundness`, `hvzk`, `hvzk_prob` | Schnorr's Σ-protocol, in the exponent model `ZMod q`: honest proofs verify; two transcripts with one commitment determine the witness; real and simulated transcripts have equal distributions |
+
+`security/` tests the same properties empirically on implementations
+(`docs/testing.md`).
 
 The proofs use Aeneas's Lean library and Mathlib, both at pinned versions
 (`proof/lakefile.toml`). The audit (`lake env lean Audit.lean`) checks every
@@ -109,8 +141,9 @@ These are listed in the [roadmap](roadmap.md#formal-methods-first):
 
 - full refinement of the executable kernel against the `Canonical` and `Flow`
   models (beyond the two lemmas above);
-- moving the remaining kernel evaluation (predicates, paths, changes, effects)
-  into `kernel/core` and refining it the same way;
+- lowering (operand resolution along paths), validation, changes and effects,
+  which the Rust kernel implements outside `kernel/core` and which are covered
+  by exact conformance with the executable specification only;
 - ciphertext and labels in the kernel IR;
 - per-mechanism lemmas under cryptographic assumptions;
 - noise-budget soundness;

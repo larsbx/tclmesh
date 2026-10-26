@@ -1,0 +1,36 @@
+name: tfhe
+
+# Real homomorphic evaluation: builds the TFHE-rs backend (minutes) and runs
+# the exemplar corpus through it. Nightly, and on demand.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  tfhe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TCL
+        run: sudo apt-get update && sudo apt-get install -y tcl8.6 tcllib
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backends/tfhe/target
+          key: tfhe-${{ hashFiles('backends/tfhe/Cargo.lock') }}
+      - name: Build the TFHE backend
+        run: cargo build --release --locked --manifest-path backends/tfhe/Cargo.toml
+      - name: The backend is registered (TFHE tests must not be skipped)
+        run: |
+          tclsh <<'EOF2'
+          lappend auto_path [pwd]
+          package require tclmesh
+          if {"tfhe" ni [tclmesh private backend list]} { puts "tfhe backend not registered"; exit 1 }
+          EOF2
+      - name: Exemplars under TFHE (correctness, oblivious traces, sizes, release)
+        run: tclsh tests/all.tcl -file tfhe.test

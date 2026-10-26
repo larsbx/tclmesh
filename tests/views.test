@@ -1,0 +1,76 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+
+# Per-party views (docs/testing.md): what each party observes must equal what
+# the manifest lets it learn, and runs that agree on that must look the same.
+
+foreach mode {transparent lazy sized} {
+    if {[catch {tclmesh private profile describe views-$mode}]} {
+        tclmesh private profile define views-$mode [dict create \
+            backend views-$mode semantics exact-integer allow_decrypt true]
+    }
+}
+
+# Oblivious decisions over two secret bids and a public reserve: the larger
+# bid, whether it clears the reserve, and the margin |a - b|. The margin's
+# branches are computed only inside `select`, so a lazy evaluator's trace
+# reveals which bid is larger: a test circuit must exercise a leak for the
+# harness to see it.
+proc ::views_circuit {} {
+    tclmesh private circuit max-bid \
+        [dict create a {cipher int} b {cipher int} reserve {public int}] \
+        [dict create winner {cipher int} above {cipher bool} margin {cipher int}] \
+        [dict create \
+            na [tclmesh private node input a] \
+            nb [tclmesh private node input b] \
+            nr [tclmesh private node input reserve] \
+            gt [tclmesh private node greater-than na nb] \
+            best [tclmesh private node select gt na nb] \
+            above [tclmesh private node greater-than best nr] \
+            ab [tclmesh private node subtract na nb] \
+            ba [tclmesh private node subtract nb na] \
+            margin [tclmesh private node select gt ab ba]] \
+        [dict create output_nodes [dict create winner best above above margin margin]]
+}
+
+proc ::views_inputs {} { dict create a 70 b 40 reserve 50 }
+proc ::views_variants {} {
+    list {a 10 b 90} {a 5 b 5} {a 100000 b 1} {a -3 b 2}
+}
+
+test V-001-oblivious-backend {transparent backend views equal the declared views} -body {
+    tclmesh views paired views-transparent [::views_circuit] [::views_inputs] [::views_variants]
+} -result {}
+
+test V-002-declared-evaluator-view {the evaluator learns the trace, publics and types only} -body {
+    set view [lindex [dict get [tclmesh views declared [::views_circuit] [::views_inputs]] evaluator] 0]
+    list [dict get $view inputs] [lmap step [dict get $view trace] {lindex $step 1}] [dict get $view outputs]
+} -result {{a {cipher int} b {cipher int} reserve {public int 50}} {input input greater-than select input greater-than subtract subtract select} {above {cipher bool} margin {cipher int} winner {cipher int}}}
+
+test V-003-recipient-view {the recipient learns the outputs} -body {
+    dict get [tclmesh views run views-transparent [::views_circuit] [::views_inputs]] recipient
+} -result {above 1 margin 30 winner 70}
+
+test V-004-calibration-lazy-select {a data-dependent trace is detected} -body {
+    set findings [tclmesh views paired views-lazy [::views_circuit] [::views_inputs] [::views_variants]]
+    expr {[llength $findings] > 0 && [lindex $findings 0 0] in {declared paired}}
+} -result 1
+
+test V-005-calibration-sized-ciphertext {plaintext-dependent ciphertext size is detected by paired runs} -body {
+    set findings [tclmesh views paired views-sized [::views_circuit] [::views_inputs] [::views_variants]]
+    lsort -unique [lmap f $findings {lindex $f 0}]
+} -result {paired}
+
+test V-007-sizes-are-observed {sizes in either token field enter the view} -body {
+    list [::tclmesh::views::_cipher_view int {value 1 size 4}] \
+        [::tclmesh::views::_cipher_view int {tfhe 3 bytes 264100}] \
+        [::tclmesh::views::_cipher_view int {value 1}]
+} -result {{cipher int size 4} {cipher int size 264100} {cipher int}}
+
+test V-006-schedule-is-syntactic {the schedule depends only on the circuit} -body {
+    tclmesh views schedule [::views_circuit]
+} -result {na nb gt best nr above ab ba margin}
+
+cleanupTests

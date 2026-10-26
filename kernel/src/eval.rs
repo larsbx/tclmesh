@@ -9,9 +9,9 @@
 //! Data model: JSON strings are Tcl scalars, arrays are Tcl lists, objects are
 //! Tcl dicts. Numbers, booleans and null have no canonical meaning.
 
-use crate::{deontic, list, num};
+use crate::deontic;
 use serde_json::{json, Map, Value};
-use std::cmp::Ordering;
+use tclmesh_kernel_core::predicate as core;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fault {
@@ -207,82 +207,98 @@ fn scalar<'a>(v: &'a Value, s: &Scope<'a>) -> R<&'a str> {
     value(v, s)?.as_str().ok_or_else(|| Fault::kernel("scalar"))
 }
 
-fn number(op: &str, text: &str) -> R<num::Num> {
-    num::parse(text).ok_or_else(|| Fault::new(&["ACTION", "PREDICATE", "NON_NUMERIC", op]))
-}
-
-fn noncanonical_list() -> Fault {
-    Fault::new(&["ACTION", "PREDICATE", "NON_CANONICAL_LIST"])
-}
-
-/// A list element that Tcl renders without backslashes or double quotes:
-/// none of either, and braces balanced so brace-quoting suffices.
-fn plain_element(item: &Value) -> R<&str> {
-    let text = string(item)?;
-    let depth = text.chars().try_fold(0usize, |depth, c| match c {
-        '\\' | '"' => None,
-        '{' => Some(depth + 1),
-        '}' => depth.checked_sub(1),
-        _ => Some(depth),
-    });
-    match depth {
-        Some(0) => Ok(text),
-        _ => Err(noncanonical_list()),
+/// Resolves an operand for the verified decision core, recording any fault.
+fn res(v: &Value, s: &Scope, faults: &mut Vec<Fault>) -> core::Res {
+    match value(v, s) {
+        Err(f) => core::Res::Fault(record(faults, f)),
+        Ok(Value::String(x)) => core::Res::Str(x.as_bytes().to_vec()),
+        Ok(Value::Array(items)) => core::Res::Arr(
+            items
+                .iter()
+                .map(|x| x.as_str().map(|y| y.as_bytes().to_vec()))
+                .collect(),
+        ),
+        Ok(_) => core::Res::Other,
     }
 }
 
-fn member(needle: &str, haystack: &Value) -> R<bool> {
-    match haystack {
-        Value::String(text) => Ok(list::parse(text)
-            .ok_or_else(noncanonical_list)?
-            .contains(&needle)),
-        // Every element is validated before membership is decided: Tcl renders
-        // the whole list, so one non-canonical element rejects it.
-        Value::Array(items) => Ok(items
-            .iter()
-            .map(plain_element)
-            .collect::<R<Vec<_>>>()?
-            .contains(&needle)),
-        _ => Err(Fault::kernel("list")),
+fn record(faults: &mut Vec<Fault>, f: Fault) -> usize {
+    faults.push(f);
+    faults.len() - 1
+}
+
+fn lower_leaf(op: &str, args: &[Value], s: &Scope, faults: &mut Vec<Fault>) -> core::Pred {
+    use core::{CmpOp, Pred};
+    let binary = |f: fn(core::Res, core::Res) -> Pred, faults: &mut Vec<Fault>| {
+        let a = res(&args[0], s, faults);
+        f(a, res(&args[1], s, faults))
+    };
+    match (op, args.len()) {
+        ("true", _) => Pred::True,
+        ("false", _) => Pred::False,
+        ("eq", 2) => binary(Pred::Eq, faults),
+        ("neq", 2) => binary(Pred::Neq, faults),
+        ("lt", 2) => binary(|a, b| Pred::Cmp(CmpOp::Lt, a, b), faults),
+        ("lte", 2) => binary(|a, b| Pred::Cmp(CmpOp::Lte, a, b), faults),
+        ("gt", 2) => binary(|a, b| Pred::Cmp(CmpOp::Gt, a, b), faults),
+        ("gte", 2) => binary(|a, b| Pred::Cmp(CmpOp::Gte, a, b), faults),
+        ("in", 2) => binary(Pred::Mem, faults),
+        ("contains", 2) => binary(Pred::Contains, faults),
+        _ => Pred::Fail(record(faults, Fault::kernel("shape"))),
+    }
+}
+
+/// Lowers a predicate to the verified core, as `TclMesh.Kernel.lower` does:
+/// operands resolved, `and`/`or` right-nested.
+fn lower(p: &Value, s: &Scope, faults: &mut Vec<Fault>) -> core::Pred {
+    use core::Pred;
+    let nested = |cs: &[Value], faults: &mut Vec<Fault>, and: bool| {
+        cs.iter()
+            .rev()
+            .fold(if and { Pred::True } else { Pred::False }, |acc, c| {
+                let c = Box::new(lower(c, s, faults));
+                if and {
+                    Pred::And(c, Box::new(acc))
+                } else {
+                    Pred::Or(c, Box::new(acc))
+                }
+            })
+    };
+    match p.as_array().map(Vec::as_slice) {
+        Some([Value::String(not), child]) if not == "not" => {
+            Pred::Not(Box::new(lower(child, s, faults)))
+        }
+        Some([Value::String(and), cs @ ..]) if and == "and" => nested(cs, faults, true),
+        Some([Value::String(or), cs @ ..]) if or == "or" => nested(cs, faults, false),
+        Some([op, args @ ..]) => match op.as_str() {
+            Some(o) => lower_leaf(o, args, s, faults),
+            None => Pred::Fail(record(faults, Fault::kernel("scalar"))),
+        },
+        _ => Pred::Fail(record(faults, Fault::kernel("shape"))),
+    }
+}
+
+fn op_name(op: core::CmpOp) -> &'static str {
+    match op {
+        core::CmpOp::Lt => "lt",
+        core::CmpOp::Lte => "lte",
+        core::CmpOp::Gt => "gt",
+        core::CmpOp::Gte => "gte",
     }
 }
 
 fn predicate(p: &Value, s: &Scope) -> R<bool> {
-    let items = array(p)?;
-    let op = string(&items[0])?;
-    match op {
-        "true" => Ok(true),
-        "false" => Ok(false),
-        "eq" => Ok(scalar(&items[1], s)? == scalar(&items[2], s)?),
-        "neq" => Ok(scalar(&items[1], s)? != scalar(&items[2], s)?),
-        "lt" | "lte" | "gt" | "gte" => {
-            // Both operands are evaluated before either is checked, as in Tcl.
-            let (left, right) = (scalar(&items[1], s)?, scalar(&items[2], s)?);
-            let order = num::compare(&number(op, left)?, &number(op, right)?);
-            Ok(match op {
-                "lt" => order == Ordering::Less,
-                "lte" => order != Ordering::Greater,
-                "gt" => order == Ordering::Greater,
-                _ => order != Ordering::Less,
-            })
+    let mut faults = Vec::new();
+    let lowered = lower(p, s, &mut faults);
+    core::eval(&lowered).map_err(|e| match e {
+        core::Error::Given(i) => faults.swap_remove(i),
+        core::Error::NotScalar => Fault::kernel("scalar"),
+        core::Error::NotList => Fault::kernel("list"),
+        core::Error::NonNumeric(op) => {
+            Fault::new(&["ACTION", "PREDICATE", "NON_NUMERIC", op_name(op)])
         }
-        "in" => {
-            let needle = scalar(&items[1], s)?;
-            member(needle, value(&items[2], s)?)
-        }
-        "contains" => {
-            let haystack = scalar(&items[1], s)?;
-            let needle = scalar(&items[2], s)?;
-            Ok(!needle.is_empty() && haystack.contains(needle))
-        }
-        "and" => items[1..]
-            .iter()
-            .try_fold(true, |acc, c| Ok(acc && predicate(c, s)?)),
-        "or" => items[1..]
-            .iter()
-            .try_fold(false, |acc, c| Ok(acc || predicate(c, s)?)),
-        _ => Ok(!predicate(&items[1], s)?),
-    }
+        core::Error::NonCanonicalList => Fault::new(&["ACTION", "PREDICATE", "NON_CANONICAL_LIST"]),
+    })
 }
 
 /// Inserts or overwrites in place, preserving first-insertion order (Tcl `dict set`).

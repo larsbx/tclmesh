@@ -19,6 +19,7 @@
 
 pub mod decimal;
 pub mod deontic;
+pub mod predicate;
 
 /// Three-way order, independent of `core::cmp::Ordering` for translation.
 #[cfg_attr(test, derive(Debug))]
