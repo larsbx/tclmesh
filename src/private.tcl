@@ -4,7 +4,7 @@ namespace eval ::tclmesh::private {
         add subtract multiply negate
         equal less-than less-or-equal greater-than greater-or-equal
         and or not select
-        rotate reduce-sum lookup polynomial
+        rotate reduce-sum lookup polynomial clamp
     }
 
     variable profiles {}
@@ -56,7 +56,8 @@ proc ::tclmesh::private::_node_refs {node} {
         not -
         rotate -
         reduce-sum -
-        polynomial {
+        polynomial -
+        clamp {
             return [::list [lindex $node 1]]
         }
         add -
@@ -122,6 +123,13 @@ proc ::tclmesh::private::_validate_node {circuit id visiting visitedVar} {
         rotate {
             if {[llength $node] != 3} {
                 return -code error                     -errorcode [::list TCLMESH PRIVATE CIRCUIT INVALID_ARITY $id]                     "rotate node '$id' requires an input and offset"
+            }
+        }
+        clamp {
+            lassign $node - - lo hi
+            if {[llength $node] != 4 || ![::tclmesh::range::_int $lo] ||
+                ![::tclmesh::range::_int $hi] || $lo > $hi} {
+                return -code error                     -errorcode [::list TCLMESH PRIVATE CIRCUIT INVALID_CLAMP $id]                     "clamp node '$id' requires an input and canonical bounds lo <= hi"
             }
         }
         polynomial {
@@ -565,7 +573,8 @@ proc ::tclmesh::private::_prepare_inputs {profile_name circuit inputs} {
         if {[dict get $handle type] ne $type} {
             return -code error                 -errorcode [::list TCLMESH PRIVATE HANDLE TYPE_MISMATCH $name]                 "input '$name' handle has the wrong logical type"
         }
-        if {$width ne "" && !([dict exists $handle range] &&
+        if {$width ne "" && $declared ne [::tclmesh::range::word $width] && $type eq "int" &&
+            !([dict exists $handle range] &&
                 [::tclmesh::range::_within [dict get $handle range] $declared])} {
             return -code error -errorcode [::list TCLMESH PRIVATE RANGE OUT_OF_RANGE $name] \
                 "input '$name' handle is not known to lie in its declared range"
@@ -722,6 +731,11 @@ proc ::tclmesh::private::_reference_node {circuit id inputs cacheVar activeVar} 
         not {
             set input [_reference_node                 $circuit [lindex $node 1] $inputs cache active]
             set value [expr {!bool($input)}]
+        }
+        clamp {
+            set input [_reference_node                 $circuit [lindex $node 1] $inputs cache active]
+            lassign $node - - lo hi
+            set value [expr {max($lo, min($input, $hi))}]
         }
         select {
             set condition [_reference_node                 $circuit [lindex $node 1] $inputs cache active]

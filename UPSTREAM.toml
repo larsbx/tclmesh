@@ -4,11 +4,11 @@
 
 [finite_math_kernels]
 repository = "larsbx/finite-math-kernels"
-commit = "3ad71afe48cfe02de416200993f7fced4d2348e3"
+commit = "6388c82a3ec03bc9c516a156d2b6527ca10afe23"
 contract = "kernel/finite_exact/word_range.mojo"
 specification = "docs/word-range-analysis.md"
 
 [[finite_math_kernels.vendored]]
 path = "conformance/word_range_v1.txt"
 upstream = "conformance/word_range_v1.txt"
-sha256 = "51fe10d15d608db3210a34e2580f0a1fde1325bc05ed69d9f7c2f011bd88b11f"
+sha256 = "74dce74d01df5caf50249e04ff656de4c732fb45d31832b7bac763c3ff61e606"

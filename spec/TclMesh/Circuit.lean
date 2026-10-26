@@ -22,7 +22,7 @@ structure Circuit where
   outputNodes : List (String × String)
   deriving Repr
 
-def unaryOps : List String := ["negate", "not", "reduce-sum", "rotate", "polynomial"]
+def unaryOps : List String := ["negate", "not", "reduce-sum", "rotate", "polynomial", "clamp"]
 
 def binaryOps : List String :=
   ["add", "subtract", "multiply", "equal", "less-than", "less-or-equal", "greater-than",

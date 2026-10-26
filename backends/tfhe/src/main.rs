@@ -96,7 +96,14 @@ fn int(s: &str) -> R<i32> {
 
 fn refs(w: &[String]) -> Vec<String> {
     let op = w.first().map(String::as_str).unwrap_or("");
-    let unary = ["negate", "not", "reduce-sum", "rotate", "polynomial"];
+    let unary = [
+        "negate",
+        "not",
+        "reduce-sum",
+        "rotate",
+        "polynomial",
+        "clamp",
+    ];
     let binary = [
         "add",
         "subtract",
@@ -240,6 +247,17 @@ impl Backend {
                 "and" => Val::Bool(arg(1)?.bool() & arg(2)?.bool()),
                 "or" => Val::Bool(arg(1)?.bool() | arg(2)?.bool()),
                 "not" => Val::Bool(!arg(1)?.bool()),
+                // max/min never overflow: the declared range holds whatever
+                // the ciphertext held (`spec/TclMesh/Range.lean`, `guarded_sound`).
+                "clamp" => {
+                    let bound = |i: usize| -> R<FheInt32> {
+                        let b = w
+                            .get(i)
+                            .ok_or_else(|| format!("node {id}: missing bound"))?;
+                        Ok(FheInt32::encrypt_trivial(int(b)?))
+                    };
+                    Val::Int(arg(1)?.int().max(&bound(2)?).min(&bound(3)?))
+                }
                 "select" => {
                     let c = arg(1)?.bool();
                     match (arg(2)?, arg(3)?) {

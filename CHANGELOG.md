@@ -12,6 +12,10 @@
   arithmetic is the contract of `finite_exact/word_range.mojo` in
   larsbx/finite-math-kernels, whose corpus is vendored, pinned in
   `UPSTREAM.toml` and replayed by Tcl and Lean;
+- `clamp x lo hi` circuit operation (TFHE: homomorphic `max`/`min`) and
+  `tclmesh range guard`, which enforces declared ciphertext ranges inside the
+  circuit; `guarded_sound` proves guarded circuits exact on any ciphertext,
+  with no trusted range claim;
 - pure Tier A evaluation, `action evaluate action_id descriptor state request`,
   which `action run` now wraps;
 - **breaking:** ordered comparisons accept only canonical decimal numbers

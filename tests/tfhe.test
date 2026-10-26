@@ -109,6 +109,21 @@ test T-008-checked-overflow {the circuit that wraps under int32-wrapping is refu
     lrange [dict get $options -errorcode] 0 3
 } -result {TCLMESH PRIVATE RANGE REJECTED}
 
+test T-009-guarded-untrusted {a guarded circuit is exact on ciphertexts nobody vouches for} -constraints tfhe -body {
+    set c [dict get [::exemplars::sealed_bid] circuit]
+    foreach name {a b} { dict set c inputs $name {cipher int range 0 1000000} }
+    set g [tclmesh range guard $c]
+    lmap {a b} {120 95 2147483647 -2147483648} {
+        set out [tclmesh private evaluate tfhe-checked $g [dict create \
+            a [tclmesh private encrypt tfhe-checked int $a] \
+            b [tclmesh private encrypt tfhe-checked int $b] reserve 100]]
+        set reference [::tclmesh::private::_reference_evaluate $g [dict create a $a b $b reserve 100]]
+        lmap name {winner margin} {
+            expr {[tclmesh private decrypt [dict get $out $name]] eq [dict get $reference $name]}
+        }
+    }
+} -result {{1 1} {1 1}}
+
 # Leave no TFHE handles behind for tests that persist every live handle.
 if {[testConstraint tfhe]} {
     foreach h [tclmesh private handle list] {
