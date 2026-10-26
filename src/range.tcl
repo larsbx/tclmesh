@@ -17,12 +17,12 @@
 # ranges (`require`).
 
 namespace eval ::tclmesh::range {
-    namespace export emit check op require word
+    namespace export emit check op require word guard
     namespace ensemble create
 
     # Words after the operation, for every range-checked operation.
     variable arity {
-        constant 1 input 1 negate 1 not 1 select 3
+        constant 1 input 1 negate 1 not 1 select 3 clamp 3
         add 2 subtract 2 multiply 2 equal 2 less-than 2 less-or-equal 2
         greater-than 2 greater-or-equal 2 and 2 or 2
     }
@@ -69,6 +69,16 @@ proc ::tclmesh::range::_extend {op ranges} {
         select   { list [_min $plo $qlo] [_max $phi $qhi] }
         default  { list 0 1 }
     }
+}
+
+# The image of x -> max(lo, min(x, hi)) on a range: exact, by monotonicity.
+proc ::tclmesh::range::_clamp {p lo hi} {
+    lassign $p plo phi
+    list [_max $lo [_min $plo $hi]] [_max $lo [_min $phi $hi]]
+}
+
+proc ::tclmesh::range::_bounds {lo hi} {
+    expr {[_int $lo] && [_int $hi] && $lo <= $hi}
 }
 
 # A declared input range, or {} when the descriptor admits none.
@@ -123,6 +133,13 @@ proc ::tclmesh::range::_least {circuit id width memoVar} {
                     set k [lindex $operands 0]
                     if {[_int $k]} {
                         set result [list $k $k]
+                    }
+                }
+                clamp {
+                    lassign $operands ref lo hi
+                    set p [_least $circuit $ref $width memo]
+                    if {$p ne "" && [_bounds $lo $hi]} {
+                        set result [_clamp $p $lo $hi]
                     }
                 }
                 default {
@@ -196,6 +213,14 @@ proc ::tclmesh::range::check {circuit cert {width 32}} {
                 set k [lindex $operands 0]
                 set ok [expr {[_int $k] && [_within [list $k $k] $r]}]
             }
+            clamp {
+                lassign $operands ref lo hi
+                if {![dict exists $cert $ref] || ![_valid [dict get $cert $ref]]} {
+                    lappend violations [list unranged-operand $id $ref]
+                    continue
+                }
+                set ok [expr {[_bounds $lo $hi] && [_within [_clamp [dict get $cert $ref] $lo $hi] $r]}]
+            }
             default {
                 set ranges {}
                 foreach ref $operands {
@@ -239,6 +264,10 @@ proc ::tclmesh::range::op {op width args} {
             return refused
         }
     }
+    if {$op eq "clamp"} {
+        lassign $args p bounds
+        return [_clamp $p {*}$bounds]
+    }
     set r [_extend [dict get {add add sub subtract mul multiply neg negate hull select} $op] $args]
     expr {[_within $r $bounds] ? $r : "refused"}
 }
@@ -254,3 +283,35 @@ proc ::tclmesh::range::require {circuit width} {
     }
     return $cert
 }
+
+# The guarded form of a circuit: every ciphertext int input that declares a
+# range [lo, hi] is declared a whole word instead, and its input nodes clamp
+# it into [lo, hi] (`ID` becomes `clamp ID/raw lo hi`). The range then holds
+# by construction for whatever a ciphertext holds (`guarded_sound`): nobody
+# has to vouch for the encrypted value. On values inside their ranges the
+# guarded circuit computes what the original does.
+proc ::tclmesh::range::guard {circuit} {
+    set circuit [::tclmesh::private::validate $circuit]
+    set clamped {}
+    dict for {name descriptor} [dict get $circuit inputs] {
+        if {[lindex $descriptor 0] eq "cipher" && [lrange $descriptor 1 2] eq {int range}} {
+            set r [_input $descriptor 32]
+            if {$r ne ""} {
+                dict set clamped $name $r
+                dict set circuit inputs $name {cipher int}
+            }
+        }
+    }
+    dict for {id node} [dict get $circuit nodes] {
+        if {[lindex $node 0] eq "input" && [dict exists $clamped [lindex $node 1]]} {
+            if {[dict exists $circuit nodes $id/raw]} {
+                return -code error -errorcode [list TCLMESH RANGE GUARD NODE_EXISTS $id/raw] \
+                    "guard: node '$id/raw' already exists"
+            }
+            dict set circuit nodes $id/raw $node
+            dict set circuit nodes $id [list clamp $id/raw {*}[dict get $clamped [lindex $node 1]]]
+        }
+    }
+    return [::tclmesh::private::validate $circuit]
+}
+

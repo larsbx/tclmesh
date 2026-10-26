@@ -20,11 +20,17 @@ requires:
   the operands' ranges; `multiply`: it contains the four bound products;
 * comparisons and `and`, `or`, `not` produce `[0, 1]`;
 * `select`: the range contains both branches' ranges;
+* `clamp x lo hi` (`max lo (min x hi)`, never wrapped): the range contains
+  the clamped operand range, whatever that range is;
 * every other operation is rejected.
 
 `check_sound` proves that if the checker accepts and the inputs lie in their
 declared ranges, then wherever the exact evaluation over `ℤ` is defined, the
 wrapped evaluation is defined, equal to it, and inside the node's range.
+`guarded_sound` drops the hypothesis for circuits whose inputs declare no
+narrower range (the form `tclmesh range guard` produces, enforcing declared
+ranges with `clamp`): there it is the type invariant of a ciphertext, a
+`w`-bit word or a bit, which no party has to vouch for.
 The arithmetic (`wordMin`, `wordMax`, `wrap`, interval extension) is the
 contract of `finite_exact/word_range.mojo` in `larsbx/finite-math-kernels`,
 whose corpus is replayed against these definitions (`spec-eval --word-range`).
@@ -103,6 +109,7 @@ def semWith (f : Int → Int) : List String → List Int → Int
   | ["or", _, _], [x, y] => b2i (x != 0 || y != 0)
   | ["not", _], [x] => b2i (x == 0)
   | ["select", _, _, _], [c, a, b] => if c != 0 then a else b
+  | ["clamp", _, lo, hi], [x] => max (constVal lo) (min x (constVal hi))
   | _, _ => 0
 
 def exact : List String → List Int → Int := semWith id
@@ -148,6 +155,7 @@ def mulR (p q : Rng) : Rng :=
   (min (min (p.1 * q.1) (p.1 * q.2)) (min (p.2 * q.1) (p.2 * q.2)),
    max (max (p.1 * q.1) (p.1 * q.2)) (max (p.2 * q.1) (p.2 * q.2)))
 def hullR (p q : Rng) : Rng := (min p.1 q.1, max p.2 q.2)
+def clampR (p : Rng) (lo hi : Int) : Rng := (max lo (min p.1 hi), max lo (min p.2 hi))
 
 def two (cert : Ranges) (a b : String) (k : Rng → Rng → Bool) : Bool :=
   match cert.lookup a, cert.lookup b with
@@ -182,6 +190,9 @@ def nodeOk (c : Circuit) (cert : Ranges) (w : Nat) (r : Rng) : List String → B
   | ["not", a] => one cert a fun _ => within 0 1 r
   | ["select", k, a, b] => one cert k fun _ => two cert a b fun p q =>
       within p.1 p.2 r && within q.1 q.2 r
+  | ["clamp", a, lo, hi] => match intOf lo, intOf hi with
+    | some l, some h => decide (l ≤ h) && one cert a fun p => within (clampR p l h).1 (clampR p l h).2 r
+    | _, _ => false
   | _ => false
 
 def check (c : Circuit) (cert : Ranges) (w : Nat) : Bool :=
@@ -424,6 +435,24 @@ theorem step (c : Circuit) (cert : Ranges) (w : Nat) (inp : String → Int)
       (fun p' q' z x y hp' hq' hx hy => by
         rw [hp] at hp'; rw [hq] at hq'; cases hp'; cases hq'
         rw [inR_iff] at hx hy; simp only [exact, semWith]; rw [inR_iff]; split <;> omega) hv
+  -- a clamp: monotone, so the clamped operand range holds its value; no wrap
+  next a lo hi =>
+    cases hl : intOf lo with
+    | none => simp [hl] at hok
+    | some l =>
+      cases hh : intOf hi with
+      | none => simp [hl, hh] at hok
+      | some h =>
+        simp only [hl, hh, Bool.and_eq_true, decide_eq_true_eq, one] at hok
+        obtain ⟨-, hok⟩ := hok
+        split at hok <;> try contradiction
+        rename_i p hp; simp only [within_iff, clampR] at hok
+        exact unary (a := a) ih hw (by simp [refs, unaryOps]) (by simp)
+          (fun _ _ => by simp [wrapped, exact, semWith])
+          (fun p' x hp' hx => by
+            rw [hp] at hp'; cases hp'
+            rw [inR_iff] at hx; simp only [exact, semWith, constVal, hl, hh, Option.getD_some]
+            rw [inR_iff]; omega) hv
   -- any other operation is rejected
   next => simp at hok
 
@@ -481,6 +510,9 @@ def leastRange (c : Circuit) (w : Nat) : Nat → String → Option Rng
     | some ["multiply", a, b] => both a b mulR
     | some ["negate", a] => (at_ a).map negR
     | some ["select", k, a, b] => (at_ k).bind fun _ => both a b hullR
+    | some ["clamp", a, lo, hi] => match intOf lo, intOf hi with
+      | some l, some h => if l ≤ h then (at_ a).map fun p => clampR p l h else none
+      | _, _ => none
     | some [op, a, b] =>
       if op ∈ ["equal", "less-than", "less-or-equal", "greater-than", "greater-or-equal", "and", "or"]
       then both a b fun _ _ => (0, 1) else none
@@ -491,6 +523,35 @@ def leastRange (c : Circuit) (w : Nat) : Nat → String → Option Rng
 Whether it fits the word is the checker's decision. -/
 def certify (c : Circuit) (w : Nat) : Option Ranges :=
   c.nodes.mapM fun (id, _) => (leastRange c w (c.nodes.length + 1) id).map (id, ·)
+
+/-- No input declares a range narrower than its type. -/
+def Unranged (c : Circuit) : Prop :=
+  ∀ x d, c.inputs.lookup x = some d → d.drop 1 = ["int"] ∨ d.drop 1 = ["bool"]
+
+/-- What a `w`-bit ciphertext holds whoever encrypted it: a word, or a bit. -/
+def TypeInvariant (c : Circuit) (w : Nat) (inp : String → Int) : Prop :=
+  ∀ x d, c.inputs.lookup x = some d →
+    (d.drop 1 = ["int"] → inR (inp x) (word w) = true) ∧ (d.drop 1 = ["bool"] → inR (inp x) (0, 1) = true)
+
+theorem inputs_of_type {c : Circuit} {w : Nat} {inp : String → Int} (hu : Unranged c)
+    (ht : TypeInvariant c w inp) : InputsInRange c w inp := by
+  intro x d r hd hr
+  cases d with
+  | nil => simp [inputRange] at hr
+  | cons v rest =>
+    rcases hu x _ hd with h | h <;> simp only [List.drop_succ_cons, List.drop_zero] at h <;> subst h
+    · simp only [inputRange, Option.some.injEq] at hr; subst hr; exact (ht x _ hd).1 rfl
+    · simp only [inputRange, Option.some.injEq] at hr; subst hr; exact (ht x _ hd).2 rfl
+
+/-- **Guarded soundness**: for a circuit whose inputs declare no narrower range
+(declared ranges enforced inside it by `clamp`), acceptance alone gives
+`wrapped = exact` on every input a ciphertext can hold. Nothing is trusted
+about who encrypted the inputs. -/
+theorem guarded_sound (c : Circuit) (cert : Ranges) (w : Nat) (hc : check c cert w = true)
+    (hu : Unranged c) (inp : String → Int) (ht : TypeInvariant c w inp) :
+    ∀ n id v, evalOpt exact inp c n id = some v →
+      (∃ r, cert.lookup id = some r ∧ inR v r = true) ∧ evalOpt (wrapped w) inp c n id = some v :=
+  check_sound c cert w hc inp (inputs_of_type hu ht)
 
 /-! ## The upstream word-range contract
 
@@ -510,6 +571,7 @@ def wordOp (w : Nat) (op : String) (args : List Rng) : Option Rng :=
   | "mul", some [p, q] => fit w (mulR p q)
   | "neg", some [p] => fit w (negR p)
   | "hull", some [p, q] => fit w (hullR p q)
+  | "clamp", some [p, q] => fit w (clampR p q.1 q.2)
   | _, _ => none
 
 example : wordOp 32 "add" [(2147483647, 2147483647), (1, 1)] = none := by decide
@@ -534,5 +596,15 @@ example : ((certify boundedBid 32).map fun cert => check boundedBid cert 32) = s
 example : ((certify boundedBid 32).map fun cert =>
     check boundedBid (cert.map fun (id, r) => (id, if id = "ab" then (0, 1000000) else r)) 32) =
     some false := by decide
+
+/-- `maxBid` guarded: whole-word bids, clamped into `[0, 10^6]` inside the
+circuit. Accepted, and `guarded_sound` applies: no range claim is trusted. -/
+def guardedBid : Circuit :=
+  { maxBid with nodes := [("na/raw", ["input", "a"]), ("na", ["clamp", "na/raw", "0", "1000000"]),
+      ("nb/raw", ["input", "b"]), ("nb", ["clamp", "nb/raw", "0", "1000000"])] ++
+      maxBid.nodes.filter fun (id, _) => id ∉ ["na", "nb"] }
+
+example : ((certify guardedBid 32).map fun cert => check guardedBid cert 32) = some true := by
+  decide
 
 end TclMesh.Range

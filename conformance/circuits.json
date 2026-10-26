@@ -79,6 +79,25 @@
    },
    "inputs": {"member": "1", "age": "20", "limit": "18"},
    "variants": [{"member": "0", "age": "12"}, {"member": "0", "age": "40"}, {"member": "1", "age": "7"}]
+  },
+  {
+   "id": "guarded-bid",
+   "circuit": {
+    "name": "guarded-bid",
+    "inputs": {"a": ["cipher", "int"], "b": ["cipher", "int"], "reserve": ["public", "int"]},
+    "outputs": {"winner": ["cipher", "int"], "margin": ["cipher", "int"]},
+    "nodes": {
+     "na/raw": ["input", "a"], "na": ["clamp", "na/raw", "0", "1000000"],
+     "nb/raw": ["input", "b"], "nb": ["clamp", "nb/raw", "0", "1000000"],
+     "nr": ["input", "reserve"],
+     "gt": ["greater-than", "na", "nb"], "best": ["select", "gt", "na", "nb"],
+     "ab": ["subtract", "na", "nb"], "ba": ["subtract", "nb", "na"],
+     "margin": ["select", "gt", "ab", "ba"]
+    },
+    "output_nodes": {"winner": "best", "margin": "margin"}
+   },
+   "inputs": {"a": "120", "b": "95", "reserve": "100"},
+   "variants": [{"a": "2147483647", "b": "-2147483648"}, {"a": "7", "b": "7"}]
   }
  ]
 }

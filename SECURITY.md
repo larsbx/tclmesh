@@ -29,10 +29,12 @@ Important boundaries:
   circuit is evaluated only if its range certificate, checked by a checker
   proved sound in Lean, keeps every intermediate inside the `W`-bit word.
   Public inputs and handles are checked against their declared ranges; a fresh
-  ciphertext's range is the encrypting party's claim, checked against the
-  plaintext at `encrypt`, which a deployment that keeps plaintext away from the
-  runtime must replace with a range proof. Profiles declaring
-  `int32-wrapping` make no exactness claim;
+  ciphertext's declared range is either the encrypting party's claim, checked
+  against the plaintext at `encrypt`, or — for ciphertexts nobody vouches for —
+  enforced inside the circuit by `tclmesh range guard`, which clamps each
+  such input into its range homomorphically, so only the ciphertext type
+  (a 32-bit word) is assumed; out-of-range values are clamped, not rejected.
+  Profiles declaring `int32-wrapping` make no exactness claim;
 - governed circuits require manifest-declared release policy and role-specific
   holder/language authorization; caller identity must be authenticated by the
   trusted adapter. These checks do not authenticate cryptographic shares.

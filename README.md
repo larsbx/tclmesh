@@ -46,8 +46,9 @@ wrapping (TFHE `FheInt32`) can never occur. The arithmetic is the
 `finite_exact/word_range` contract of larsbx/finite-math-kernels (`UPSTREAM.toml`).
 
 This remains trusted-adapter plumbing: identity authentication, keyset/share
-verification, type enforcement, range proofs for ciphertext inputs (the
-encrypting party's declared range is checked at `encrypt`), and cryptographic
+verification, type enforcement, range proofs for ciphertext inputs (a
+declared range is checked at `encrypt`, or enforced by clamping with
+`tclmesh range guard`), and cryptographic
 confidentiality remain application/backend obligations. The bundled backend executes plaintext. See the [roadmap](docs/roadmap.md)
 and [security boundaries](SECURITY.md) before integrating it.
 

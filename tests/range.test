@@ -183,4 +183,37 @@ test R-012-unchecked-profiles {ranges belong to checked profiles of a supported 
             backend plaintext semantics int64-checked]}]
 } -result {{TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} {TCLMESH RANGE INVALID_WIDTH 64}}
 
+# Guarded circuits: declared ranges enforced by clamping inside the circuit,
+# so the only input hypothesis is what a ciphertext holds (`guarded_sound`).
+test R-013-guard-form {guarding declares whole words and clamps the input nodes} -body {
+    set g [tclmesh range guard $bounded_bid]
+    list [dict get $g inputs a] [dict get $g nodes na] [dict get $g nodes na/raw] [verdict $g] \
+        [dict get [tclmesh range emit $g] na]
+} -result {{cipher int} {clamp na/raw 0 1000000} {input a} {} {0 1000000}}
+
+test R-014-guarded-evaluation {guarded circuits need no range claim and agree in range} -body {
+    set g [tclmesh range guard $bounded_bid]
+    lmap {a b} {120 95 2000000 -5} {
+        set out [tclmesh private evaluate checked-open $g [dict create \
+            a [tclmesh private encrypt checked-open int $a] \
+            b [tclmesh private encrypt checked-open int $b] reserve 100]]
+        lmap name {winner margin} { tclmesh private decrypt [dict get $out $name] }
+    }
+} -result {{120 25} {1000000 1000000}}
+
+test R-015-guard-collision {guard refuses to shadow an existing node} -body {
+    set c $bounded_bid
+    dict set c nodes na/raw [tclmesh private node constant 0]
+    refusal {tclmesh range guard $c}
+} -result {TCLMESH RANGE GUARD NODE_EXISTS na/raw}
+
+test R-016-clamp-validation {clamp bounds are canonical and ordered} -body {
+    lmap bounds {{0 10} {10 0} {007 10} {0}} {
+        set c [tclmesh private circuit k [dict create x {cipher int}] [dict create y {cipher int}] \
+            [dict create nx [tclmesh private node input x] y [list clamp nx {*}$bounds]] \
+            [dict create output_nodes [dict create y y]]]
+        expr {![catch {tclmesh private validate $c}]}
+    }
+} -result {1 0 0 0}
+
 cleanupTests

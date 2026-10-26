@@ -101,8 +101,10 @@ Before a v0.3 release or a stronger claim, continue in this order:
    nonempty opaque values, not verified cryptographic shares.
 2. Add circuit type checks and approved profile compatibility. Range checks and
    checked overflow semantics are in (`int<W>-checked`, `spec/TclMesh/Range.lean`);
-   a ciphertext input's range is still the encrypting party's claim, checked at
-   `encrypt`, where it should be a range proof. Packing metadata is hashed but
+   a ciphertext input's declared range is either the encrypting party's claim,
+   checked at `encrypt`, or enforced inside the circuit by `range guard`
+   (`clamp`, `guarded_sound`), which trusts nobody but changes the result for
+   out-of-range data. A range proof would keep the claim without the clamp. Packing metadata is hashed but
    not yet semantically validated.
 3. Extend integrated acceptance and provenance reconstruction through private
    evaluation/release; audit private operations without exposing protected data.
