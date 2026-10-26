@@ -1,12 +1,23 @@
 name: tfhe
 
 # Real homomorphic evaluation: builds the TFHE-rs backend (minutes) and runs
-# the exemplar corpus through it. Nightly, and on demand.
+# the exemplar corpus through it. On relevant PRs, nightly, and on demand.
 
 on:
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/tfhe.yml'
+      - 'backends/tfhe/**'
+      - 'src/private.tcl'
+      - 'src/range.tcl'
+      - 'src/tfhe.tcl'
+      - 'tests/range.test'
+      - 'tests/tfhe.test'
+      - 'spec/TclMesh/Range.lean'
+      - 'UPSTREAM.toml'
 
 jobs:
   tfhe:

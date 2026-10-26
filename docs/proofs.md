@@ -162,3 +162,35 @@ These are listed in the [roadmap](roadmap.md#formal-methods-first):
 - per-mechanism lemmas under cryptographic assumptions;
 - noise-budget soundness;
 - differential-privacy budgets.
+
+## Checked handle and clamp admission
+
+`int<W>-checked` requires the input hypotheses of `Range.check_sound` at
+handle consumption, including `[0,1]` for Boolean handles. A Boolean label
+alone is insufficient: legacy, persisted or imported handles must carry a
+valid ordered subrange of `[0,1]`. Whole-word integer inputs still need no
+narrow-range claim, as required by `Range.guarded_sound`.
+
+Before backend evaluation, a Boolean output's certified node range must lie
+inside `[0,1]`. `Range.bit_output_sound` derives the bit invariant and exact
+wrapped result from `check_sound` and precisely this extra obligation. The
+arithmetic certificate alone makes no claim about an output descriptor's type.
+The runtime refuses a constant `2147483647` labelled `bool`; constants `0`
+and `1` may compose through Boolean handles without decryption.
+
+Both the Tcl and Lean range checkers require ordered clamp bounds inside the
+signed word. A mathematically redundant lower bound `-2147483649` is refused
+at width 32 even when clamping `0` would yield `0`. This deliberately restricts
+admission to constants representable by TFHE's `FheInt32`; exact reference
+evaluation remains available for arbitrary integer bounds. Word endpoints are
+accepted. `conformance/range_admission.json` exercises both sides of this
+boundary through the Tcl/Lean differential gate; `tests/tfhe.test` exercises
+real encrypted endpoints, Boolean handle composition and counterexample
+refusals. Relevant PRs now run the TFHE workflow before merge.
+
+`UPSTREAM.toml` pins finite-math-kernels merge `c48568f57e1970ccfd5e20c6bb972ccda5c1ea46`
+(PR #83). Its provenance correction `cd889984` regenerated the manifest entry
+for `docs/theorems/hyperbolic-rt-contract.md`; it did not relax the verifier.
+The accepted merge passed CI, Exact RT, Frontier polyglot and Julia oracle
+workflows. The vendored 1,720-row corpus is byte-identical, with its existing
+SHA-256 unchanged.

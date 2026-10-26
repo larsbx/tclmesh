@@ -1,0 +1,144 @@
+{
+  "vectors": [
+    {
+      "id": "below-i32",
+      "circuit": {
+        "name": "below-i32",
+        "inputs": {},
+        "outputs": {
+          "y": [
+            "cipher",
+            "int"
+          ]
+        },
+        "nodes": {
+          "x": [
+            "constant",
+            "0"
+          ],
+          "y": [
+            "clamp",
+            "x",
+            "-2147483649",
+            "10"
+          ]
+        },
+        "output_nodes": {
+          "y": "y"
+        }
+      }
+    },
+    {
+      "id": "above-i32",
+      "circuit": {
+        "name": "above-i32",
+        "inputs": {},
+        "outputs": {
+          "y": [
+            "cipher",
+            "int"
+          ]
+        },
+        "nodes": {
+          "x": [
+            "constant",
+            "0"
+          ],
+          "y": [
+            "clamp",
+            "x",
+            "-10",
+            "2147483648"
+          ]
+        },
+        "output_nodes": {
+          "y": "y"
+        }
+      }
+    },
+    {
+      "id": "i32-endpoints",
+      "circuit": {
+        "name": "i32-endpoints",
+        "inputs": {},
+        "outputs": {
+          "y": [
+            "cipher",
+            "int"
+          ]
+        },
+        "nodes": {
+          "x": [
+            "constant",
+            "0"
+          ],
+          "y": [
+            "clamp",
+            "x",
+            "-2147483648",
+            "2147483647"
+          ]
+        },
+        "output_nodes": {
+          "y": "y"
+        }
+      }
+    },
+    {
+      "id": "above-i8",
+      "circuit": {
+        "name": "above-i8",
+        "inputs": {},
+        "outputs": {
+          "y": [
+            "cipher",
+            "int"
+          ]
+        },
+        "nodes": {
+          "x": [
+            "constant",
+            "0"
+          ],
+          "y": [
+            "clamp",
+            "x",
+            "-10",
+            "128"
+          ]
+        },
+        "output_nodes": {
+          "y": "y"
+        }
+      }
+    },
+    {
+      "id": "i8-endpoints",
+      "circuit": {
+        "name": "i8-endpoints",
+        "inputs": {},
+        "outputs": {
+          "y": [
+            "cipher",
+            "int"
+          ]
+        },
+        "nodes": {
+          "x": [
+            "constant",
+            "0"
+          ],
+          "y": [
+            "clamp",
+            "x",
+            "-128",
+            "127"
+          ]
+        },
+        "output_nodes": {
+          "y": "y"
+        }
+      }
+    }
+  ]
+}

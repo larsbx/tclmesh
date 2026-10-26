@@ -573,8 +573,9 @@ proc ::tclmesh::private::_prepare_inputs {profile_name circuit inputs} {
         if {[dict get $handle type] ne $type} {
             return -code error                 -errorcode [::list TCLMESH PRIVATE HANDLE TYPE_MISMATCH $name]                 "input '$name' handle has the wrong logical type"
         }
-        if {$width ne "" && $declared ne [::tclmesh::range::word $width] && $type eq "int" &&
-            !([dict exists $handle range] &&
+        if {$width ne "" && $declared ne [::tclmesh::range::word $width] && !([dict exists $handle range] &&
+                [::tclmesh::range::_valid [dict get $handle range]] &&
+                [lindex [dict get $handle range] 0] <= [lindex [dict get $handle range] 1] &&
                 [::tclmesh::range::_within [dict get $handle range] $declared])} {
             return -code error -errorcode [::list TCLMESH PRIVATE RANGE OUT_OF_RANGE $name] \
                 "input '$name' handle is not known to lie in its declared range"
@@ -628,6 +629,16 @@ proc ::tclmesh::private::_evaluate {profile_name circuit inputs manifest_binding
     set ranges {}
     if {$width ne ""} {
         set ranges [::tclmesh::range::require $circuit $width]
+        # A descriptor alone cannot turn an integer node into a bit. Prove
+        # the output invariant before invoking the backend or issuing handles.
+        dict for {name descriptor} [dict get $circuit outputs] {
+            if {[_logical_type $descriptor] eq "bool" &&
+                ![::tclmesh::range::_within \
+                    [dict get $ranges [dict get $circuit metadata output_nodes $name]] {0 1}]} {
+                return -code error -errorcode [::list TCLMESH PRIVATE RANGE BOOLEAN_OUTPUT $name] \
+                    "output '$name' is not certified to be boolean"
+            }
+        }
     }
     set prepared [_prepare_inputs $profile_name $circuit $inputs]
 

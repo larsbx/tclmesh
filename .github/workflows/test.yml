@@ -81,6 +81,11 @@ jobs:
           tclsh tools/views.tcl ranges conformance/circuits.json > ranges.json
           spec/.lake/build/bin/spec-eval --ranges ranges.json > spec-ranges.json
           tclsh tools/views.tcl check-ranges ranges.json spec-ranges.json
+      - name: Clamp admission regressions (Tcl = Lean, including redundant out-of-word bounds)
+        run: |
+          tclsh tools/views.tcl ranges conformance/range_admission.json > admission-ranges.json
+          spec/.lake/build/bin/spec-eval --ranges admission-ranges.json > spec-admission-ranges.json
+          tclsh tools/views.tcl check-ranges admission-ranges.json spec-admission-ranges.json
       - name: Upstream word-range corpus (the Lean model replays the vendored finite-kernels corpus)
         run: spec/.lake/build/bin/spec-eval --word-range conformance/word_range_v1.txt
       - name: Random differential conformance (kernel = spec exactly; kernel refines Tcl)

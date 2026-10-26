@@ -124,6 +124,44 @@ test T-009-guarded-untrusted {a guarded circuit is exact on ciphertexts nobody v
     }
 } -result {{1 1} {1 1}}
 
+test T-010-checked-bool-handles {bits compose exactly; an integer cannot acquire a Boolean label} -constraints tfhe -body {
+    set successor [tclmesh private circuit successor {x {cipher bool}} {y {cipher int}} \
+        {x {input x} one {constant 1} y {add x one}} {output_nodes {y y}}]
+    set results {}
+    foreach bit {0 1} {
+        set c [tclmesh private circuit bit {} {y {cipher bool}} \
+            [dict create y [list constant $bit]] {output_nodes {y y}}]
+        set h [dict get [tclmesh private evaluate tfhe-checked $c {}] y]
+        lappend results [tclmesh private decrypt $h] \
+            [tclmesh private decrypt [dict get [tclmesh private evaluate tfhe-checked \
+                $successor [dict create x $h]] y]]
+    }
+    dict set c nodes y {constant 2147483647}
+    catch {tclmesh private evaluate tfhe-checked $c {}} - opts
+    lappend results [dict get $opts -errorcode]
+    set results
+} -result {0 1 1 2 {TCLMESH PRIVATE RANGE BOOLEAN_OUTPUT y}}
+
+test T-011-checked-clamp-bounds {word endpoints execute exactly; unsupported bounds fail admission} -constraints tfhe -body {
+    set c [tclmesh private circuit endpoints {x {cipher int}} {y {cipher int}} \
+        {x {input x} y {clamp x -2147483648 2147483647}} {output_nodes {y y}}]
+    set results {}
+    foreach x {-2147483648 2147483647} {
+        set h [tclmesh private encrypt tfhe-checked int $x]
+        set out [tclmesh private evaluate tfhe-checked $c [dict create x $h]]
+        set exact [::tclmesh::private::_reference_evaluate $c [dict create x $x]]
+        lappend results [expr {[tclmesh private decrypt [dict get $out y]] eq [dict get $exact y]}]
+    }
+    dict set c inputs {}
+    dict set c nodes x {constant 0}
+    foreach bounds {{-2147483649 10} {-10 2147483648}} {
+        dict set c nodes y [list clamp x {*}$bounds]
+        catch {tclmesh private evaluate tfhe-checked $c {}} - opts
+        lappend results [lrange [dict get $opts -errorcode] 0 3]
+    }
+    set results
+} -result {1 1 {TCLMESH PRIVATE RANGE REJECTED} {TCLMESH PRIVATE RANGE REJECTED}}
+
 # Leave no TFHE handles behind for tests that persist every live handle.
 if {[testConstraint tfhe]} {
     foreach h [tclmesh private handle list] {
