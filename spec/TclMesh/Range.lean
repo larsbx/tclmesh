@@ -20,8 +20,8 @@ requires:
   the operands' ranges; `multiply`: it contains the four bound products;
 * comparisons and `and`, `or`, `not` produce `[0, 1]`;
 * `select`: the range contains both branches' ranges;
-* `clamp x lo hi` (`max lo (min x hi)`, never wrapped): the range contains
-  the clamped operand range, whatever that range is;
+* `clamp x lo hi` (`max lo (min x hi)`, never wrapped): both ordered
+  bounds fit the signed word, and the range contains the clamped operand range;
 * every other operation is rejected.
 
 `check_sound` proves that if the checker accepts and the inputs lie in their
@@ -191,7 +191,8 @@ def nodeOk (c : Circuit) (cert : Ranges) (w : Nat) (r : Rng) : List String → B
   | ["select", k, a, b] => one cert k fun _ => two cert a b fun p q =>
       within p.1 p.2 r && within q.1 q.2 r
   | ["clamp", a, lo, hi] => match intOf lo, intOf hi with
-    | some l, some h => decide (l ≤ h) && one cert a fun p => within (clampR p l h).1 (clampR p l h).2 r
+    | some l, some h => decide (l ≤ h) && (within l h (word w) &&
+        one cert a fun p => within (clampR p l h).1 (clampR p l h).2 r)
     | _, _ => false
   | _ => false
 
@@ -444,7 +445,7 @@ theorem step (c : Circuit) (cert : Ranges) (w : Nat) (inp : String → Int)
       | none => simp [hl, hh] at hok
       | some h =>
         simp only [hl, hh, Bool.and_eq_true, decide_eq_true_eq, one] at hok
-        obtain ⟨-, hok⟩ := hok
+        obtain ⟨-, -, hok⟩ := hok
         split at hok <;> try contradiction
         rename_i p hp; simp only [within_iff, clampR] at hok
         exact unary (a := a) ih hw (by simp [refs, unaryOps]) (by simp)
@@ -489,6 +490,23 @@ theorem check_sound (c : Circuit) (cert : Ranges) (w : Nat) (hc : check c cert w
         simp only [hr] at hok
         obtain ⟨h1, h2⟩ := step c cert w inp hin hwrap n ih id ws r hw hr hok v hv
         exact ⟨⟨r, rfl, h1⟩, h2⟩
+
+/-- The runtime may label a checked output `bool` only when its certified
+range lies in `[0,1]`. Combined with `check_sound`, this preserves the input
+bit hypothesis of a subsequent checked circuit, without decryption. -/
+theorem bit_output_sound (c : Circuit) (cert : Ranges) (w : Nat)
+    (hc : check c cert w = true) (inp : String → Int) (hin : InputsInRange c w inp)
+    (id : String) (r : Rng) (hr : cert.lookup id = some r)
+    (hb : within r.1 r.2 (0, 1) = true) (n : Nat) (v : Int)
+    (hv : evalOpt exact inp c n id = some v) :
+    inR v (0, 1) = true ∧ evalOpt (wrapped w) inp c n id = some v := by
+  obtain ⟨⟨r', hr', hv'⟩, hw⟩ := check_sound c cert w hc inp hin n id v hv
+  rw [hr] at hr'
+  cases hr'
+  exact ⟨inR_iff.mpr (by
+    have := inR_iff.mp hv'
+    have := within_iff.mp hb
+    constructor <;> omega), hw⟩
 
 /-! ## The least certificate -/
 
@@ -606,5 +624,18 @@ def guardedBid : Circuit :=
 
 example : ((certify guardedBid 32).map fun cert => check guardedBid cert 32) = some true := by
   decide
+
+/-- The reported Boolean counterexample: checking the word alone does not
+justify a Boolean label. Runtime output admission must reject that label. -/
+example : within 2147483647 2147483647 (0, 1) = false := by decide
+example : within 0 0 (0, 1) = true ∧ within 1 1 (0, 1) = true := by decide
+
+/-- A clamp's image fitting the word does not make its bounds representable. -/
+example : nodeOk ⟨[], [], [], []⟩ [("x", (0, 0))] 32 (0, 0)
+    ["clamp", "x", "-2147483649", "10"] = false := by decide
+example : nodeOk ⟨[], [], [], []⟩ [("x", (0, 0))] 32 (0, 0)
+    ["clamp", "x", "-10", "2147483648"] = false := by decide
+example : nodeOk ⟨[], [], [], []⟩ [("x", (0, 0))] 32 (0, 0)
+    ["clamp", "x", "-2147483648", "2147483647"] = true := by decide
 
 end TclMesh.Range

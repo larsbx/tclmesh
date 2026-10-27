@@ -2,6 +2,15 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- fix checked Boolean handle composition: validate consumed bit ranges and
+  reject Boolean output labels whose certified ranges exceed `[0,1]`, before
+  backend execution; `Range.bit_output_sound` proves the resulting invariant;
+- require clamp bounds to fit the signed word in both the Tcl and Lean
+  checkers; regressions cover redundant out-of-word bounds and real TFHE
+  boundary execution; run TFHE checks on relevant PRs;
+- pin the accepted finite-math-kernels #83 merge, including the regenerated
+  provenance manifest, preserving the byte-identical 1,720-row range corpus;
+
 - range certificates for private circuits (`tclmesh range emit|check|require`,
   `spec/TclMesh/Range.lean`): least ranges by interval arithmetic from declared
   input ranges (`{cipher int range LO HI}`), with a Lean checker proved sound —

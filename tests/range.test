@@ -216,4 +216,61 @@ test R-016-clamp-validation {clamp bounds are canonical and ordered} -body {
     }
 } -result {1 0 0 0}
 
+# Review regressions: a descriptor is not evidence of a Boolean value.
+proc constant_bool {value} {
+    tclmesh private circuit labelled-bit {} {y {cipher bool}} \
+        [dict create y [list constant $value]] {output_nodes {y y}}
+}
+proc bool_successor {} {
+    tclmesh private circuit successor {x {cipher bool}} {y {cipher int}} \
+        {x {input x} one {constant 1} y {add x one}} {output_nodes {y y}}
+}
+
+test R-017-bool-output {a checked circuit cannot label INT_MAX as a bit} -body {
+    refusal {tclmesh private evaluate checked-open [constant_bool 2147483647] {}}
+} -result {TCLMESH PRIVATE RANGE BOOLEAN_OUTPUT y}
+
+test R-018-bool-input {legacy Boolean-labelled handles cannot bypass the input hypothesis} -body {
+    # Reproduce a pre-fix handle, including persisted/imported descriptors.
+    set h [tclmesh private encrypt checked-open bool 1]
+    set saved [dict get $::tclmesh::private::handles $h]
+    set results {}
+    foreach range {{2147483647 2147483647} {} {1 0} {bogus 1}} {
+        dict set ::tclmesh::private::handles $h range $range
+        lappend results [refusal {tclmesh private evaluate checked-open [bool_successor] [dict create x $h]}]
+    }
+    dict set ::tclmesh::private::handles $h $saved
+    set results
+} -result {{TCLMESH PRIVATE RANGE OUT_OF_RANGE x} {TCLMESH PRIVATE RANGE OUT_OF_RANGE x} {TCLMESH PRIVATE RANGE OUT_OF_RANGE x} {TCLMESH PRIVATE RANGE OUT_OF_RANGE x}}
+
+test R-019-bool-composition {certified constants 0 and 1 remain bits across handles} -body {
+    lmap bit {0 1} {
+        set h [dict get [tclmesh private evaluate checked-open [constant_bool $bit] {}] y]
+        list [tclmesh private decrypt $h] \
+            [tclmesh private decrypt [dict get [tclmesh private evaluate checked-open \
+                [bool_successor] [dict create x $h]] y]]
+    }
+} -result {{0 1} {1 2}}
+
+proc clamp_constant {lo hi} {
+    tclmesh private circuit clamp-bounds {} {y {cipher int}} \
+        [dict create x {constant 0} y [list clamp x $lo $hi]] {output_nodes {y y}}
+}
+
+test R-020-clamp-word-bounds {redundant out-of-word bounds are refused even when the image fits} -body {
+    lmap bounds {{-2147483649 10} {-10 2147483648} {-999999999999999999999999 999999999999999999999999}} {
+        set c [clamp_constant {*}$bounds]
+        list [verdict $c] [refusal {tclmesh private evaluate checked-open $c {}}]
+    }
+} -result {{{{under-range y}} {TCLMESH PRIVATE RANGE REJECTED {{under-range y}}}} {{{under-range y}} {TCLMESH PRIVATE RANGE REJECTED {{under-range y}}}} {{{under-range y}} {TCLMESH PRIVATE RANGE REJECTED {{under-range y}}}}}
+
+test R-021-clamp-boundary {signed-word endpoints are supported at each width} -body {
+    lmap width {2 8 16 32} {
+        set word [tclmesh range word $width]
+        set good [clamp_constant {*}$word]
+        set bad [clamp_constant [expr {[lindex $word 0] - 1}] [lindex $word 1]]
+        list [verdict $good $width] [verdict $bad $width]
+    }
+} -result {{{} {{under-range y}}} {{} {{under-range y}}} {{} {{under-range y}}} {{} {{under-range y}}}}
+
 cleanupTests

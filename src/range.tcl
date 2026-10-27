@@ -219,7 +219,7 @@ proc ::tclmesh::range::check {circuit cert {width 32}} {
                     lappend violations [list unranged-operand $id $ref]
                     continue
                 }
-                set ok [expr {[_bounds $lo $hi] && [_within [_clamp [dict get $cert $ref] $lo $hi] $r]}]
+                set ok [expr {[_bounds $lo $hi] && [_within [list $lo $hi] $bounds] && [_within [_clamp [dict get $cert $ref] $lo $hi] $r]}]
             }
             default {
                 set ranges {}
