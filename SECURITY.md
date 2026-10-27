@@ -28,12 +28,19 @@ Important boundaries:
 - under an `int<W>-checked` profile, encrypted integer results are exact: a
   circuit is evaluated only if its range certificate, checked by a checker
   proved sound in Lean, keeps every intermediate inside the `W`-bit word.
-  Public inputs and handles are checked against their declared ranges; a fresh
-  ciphertext's declared range is either the encrypting party's claim, checked
-  against the plaintext at `encrypt`, or — for ciphertexts nobody vouches for —
-  enforced inside the circuit by `tclmesh range guard`, which clamps each
-  such input into its range homomorphically, so only the ciphertext type
-  (a 32-bit word) is assumed; out-of-range values are clamped, not rejected.
+  Public inputs and handles are checked against their declared ranges. A
+  ciphertext's range is established in one of three ways. It can be proved by
+  the encrypting party with a TFHE-rs zero-knowledge proof of encryption
+  (`tclmesh private import`); the runtime verifies the proof, bound to a
+  context, offset and width, and never sees the value. It can be enforced
+  inside the circuit by `tclmesh range guard`, which clamps each such input
+  homomorphically, so only the ciphertext type (a 32-bit word) is assumed;
+  out-of-range values are clamped, not rejected. Or it is the encrypting
+  party's claim, checked against the plaintext at `encrypt`. Proven inputs
+  rely on the soundness of TFHE-rs `zk-pok` and on its sanitizing expansion,
+  and on a CRS generated honestly by the key holder (`private publish`). A
+  verified proof can be replayed under the same context, so contexts should
+  name one use, for example an application, circuit, input and nonce.
   Profiles declaring `int32-wrapping` make no exactness claim;
 - governed circuits require manifest-declared release policy and role-specific
   holder/language authorization; caller identity must be authenticated by the

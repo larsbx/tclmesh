@@ -34,8 +34,14 @@ jobs:
             ~/.cargo/git
             backends/tfhe/target
           key: tfhe-${{ hashFiles('backends/tfhe/Cargo.lock') }}
-      - name: Build the TFHE backend
+      - name: Build the TFHE backend and the encrypting party's prover
         run: cargo build --release --locked --manifest-path backends/tfhe/Cargo.toml
+      - name: Lint the backend
+        run: |
+          cargo fmt --check --manifest-path backends/tfhe/Cargo.toml
+          cargo clippy --release --locked --all-targets --manifest-path backends/tfhe/Cargo.toml -- -D warnings
+      - name: A dishonest prover cannot leave the proven width
+        run: cargo test --release --locked --manifest-path backends/tfhe/Cargo.toml
       - name: The backend is registered (TFHE tests must not be skipped)
         run: |
           tclsh <<'EOF2'
@@ -43,5 +49,5 @@ jobs:
           package require tclmesh
           if {"tfhe" ni [tclmesh private backend list]} { puts "tfhe backend not registered"; exit 1 }
           EOF2
-      - name: Exemplars under TFHE (correctness, oblivious traces, sizes, release)
+      - name: Exemplars under TFHE (correctness, oblivious traces, sizes, release, proven inputs)
         run: tclsh tests/all.tcl -file tfhe.test

@@ -13,7 +13,7 @@ namespace eval ::tclmesh::private {
     variable next_handle 0
     variable handle_store {}
 
-    namespace export         node circuit validate canonical digest encrypt evaluate evaluate-bound decrypt differential         profile backend handle
+    namespace export         node circuit validate canonical digest encrypt publish import evaluate evaluate-bound decrypt differential         profile backend handle
 }
 
 namespace eval ::tclmesh::private::profile {
@@ -516,6 +516,49 @@ proc ::tclmesh::private::encrypt {profile_name type value {range {}}} {
     return [_new_handle $profile_name $type $backend $token encrypt {} $range]
 }
 
+# The backend command of a profile whose backend has CAPABILITY.
+proc ::tclmesh::private::_capable {profile capability} {
+    set backend [::tclmesh::private::backend::describe [dict get $profile backend]]
+    if {$capability ni [dict get $backend capabilities]} {
+        return -code error -errorcode [::list TCLMESH PRIVATE BACKEND UNSUPPORTED $capability] \
+            "backend '[dict get $profile backend]' does not support $capability"
+    }
+    return [dict get $backend command]
+}
+
+# Write to DIR what an encrypting party needs to prove inputs for PROFILE
+# without its secret key: the public key and the proof system's CRS.
+proc ::tclmesh::private::publish {profile_name dir} {
+    set profile [profile::describe $profile_name]
+    {*}[_capable $profile proven-inputs] publish $profile $dir
+    return $dir
+}
+
+# Accept a proven ciphertext input: an offset a < 2^BITS encrypted with a
+# zero-knowledge proof bound to CONTEXT, LO and BITS (`tclmesh-tfhe-prove`).
+# The backend verifies it and holds LO + a, so the handle's range
+# [LO, LO + 2^BITS - 1] is proved, not claimed, and the runtime never sees the
+# value (spec/TclMesh/Range.lean, `inputs_of_proofs`).
+proc ::tclmesh::private::import {profile_name proof context lo bits} {
+    set profile [profile::describe $profile_name]
+    set width [_checked_width $profile]
+    if {$width eq ""} {
+        return -code error -errorcode {TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} \
+            "proven inputs need an int<W>-checked profile"
+    }
+    if {$bits ni {2 4 6 8 10 12 14 16} || ![::tclmesh::range::_int $lo]} {
+        return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} \
+            "a proven input needs a canonical lo and bits in 2, 4, ..., 16"
+    }
+    set range [::list $lo [expr {$lo + (1 << $bits) - 1}]]
+    if {![::tclmesh::range::_within $range [::tclmesh::range::word $width]]} {
+        return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} \
+            "proven range $range leaves the $width-bit word"
+    }
+    set token [{*}[_capable $profile proven-inputs] import $profile $proof $context $lo $bits]
+    return [_new_handle $profile_name int [dict get $profile backend] $token proved {} $range]
+}
+
 # The range a checked value of TYPE carries: RANGE (int; the word when empty)
 # or {0 1} (bool), after checking that VALUE lies in it.
 proc ::tclmesh::private::_checked_value {width type value range what} {
@@ -945,6 +988,8 @@ namespace eval ::tclmesh::private {
         backend ::tclmesh::private::backend
         handle ::tclmesh::private::handle
         encrypt ::tclmesh::private::encrypt
+        publish ::tclmesh::private::publish
+        import ::tclmesh::private::import
         evaluate ::tclmesh::private::evaluate
         evaluate-bound ::tclmesh::private::evaluate-bound
         decrypt ::tclmesh::private::decrypt

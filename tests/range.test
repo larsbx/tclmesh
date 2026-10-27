@@ -273,4 +273,20 @@ test R-021-clamp-boundary {signed-word endpoints are supported at each width} -b
     }
 } -result {{{} {{under-range y}}} {{} {{under-range y}}} {{} {{under-range y}}} {{} {{under-range y}}}}
 
+test R-022-proven-input-statements {proven inputs need a checked profile, a supported width and the word} -setup {
+    if {[catch {tclmesh private profile describe unchecked-open}]} {
+        tclmesh private profile define unchecked-open [dict create \
+            backend plaintext semantics exact-integer allow_decrypt true]
+    }
+} -body {
+    list [refusal {tclmesh private import unchecked-open p.bin ctx 0 8}] \
+        [refusal {tclmesh private import checked-open p.bin ctx 0 7}] \
+        [refusal {tclmesh private import checked-open p.bin ctx 007 8}] \
+        [refusal {tclmesh private import checked-open p.bin ctx 2147483600 8}] \
+        [refusal {tclmesh private import checked-open p.bin ctx 0 8}] \
+        [refusal {tclmesh private publish checked-open .}]
+} -result {{TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}\
+    {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}\
+    {TCLMESH PRIVATE BACKEND UNSUPPORTED proven-inputs} {TCLMESH PRIVATE BACKEND UNSUPPORTED proven-inputs}}
+
 cleanupTests

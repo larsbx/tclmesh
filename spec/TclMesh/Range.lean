@@ -571,6 +571,59 @@ theorem guarded_sound (c : Circuit) (cert : Ranges) (w : Nat) (hc : check c cert
       (∃ r, cert.lookup id = some r ∧ inR v r = true) ∧ evalOpt (wrapped w) inp c n id = some v :=
   check_sound c cert w hc inp (inputs_of_type hu ht)
 
+/-! ## Proven inputs
+
+A ciphertext input can carry a range proved by its encrypting party instead
+of claimed: TFHE-rs's zero-knowledge proof of encryption (`zk-pok`) over a
+packed `k`-bit offset `a`, verified by the runtime, which then computes
+`lo + a` (`backends/tfhe`, `import`). Two facts outside this model are named
+hypotheses, as TFHE correctness is: the proof system is sound (a verified list
+is a well-formed encryption of its blocks), and expansion sanitizes every
+2-bit block into `[0, 4)`. From them the range is arithmetic, proved here: `k/2`
+blocks below `4` make a value below `2^k`, and `lo + a` then lies in
+`[lo, lo + 2^k − 1]`, so a declared range holding that interval holds the
+input (`InputsInRange`), with no plaintext seen and no claim trusted. -/
+
+/-- The value of little-endian base-4 blocks. -/
+def blocksVal : List Nat → Nat
+  | [] => 0
+  | b :: bs => b + 4 * blocksVal bs
+
+/-- Blocks each below `4` make a value below `4 ^ (number of blocks)`. -/
+theorem blocks_lt : ∀ bs : List Nat, (∀ b ∈ bs, b < 4) → blocksVal bs < 4 ^ bs.length
+  | [], _ => by simp [blocksVal]
+  | b :: bs, h => by
+    have hb := h b (List.mem_cons_self ..)
+    have ih := blocks_lt bs fun x hx => h x (List.mem_cons_of_mem _ hx)
+    simp only [blocksVal, List.length_cons, Nat.pow_succ]
+    omega
+
+/-- `k/2` sanitized blocks of a `k`-bit offset (`k` even) bound it by `2^k`. -/
+theorem offset_lt (bs : List Nat) (h : ∀ b ∈ bs, b < 4) : blocksVal bs < 2 ^ (2 * bs.length) := by
+  rw [Nat.pow_mul]; exact blocks_lt bs h
+
+/-- An offset below `2^k`, added to `lo`, lies in `[lo, lo + 2^k − 1]`, and so in
+any range holding that interval. -/
+theorem proven_in_range {lo a : Int} {k : Nat} (h0 : 0 ≤ a) (hk : a < 2 ^ k) {r : Rng}
+    (hr : within lo (lo + 2 ^ k - 1) r = true) : inR (lo + a) r = true := by
+  rw [within_iff] at hr; rw [inR_iff]; omega
+
+/-- **Proven inputs discharge the input hypothesis**: if every input with a
+declared range holds `lo + blocksVal bs` for sanitized blocks whose proven
+interval lies in that range, `InputsInRange` holds, so `check_sound` needs no
+trusted claim about who encrypted them. -/
+theorem inputs_of_proofs {c : Circuit} {w : Nat} {inp : String → Int}
+    (hp : ∀ x d r, c.inputs.lookup x = some d → inputRange w d = some r →
+      ∃ lo bs, (∀ b ∈ bs, b < 4) ∧ inp x = lo + (blocksVal bs : Int) ∧
+        within lo (lo + 2 ^ (2 * bs.length) - 1) r = true) :
+    InputsInRange c w inp := by
+  intro x d r hd hr
+  obtain ⟨lo, bs, hb, hv, hw⟩ := hp x d r hd hr
+  rw [hv]
+  exact proven_in_range (Int.natCast_nonneg _) (by exact_mod_cast offset_lt bs hb) hw
+
+example : blocksVal [3, 3, 3, 3] = 255 := by decide
+
 /-! ## The upstream word-range contract
 
 `finite_exact/word_range.mojo` (larsbx/finite-math-kernels) states the same

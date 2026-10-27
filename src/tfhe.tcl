@@ -10,6 +10,10 @@
 # unconditionally is rejected, since an overflow under encryption cannot be
 # detected.
 #
+# Proven inputs (`private publish`, `private import`): an encrypting party
+# proves its ciphertext's range in zero knowledge with `tclmesh-tfhe-prove`,
+# using only the published public key and CRS (backends/tfhe/src/lib.rs).
+#
 # Tokens are `{tfhe ID bytes N}`: an opaque number for a ciphertext held by
 # the process, and its serialized size. Evaluation is recorded through the
 # view harness (`tclmesh views`), so paired runs check the trace of real
@@ -120,6 +124,16 @@ proc ::tclmesh::tfhe::_backend {operation args} {
             return [dict get [_call [json::write object \
                 op [_s decrypt] token [lindex $token 1]]] value]
         }
+        publish {
+            lassign $args profile dir
+            _call [json::write object op [_s publish] dir [_s [file normalize $dir]]]
+            return
+        }
+        import {
+            lassign $args profile proof context lo bits
+            return [_token [_call [json::write object op [_s import] \
+                proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits]]]
+        }
         destroy {
             set token [lindex $args end]
             _call [json::write object op [_s destroy] token [lindex $token 1]]
@@ -136,5 +150,13 @@ proc ::tclmesh::tfhe::_backend {operation args} {
 set ::tclmesh::tfhe::binary [::tclmesh::tfhe::_locate [file dirname $::tclmesh::here]]
 if {$::tclmesh::tfhe::binary ne ""} {
     ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend \
-        {decrypt destroy threshold-release homomorphic}
+        {decrypt destroy threshold-release homomorphic proven-inputs}
 }
+
+# The encrypting party's tool (`tclmesh-tfhe-prove`), built beside the
+# backend: it needs only what `private publish` writes, never the secret key.
+proc ::tclmesh::tfhe::prover {} {
+    variable binary
+    file join [file dirname $binary] tclmesh-tfhe-prove
+}
+

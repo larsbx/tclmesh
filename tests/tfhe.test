@@ -162,6 +162,73 @@ test T-011-checked-clamp-bounds {word endpoints execute exactly; unsupported bou
     set results
 } -result {1 1 {TCLMESH PRIVATE RANGE REJECTED} {TCLMESH PRIVATE RANGE REJECTED}}
 
+# Proven inputs: the encrypting party proves its ciphertext's range with a
+# zero-knowledge proof of encryption, using only the published public key and
+# CRS; the runtime verifies it and never sees the value.
+proc proven {dir context lo bits x} {
+    set out [file join $dir proof-[incr ::proof_seq].bin]
+    exec [::tclmesh::tfhe::prover] $dir $context $lo $bits $x $out
+    return $out
+}
+
+if {[testConstraint tfhe]} {
+    set zk [file join [::tcltest::temporaryDirectory] tfhe-zk-[pid]]
+    file mkdir $zk
+    tclmesh private publish tfhe-checked $zk
+}
+
+test T-012-proven-exact {proven bids evaluate exactly, unclamped, on their declared ranges} -constraints tfhe -body {
+    set c [dict get [::exemplars::sealed_bid] circuit]
+    foreach name {a b} { dict set c inputs $name {cipher int range 0 65535} }
+    lmap {a b} {120 95 65535 0} {
+        set runtime [dict create reserve 100 \
+            a [tclmesh private import tfhe-checked [proven $zk auction/a 0 16 $a] auction/a 0 16] \
+            b [tclmesh private import tfhe-checked [proven $zk auction/b 0 16 $b] auction/b 0 16]]
+        set out [tclmesh private evaluate tfhe-checked $c $runtime]
+        set reference [::tclmesh::private::_reference_evaluate $c [dict create a $a b $b reserve 100]]
+        lmap name {winner clears margin} {
+            expr {[tclmesh private decrypt [dict get $out $name]] eq [dict get $reference $name]}
+        }
+    }
+} -result {{1 1 1} {1 1 1}}
+
+test T-013-proven-handles {a proven handle carries its proved range and origin} -constraints tfhe -body {
+    set h [tclmesh private import tfhe-checked [proven $zk ctx -5 8 250] ctx -5 8]
+    set d [tclmesh private handle describe $h]
+    list [dict get $d origin] [dict get $d range] [tclmesh private decrypt $h]
+} -result {proved {-5 250} 250}
+
+test T-014-proof-binding {a proof is refused under another context, offset or width, or once altered} -constraints tfhe -body {
+    set proof [proven $zk vote/1 0 8 7]
+    set tampered [file join $zk tampered.bin]
+    set fh [open $proof rb]; set bytes [read $fh]; close $fh
+    set i [expr {[string length $bytes] / 2}]
+    binary scan [string index $bytes $i] cu b
+    set fh [open $tampered wb]
+    puts -nonewline $fh [string replace $bytes $i $i [binary format c [expr {$b ^ 1}]]]
+    close $fh
+    lmap {file context lo bits} [list $proof vote/2 0 8 $proof vote/1 1 8 $proof vote/1 0 10 $tampered vote/1 0 8] {
+        catch {tclmesh private import tfhe-checked $file $context $lo $bits} msg
+        string match "*proof rejected*" $msg
+    }
+} -result {1 1 1 1}
+
+test T-015-proven-range-admission {a proven range wider than the declared one is refused} -constraints tfhe -body {
+    set c [dict get [::exemplars::sealed_bid] circuit]
+    foreach name {a b} { dict set c inputs $name {cipher int range 0 1000} }
+    set h [tclmesh private import tfhe-checked [proven $zk wide 0 16 5] wide 0 16]
+    catch {tclmesh private evaluate tfhe-checked $c [dict create a $h b $h reserve 0]} - opts
+    lrange [dict get $opts -errorcode] 0 4
+} -result {TCLMESH PRIVATE RANGE OUT_OF_RANGE a}
+
+test T-016-honest-prover-refuses {the encrypting party's tool refuses values outside the proven range} -constraints tfhe -body {
+    list [catch {proven $zk ctx 0 8 256}] [catch {proven $zk ctx 0 8 -1}] [catch {proven $zk ctx 0 7 1}]
+} -result {1 1 1}
+
+if {[testConstraint tfhe]} {
+    file delete -force $zk
+}
+
 # Leave no TFHE handles behind for tests that persist every live handle.
 if {[testConstraint tfhe]} {
     foreach h [tclmesh private handle list] {
