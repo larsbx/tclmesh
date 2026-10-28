@@ -624,6 +624,37 @@ theorem inputs_of_proofs {c : Circuit} {w : Nat} {inp : String → Int}
 
 example : blocksVal [3, 3, 3, 3] = 255 := by decide
 
+/-! ## Exact ranges: clamped by default, rejected by a released bit
+
+A proven `k`-bit offset fixes `[lo, lo + 2^k − 1]`, and the proof system
+cannot relate two offsets, so an arbitrary `[lo, hi]` is reached in one of two
+ways. By default the runtime imports `min (lo + a) hi` (`bounded_import`):
+an honest input is unchanged, a dishonest one cannot pass `hi`. To reject
+instead, it evaluates the admission bit `lo ≤ x ∧ x ≤ hi` under encryption and
+releases only that bit to a quorum (`admission_sound`): whatever reduction
+the arithmetic uses, the bit is `1` exactly when `x` lies in `[lo, hi]`, so
+it reveals no more than a zero-knowledge verifier's verdict would. -/
+
+/-- The bounded import lies in `[lo, hi]`, and equals `lo + a` for an honest `a`. -/
+theorem bounded_import {lo hi a : Int} (h0 : 0 ≤ a) (hle : lo ≤ hi) :
+    inR (min (lo + a) hi) (lo, hi) = true ∧ (lo + a ≤ hi → min (lo + a) hi = lo + a) := by
+  refine ⟨?_, fun h => Int.min_eq_left h⟩
+  rw [inR_iff]; constructor <;> simp only [] <;> omega
+
+/-- The admission circuit's bit, under any reduction `f` of arithmetic. -/
+def admissionBit (f : Int → Int) (x lo hi : Int) : Int :=
+  semWith f ["and", "ge", "le"]
+    [semWith f ["greater-or-equal", "nx", "lo"] [x, lo], semWith f ["less-or-equal", "nx", "hi"] [x, hi]]
+
+/-- **Admission soundness and completeness**: the released bit is `1` exactly
+when `x ∈ [lo, hi]`, wrapped or not. -/
+theorem admission_sound (f : Int → Int) (x lo hi : Int) :
+    admissionBit f x lo hi = 1 ↔ lo ≤ x ∧ x ≤ hi := by
+  unfold admissionBit
+  by_cases h1 : x ≥ lo <;> by_cases h2 : x ≤ hi <;> simp [semWith, b2i, h1, h2] <;> omega
+
+example : admissionBit (wrap 32) 120 0 200 = 1 ∧ admissionBit (wrap 32) 230 0 200 = 0 := by decide
+
 /-! ## The upstream word-range contract
 
 `finite_exact/word_range.mojo` (larsbx/finite-math-kernels) states the same

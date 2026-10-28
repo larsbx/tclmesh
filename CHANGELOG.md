@@ -2,6 +2,11 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- exact proven ranges: `tclmesh private import … hi` (the proof binds `hi`)
+  holds `min(lo + a, hi)`, so `[lo, hi]` is exact for honest inputs and
+  dishonest ones are clamped; `tclmesh private range-check` and `admit`
+  instead release one encrypted admission bit to a quorum and narrow the
+  handle only if it is `1`; `Range.bounded_import` and `Range.admission_sound`;
 - proven inputs: `tclmesh private publish` writes the public key and CRS, the
   encrypting party proves a `k`-bit offset with `tclmesh-tfhe-prove` (TFHE-rs
   `zk-pok`, no secret key), and `tclmesh private import` verifies the proof

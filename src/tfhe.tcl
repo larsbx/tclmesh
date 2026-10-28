@@ -130,9 +130,11 @@ proc ::tclmesh::tfhe::_backend {operation args} {
             return
         }
         import {
-            lassign $args profile proof context lo bits
+            lassign $args profile proof context lo bits hi
+            set bound [expr {$hi eq "" ? {} : [::list hi [_s $hi]]}]
             return [_token [_call [json::write object op [_s import] \
-                proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits]]]
+                proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits \
+                {*}$bound]]]
         }
         destroy {
             set token [lindex $args end]

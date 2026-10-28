@@ -40,7 +40,14 @@ Important boundaries:
   rely on the soundness of TFHE-rs `zk-pok` and on its sanitizing expansion,
   and on a CRS generated honestly by the key holder (`private publish`). A
   verified proof can be replayed under the same context, so contexts should
-  name one use, for example an application, circuit, input and nonce.
+  name one use, for example an application, circuit, input and nonce. A
+  proven range is `[lo, lo + 2^k − 1]`; for an exact `[lo, hi]`, `import`
+  takes `hi` and holds `min(lo + a, hi)`, so a dishonest input is clamped to
+  `hi`. To reject it instead, `range-check` computes the bit `lo ≤ x ≤ hi`
+  under encryption, a release quorum decrypts that bit alone, and `admit`
+  narrows the handle only if it is `1`. The release reveals exactly that bit,
+  which a zero-knowledge verifier's verdict would also reveal, and the quorum
+  is trusted to decrypt it honestly.
   Profiles declaring `int32-wrapping` make no exactness claim;
 - governed circuits require manifest-declared release policy and role-specific
   holder/language authorization; caller identity must be authenticated by the

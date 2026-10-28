@@ -13,7 +13,7 @@ namespace eval ::tclmesh::private {
     variable next_handle 0
     variable handle_store {}
 
-    namespace export         node circuit validate canonical digest encrypt publish import evaluate evaluate-bound decrypt differential         profile backend handle
+    namespace export         node circuit validate canonical digest encrypt publish import range-check admit evaluate evaluate-bound decrypt differential         profile backend handle
 }
 
 namespace eval ::tclmesh::private::profile {
@@ -535,11 +535,14 @@ proc ::tclmesh::private::publish {profile_name dir} {
 }
 
 # Accept a proven ciphertext input: an offset a < 2^BITS encrypted with a
-# zero-knowledge proof bound to CONTEXT, LO and BITS (`tclmesh-tfhe-prove`).
-# The backend verifies it and holds LO + a, so the handle's range
-# [LO, LO + 2^BITS - 1] is proved, not claimed, and the runtime never sees the
-# value (spec/TclMesh/Range.lean, `inputs_of_proofs`).
-proc ::tclmesh::private::import {profile_name proof context lo bits} {
+# zero-knowledge proof bound to CONTEXT, LO, BITS and, if given, HI
+# (`tclmesh-tfhe-prove`). The backend verifies it and holds LO + a, or
+# min(LO + a, HI): the handle's range, [LO, LO + 2^BITS - 1] or exactly
+# [LO, HI], is proved, not claimed, and the runtime never sees the value
+# (spec/TclMesh/Range.lean, `inputs_of_proofs`, `bounded_import`). With HI an
+# honest input is unchanged and a dishonest one is clamped to HI; to reject
+# instead, follow with `range-check` and `admit`.
+proc ::tclmesh::private::import {profile_name proof context lo bits {hi {}}} {
     set profile [profile::describe $profile_name]
     set width [_checked_width $profile]
     if {$width eq ""} {
@@ -550,13 +553,91 @@ proc ::tclmesh::private::import {profile_name proof context lo bits} {
         return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} \
             "a proven input needs a canonical lo and bits in 2, 4, ..., 16"
     }
-    set range [::list $lo [expr {$lo + (1 << $bits) - 1}]]
-    if {![::tclmesh::range::_within $range [::tclmesh::range::word $width]]} {
+    set top [expr {$lo + (1 << $bits) - 1}]
+    if {$hi ne "" && !([::tclmesh::range::_int $hi] && $lo <= $hi && $hi <= $top)} {
         return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} \
-            "proven range $range leaves the $width-bit word"
+            "hi must be a canonical integer in \[lo, lo + 2^bits - 1\]"
     }
-    set token [{*}[_capable $profile proven-inputs] import $profile $proof $context $lo $bits]
+    set range [::list $lo [expr {$hi eq "" ? $top : $hi}]]
+    if {![::tclmesh::range::_within [::list $lo $top] [::tclmesh::range::word $width]]} {
+        return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} \
+            "proven range [::list $lo $top] leaves the $width-bit word"
+    }
+    set token [{*}[_capable $profile proven-inputs] import $profile $proof $context $lo $bits $hi]
     return [_new_handle $profile_name int [dict get $profile backend] $token proved {} $range]
+}
+
+# The admission circuit for [LO, HI]: one encrypted bit, LO <= x <= HI.
+# Comparisons are exact on words, so the bit is exact whatever x holds.
+proc ::tclmesh::private::_admission_circuit {lo hi} {
+    circuit admission [dict create x {cipher int}] [dict create ok {cipher bool}] \
+        [dict create nx {input x} lo [::list constant $lo] hi [::list constant $hi] \
+            ge {greater-or-equal nx lo} le {less-or-equal nx hi} ok {and ge le}] \
+        [dict create output_nodes [dict create ok ok]]
+}
+
+# Rejecting admission, step 1: evaluate whether SUBJECT lies in [LO, HI],
+# as an encrypted bit bound to SUBJECT and the range. Release that bit, and
+# only that bit, through `tclmesh release` (a t-of-n quorum), then `admit`.
+# What is revealed is exactly whether the input is admissible.
+proc ::tclmesh::private::range-check {profile_name subject lo hi} {
+    set profile [profile::describe $profile_name]
+    set width [_checked_width $profile]
+    if {$width eq ""} {
+        return -code error -errorcode {TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} \
+            "admission needs an int<W>-checked profile"
+    }
+    if {![::tclmesh::range::_bounds $lo $hi] ||
+        ![::tclmesh::range::_within [::list $lo $hi] [::tclmesh::range::word $width]]} {
+        return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_ADMISSION} \
+            "admission needs canonical bounds lo <= hi inside the $width-bit word"
+    }
+    set handle [_require_handle $subject]
+    if {[dict get $handle type] ne "int"} {
+        return -code error -errorcode [::list TCLMESH PRIVATE RANGE INVALID_ADMISSION $subject] \
+            "only int handles are admitted to a range"
+    }
+    set outputs [_evaluate $profile_name [_admission_circuit $lo $hi] [dict create x $subject] \
+        [dict create admission_subject $subject admission_range [::list $lo $hi]]]
+    return [dict get $outputs ok]
+}
+
+# Rejecting admission, step 2: given a released admission bit, narrow its
+# subject's range to [LO, HI] if the bit is 1, and refuse otherwise. The
+# release must be of the admission circuit for that range on that subject
+# (its binding records both), so no other released bit is accepted
+# (spec/TclMesh/Range.lean, `admission_sound`).
+proc ::tclmesh::private::admit {release_id} {
+    variable handles
+    variable next_handle
+    set release [::tclmesh::release::get $release_id]
+    set binding [::tclmesh::release::_binding $release]
+    if {[dict get $release status] ne "released" ||
+        ![dict exists $binding admission_subject] || ![dict exists $binding admission_range] ||
+        [dict get $binding output_name] ne "ok"} {
+        return -code error -errorcode [::list TCLMESH PRIVATE RANGE NOT_AN_ADMISSION $release_id] \
+            "release '$release_id' is not a released admission check"
+    }
+    set subject [dict get $binding admission_subject]
+    set range [dict get $binding admission_range]
+    if {[dict get $binding circuit_hash] ne [digest [_admission_circuit {*}$range]]} {
+        return -code error -errorcode [::list TCLMESH PRIVATE RANGE NOT_AN_ADMISSION $release_id] \
+            "release '$release_id' is not of the admission circuit for $range"
+    }
+    if {[dict get $release result] ne "1"} {
+        return -code error -errorcode [::list TCLMESH PRIVATE RANGE ADMISSION_REFUSED $subject] \
+            "input '$subject' lies outside $range"
+    }
+    set handle [_require_handle $subject]
+    if {[dict get $handle profile] ne [dict get $release profile]} {
+        return -code error -errorcode [::list TCLMESH PRIVATE RANGE NOT_AN_ADMISSION $release_id] \
+            "release '$release_id' belongs to another profile"
+    }
+    set candidate $handles
+    dict set candidate $subject range $range
+    dict set candidate $subject admission $release_id
+    _commit_handles $candidate $next_handle
+    return $subject
 }
 
 # The range a checked value of TYPE carries: RANGE (int; the word when empty)
@@ -990,6 +1071,8 @@ namespace eval ::tclmesh::private {
         encrypt ::tclmesh::private::encrypt
         publish ::tclmesh::private::publish
         import ::tclmesh::private::import
+        range-check ::tclmesh::private::range-check
+        admit ::tclmesh::private::admit
         evaluate ::tclmesh::private::evaluate
         evaluate-bound ::tclmesh::private::evaluate-bound
         decrypt ::tclmesh::private::decrypt

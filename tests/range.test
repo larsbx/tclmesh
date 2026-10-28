@@ -289,4 +289,74 @@ test R-022-proven-input-statements {proven inputs need a checked profile, a supp
     {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}\
     {TCLMESH PRIVATE BACKEND UNSUPPORTED proven-inputs} {TCLMESH PRIVATE BACKEND UNSUPPORTED proven-inputs}}
 
+# Rejecting admission: an encrypted bit lo <= x <= hi, released by a quorum,
+# narrows the subject's range only if it is 1.
+proc admitted {profile subject lo hi} {
+    set ok [tclmesh private range-check $profile $subject $lo $hi]
+    set id [dict get [tclmesh release request $ok admission 2 {holder:a holder:b holder:c}] id]
+    tclmesh release contribute $id holder:a share-a
+    tclmesh release contribute $id holder:c share-c
+    tclmesh release combine $id
+    return $id
+}
+
+test R-023-admission-accepts {an admitted handle carries the range and evaluates under it} -setup {
+    tclmesh release use-store {}
+} -body {
+    set h [tclmesh private encrypt checked-open int 50]
+    set id [admitted checked-open $h 0 100]
+    list [tclmesh private admit $id] [dict get [tclmesh private handle describe $h] range] \
+        [dict get [tclmesh private handle describe $h] admission] \
+        [tclmesh private decrypt [dict get [tclmesh private evaluate checked-open \
+            [bounded $bid {a {0 100} b {0 100}}] [dict create a $h b $h reserve 0]] margin]]
+} -result [list ct:[expr {$::tclmesh::private::next_handle + 1}] {0 100} release:[expr {$::tclmesh::release::next_id + 1}] 0]
+
+test R-024-admission-refuses {an input outside the range is refused and keeps its range} -setup {
+    tclmesh release use-store {}
+} -body {
+    set h [tclmesh private encrypt checked-open int 500]
+    set id [admitted checked-open $h 0 100]
+    list [lrange [refusal {tclmesh private admit $id}] 0 3] [dict get [tclmesh private handle describe $h] range]
+} -result {{TCLMESH PRIVATE RANGE ADMISSION_REFUSED} {-2147483648 2147483647}}
+
+test R-025-admission-binding {only a released admission check of that range and subject admits} -setup {
+    tclmesh release use-store {}
+} -body {
+    set h [tclmesh private encrypt checked-open int 5]
+    # A released bit of another circuit, equal to 1, is not an admission.
+    set c [tclmesh private circuit other [dict create x {cipher int}] [dict create ok {cipher bool}] \
+        [dict create nx {input x} z {constant 0} ok {greater-than nx z}] \
+        [dict create output_nodes [dict create ok ok]]]
+    set other [dict get [tclmesh private evaluate checked-open $c [dict create x $h]] ok]
+    set rid [dict get [tclmesh release request $other admission 1 {holder:a}] id]
+    tclmesh release contribute $rid holder:a s
+    tclmesh release combine $rid
+    # An admission check not yet released does not admit either.
+    set pending [dict get [tclmesh release request \
+        [tclmesh private range-check checked-open $h 0 10] admission 2 {holder:a holder:b}] id]
+    list [lrange [refusal {tclmesh private admit $rid}] 0 3] \
+        [lrange [refusal {tclmesh private admit $pending}] 0 3] \
+        [refusal {tclmesh private range-check checked-open $h 10 0}] \
+        [refusal {tclmesh private range-check checked-open $h 0 2147483648}]
+} -result {{TCLMESH PRIVATE RANGE NOT_AN_ADMISSION} {TCLMESH PRIVATE RANGE NOT_AN_ADMISSION}\
+    {TCLMESH PRIVATE RANGE INVALID_ADMISSION} {TCLMESH PRIVATE RANGE INVALID_ADMISSION}}
+
+test R-027-admission-record {a release record whose range was widened after the check is refused} -setup {
+    tclmesh release use-store {}
+} -body {
+    set h [tclmesh private encrypt checked-open int 50]
+    set id [admitted checked-open $h 0 100]
+    # Simulate a tampered or legacy record: the released bit was computed for
+    # [0, 100], but the record now claims [0, 1000].
+    dict set ::tclmesh::release::requests $id binding admission_range {0 1000}
+    lrange [refusal {tclmesh private admit $id}] 0 3
+} -result {TCLMESH PRIVATE RANGE NOT_AN_ADMISSION}
+
+test R-026-bounded-import-statements {an upper bound must be canonical and inside the proven window} -body {
+    list [refusal {tclmesh private import checked-open p.bin ctx 0 8 256}] \
+        [refusal {tclmesh private import checked-open p.bin ctx 0 8 -1}] \
+        [refusal {tclmesh private import checked-open p.bin ctx 0 8 0100}]
+} -result {{TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}\
+    {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}}
+
 cleanupTests
