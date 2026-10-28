@@ -165,9 +165,9 @@ test T-011-checked-clamp-bounds {word endpoints execute exactly; unsupported bou
 # Proven inputs: the encrypting party proves its ciphertext's range with a
 # zero-knowledge proof of encryption, using only the published public key and
 # CRS; the runtime verifies it and never sees the value.
-proc proven {dir context lo bits x} {
+proc proven {dir context lo bits x args} {
     set out [file join $dir proof-[incr ::proof_seq].bin]
-    exec [::tclmesh::tfhe::prover] $dir $context $lo $bits $x $out
+    exec [::tclmesh::tfhe::prover] $dir $context $lo $bits $x $out {*}$args
     return $out
 }
 
@@ -224,6 +224,36 @@ test T-015-proven-range-admission {a proven range wider than the declared one is
 test T-016-honest-prover-refuses {the encrypting party's tool refuses values outside the proven range} -constraints tfhe -body {
     list [catch {proven $zk ctx 0 8 256}] [catch {proven $zk ctx 0 8 -1}] [catch {proven $zk ctx 0 7 1}]
 } -result {1 1 1}
+
+test T-017-bounded-proven {an upper bound gives exactly [lo, hi]; the proof is bound to it} -constraints tfhe -body {
+    set proof [proven $zk bid -5 8 200 200]
+    set h [tclmesh private import tfhe-checked $proof bid -5 8 200]
+    list [dict get [tclmesh private handle describe $h] range] [tclmesh private decrypt $h] \
+        [catch {tclmesh private import tfhe-checked $proof bid -5 8}] \
+        [catch {tclmesh private import tfhe-checked $proof bid -5 8 199}] \
+        [catch {proven $zk bid -5 8 201 200}]
+} -result {{-5 200} 200 1 1 1}
+
+test T-018-admission-under-tfhe {a released range bit admits in-range inputs and refuses the rest} -constraints tfhe -body {
+    tclmesh release use-store {}
+    set c [dict get [::exemplars::second_price] circuit]
+    foreach name {a b} { dict set c inputs $name {cipher int range 0 200} }
+    lmap x {120 230} {
+        set h [tclmesh private import tfhe-checked [proven $zk adm/$x 0 8 $x] adm/$x 0 8]
+        set ok [tclmesh private range-check tfhe-checked $h 0 200]
+        set id [dict get [tclmesh release request $ok admission 2 {holder:a holder:b holder:c}] id]
+        tclmesh release contribute $id holder:a s-a
+        tclmesh release contribute $id holder:b s-b
+        tclmesh release combine $id
+        if {[catch {tclmesh private admit $id} - opts]} {
+            lindex [dict get $opts -errorcode] 3
+        } else {
+            set out [tclmesh private evaluate tfhe-checked $c [dict create a $h b $h]]
+            list [dict get [tclmesh private handle describe $h] range] \
+                [tclmesh private decrypt [dict get $out price]]
+        }
+    }
+} -result {{{0 200} 120} ADMISSION_REFUSED}
 
 if {[testConstraint tfhe]} {
     file delete -force $zk

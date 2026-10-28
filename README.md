@@ -48,7 +48,9 @@ wrapping (TFHE `FheInt32`) can never occur. The arithmetic is the
 This remains trusted-adapter plumbing: identity authentication, keyset/share
 verification, type enforcement, CRS generation by a party other than the key
 holder (ciphertext ranges can be proved in zero knowledge with
-`tclmesh private import`, or enforced by clamping with `tclmesh range guard`),
+`tclmesh private import`, exact bounds clamped there or admitted by a
+released bit with `range-check` and `admit`, or enforced by clamping with
+`tclmesh range guard`),
 and cryptographic
 confidentiality remain application/backend obligations. The bundled backend executes plaintext. See the [roadmap](docs/roadmap.md)
 and [security boundaries](SECURITY.md) before integrating it.
