@@ -125,8 +125,9 @@ proc ::tclmesh::tfhe::_backend {operation args} {
                 op [_s decrypt] token [lindex $token 1]]] value]
         }
         publish {
-            lassign $args profile dir
-            _call [json::write object op [_s publish] dir [_s [file normalize $dir]]]
+            lassign $args profile dir crs
+            set adopt [expr {$crs eq "" ? {} : [::list crs [_s [file normalize $crs]]]}]
+            _call [json::write object op [_s publish] dir [_s [file normalize $dir]] {*}$adopt]
             return
         }
         import {
@@ -160,5 +161,12 @@ if {$::tclmesh::tfhe::binary ne ""} {
 proc ::tclmesh::tfhe::prover {} {
     variable binary
     file join [file dirname $binary] tclmesh-tfhe-prove
+}
+
+# The CRS generator (`tclmesh-tfhe-crs`), for a party other than the key
+# holder: its output is adopted with `private publish PROFILE DIR CRS`.
+proc ::tclmesh::tfhe::crs-generator {} {
+    variable binary
+    file join [file dirname $binary] tclmesh-tfhe-crs
 }
 

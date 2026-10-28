@@ -2,6 +2,9 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- proof hygiene: `tclmesh-tfhe-crs` generates the CRS for a party other than
+  the key holder, and `tclmesh private publish PROFILE DIR CRS` adopts it
+  (fixed once adopted); proof contexts are single-use (`CONTEXT_REUSED`);
 - exact proven ranges: `tclmesh private import … hi` (the proof binds `hi`)
   holds `min(lo + a, hi)`, so `[lo, hi]` is exact for honest inputs and
   dishonest ones are clamped; `tclmesh private range-check` and `admit`
