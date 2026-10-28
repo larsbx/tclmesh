@@ -36,12 +36,24 @@ Important boundaries:
   inside the circuit by `tclmesh range guard`, which clamps each such input
   homomorphically, so only the ciphertext type (a 32-bit word) is assumed;
   out-of-range values are clamped, not rejected. Or it is the encrypting
-  party's claim, checked against the plaintext at `encrypt`. Proven inputs
-  rely on the soundness of TFHE-rs `zk-pok` and on its sanitizing expansion,
-  and on a CRS whose trapdoor no prover holds: `tclmesh-tfhe-crs` lets a third
-  party generate it and `private publish PROFILE DIR CRS` adopts it, so the
-  key holder need not know the trapdoor (without CRS the backend generates
-  one itself, and the key holder must be trusted not to forge proofs). A
+  party's claim, checked against the plaintext at `encrypt`. A proven range
+  rests on the ciphertext's width and TFHE-rs's sanitizing expansion, which
+  cleans every 2-bit block into `[0, 4)`, not on the CRS: even a forged proof
+  yields an offset below `2^k`. What the proof adds, and what a CRS trapdoor
+  would let its holder forge, is knowledge soundness: that the encrypting
+  party knows its plaintext, so it cannot submit a function of another
+  party's ciphertext (another bidder's bid plus one) under its own context.
+  No prover may know the trapdoor. `tclmesh-tfhe-crs init|contribute|verify`
+  runs a multi-party ceremony whose trapdoor is unknown unless every
+  contributor colludes, and `private publish PROFILE DIR CEREMONY` verifies
+  it (each contribution's proof of knowledge, the chain of contributions, and
+  the CRS's power structure, by pairings) before adopting it; a ceremony
+  without contributions has the public trapdoor `1` and is refused.
+  Contributions are not signed: a contributor confirms inclusion by its
+  receipt. Alternatively `private publish PROFILE DIR CRS` adopts a CRS that
+  one third party generated with `tclmesh-tfhe-crs CRS`, who must then be
+  trusted; without either, the backend generates one itself, and the key
+  holder must be trusted not to forge proofs. A
   proof context is single-use: a second import under it is refused while the
   first handle's record exists, which on the TFHE backend means for the
   lifetime of the runtime process. A

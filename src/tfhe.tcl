@@ -163,8 +163,9 @@ proc ::tclmesh::tfhe::prover {} {
     file join [file dirname $binary] tclmesh-tfhe-prove
 }
 
-# The CRS generator (`tclmesh-tfhe-crs`), for a party other than the key
-# holder: its output is adopted with `private publish PROFILE DIR CRS`.
+# The CRS tool (`tclmesh-tfhe-crs`): a multi-party ceremony
+# (`init|contribute|verify DIR`) or a one-party CRS file, either adopted with
+# `private publish PROFILE DIR CRS`.
 proc ::tclmesh::tfhe::crs-generator {} {
     variable binary
     file join [file dirname $binary] tclmesh-tfhe-crs

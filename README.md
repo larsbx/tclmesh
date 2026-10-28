@@ -46,8 +46,9 @@ wrapping (TFHE `FheInt32`) can never occur. The arithmetic is the
 `finite_exact/word_range` contract of larsbx/finite-math-kernels (`UPSTREAM.toml`).
 
 This remains trusted-adapter plumbing: identity authentication, keyset/share
-verification, type enforcement, choosing who generates the CRS
-(`tclmesh-tfhe-crs` runs outside the key holder; ciphertext ranges can be
+verification, type enforcement, choosing the CRS ceremony's contributors
+(a multi-party `tclmesh-tfhe-crs` ceremony is verified at `publish`, and its
+trapdoor is unknown unless every contributor colludes; ciphertext ranges can be
 proved in zero knowledge with `tclmesh private import`, exact bounds clamped
 there or admitted by a released bit with `range-check` and `admit`, or
 enforced by clamping with `tclmesh range guard`),
