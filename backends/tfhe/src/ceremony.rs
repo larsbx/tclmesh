@@ -267,14 +267,15 @@ pub fn contribute(dir: &Path, rng: &mut dyn RngCore) -> Result<String, String> {
 }
 
 /// Check the ceremony in `dir`: at least one contribution, each valid, and a
-/// CRS that is their result. Returns the receipts in order, and the CRS.
+/// CRS that is their result. Returns the receipts in order, and the CRS that
+/// was checked, never a second read of the file, which may have changed.
 pub fn verify(dir: &Path, rng: &mut dyn RngCore) -> Result<(Vec<String>, CompactPkeCrs), String> {
     let (params, t) = read(dir)?;
     if t.contributions.is_empty() {
         return Err("the ceremony has no contribution: its trapdoor is public".into());
     }
     let receipts = check(&params, &t, rng)?;
-    Ok((receipts, load(&dir.join(CRS))?))
+    Ok((receipts, from_params(params)?))
 }
 
 #[cfg(test)]
