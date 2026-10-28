@@ -112,8 +112,9 @@ Before a v0.3 release or a stronger claim, continue in this order:
    `publish` verifies before adopting, so its trapdoor is unknown unless every
    contributor colludes; contributions are not yet signed, so a contributor
    confirms inclusion by its receipt. Proof contexts are
-   single-use per runtime; persisting that across restarts needs persistent
-   TFHE handles.
+   single-use per runtime, and a proof is bound to the public key it was made
+   under, so with per-process TFHE keys a replay into a later process is
+   refused; persisting keys will need a persisted consumed-context ledger.
    Packing metadata is hashed but not yet semantically validated.
 3. Extend integrated acceptance and provenance reconstruction through private
    evaluation/release; audit private operations without exposing protected data.

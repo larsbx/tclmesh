@@ -5,7 +5,6 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use tclmesh_tfhe::ceremony::{contribute, init, verify, TRANSCRIPT};
 use tclmesh_tfhe::{config, import_proven, metadata, save, CRS};
-use tfhe::prelude::*;
 use tfhe::zk::{CompactPkeCrs, ZkComputeLoad};
 use tfhe::{set_server_key, ClientKey, CompactPublicKey, ProvenCompactCiphertextList, ServerKey};
 
@@ -60,9 +59,8 @@ fn a_ceremony_crs_proves_inputs_and_tampering_is_refused() {
             ZkComputeLoad::Proof,
         )
         .unwrap();
-    let x = import_proven(&list, &crs, &pk, "ceremony", -10, 8, None).unwrap();
-    let x: i32 = x.decrypt(&client);
-    assert_eq!(x, 32);
+    let x = import_proven(&list, &crs, &pk, "ceremony", 32, -10, 8, None).unwrap();
+    assert_eq!(x.decrypt(&client), 32);
 
     // Without contributions, the trapdoor is 1.
     assert!(verify(&start, rng).is_err());

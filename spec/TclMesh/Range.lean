@@ -3,7 +3,7 @@ import TclMesh.Certificate
 /-!
 # Range certificates: when wrapped integers are exact
 
-A homomorphic integer of `w` bits (TFHE `FheInt32`, `w = 32`) computes every
+A homomorphic integer of `w` bits (TFHE `FheInt32` or `FheInt64`, `w = 32` or `64`) computes every
 arithmetic operation modulo `2^w`, and an overflow under encryption cannot be
 detected. Wrapping is harmless exactly when it never happens, and that can be
 decided before evaluation, from public information only: a range for every
@@ -65,6 +65,7 @@ theorem wrap_id {w : Nat} {x : Int} (lo : wordMin w ≤ x) (hi : x ≤ wordMax w
 
 example : 2 * half 32 = 2 ^ 32 := by decide
 example : wrap 32 (2147483647 + 1) = -2147483648 := by decide
+example : wrap 64 (9223372036854775807 + 1) = -9223372036854775808 := by decide
 
 /-! ## Semantics -/
 

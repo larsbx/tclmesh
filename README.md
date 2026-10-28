@@ -42,7 +42,7 @@ Range certificates make encrypted integer arithmetic exact by proof: under an
 `int<W>-checked` profile a circuit is evaluated only if interval arithmetic from
 its declared input ranges keeps every intermediate inside the `W`-bit word, and
 the Lean checker is proved sound for that (`spec/TclMesh/Range.lean`), so
-wrapping (TFHE `FheInt32`) can never occur. The arithmetic is the
+wrapping (TFHE `FheInt32` or `FheInt64`) can never occur. The arithmetic is the
 `finite_exact/word_range` contract of larsbx/finite-math-kernels (`UPSTREAM.toml`).
 
 This remains trusted-adapter plumbing: identity authentication, keyset/share

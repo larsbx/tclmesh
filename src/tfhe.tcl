@@ -2,13 +2,13 @@
 # encryption by the `tclmesh-tfhe` process. Registered as backend `tfhe` when
 # the binary exists: $TCLMESH_TFHE, or backends/tfhe/target/release.
 #
-# Integers are `FheInt32`: arithmetic wraps modulo 2^32, as profiles must
-# declare. Under `semantics int32-wrapping` results equal the exact reference
-# only while every intermediate value fits; under `int32-checked` the runtime
-# evaluates only circuits whose range certificate proves that they all do
-# (src/range.tcl, spec/TclMesh/Range.lean). A profile claiming exact integers
-# unconditionally is rejected, since an overflow under encryption cannot be
-# detected.
+# Integers are `W`-bit words, `FheInt32` or `FheInt64`: arithmetic wraps
+# modulo 2^W, as profiles must declare. Under `semantics int<W>-wrapping`
+# results equal the exact reference only while every intermediate value fits;
+# under `int<W>-checked` the runtime evaluates only circuits whose range
+# certificate proves that they all do (src/range.tcl, spec/TclMesh/Range.lean).
+# A profile claiming exact integers unconditionally is rejected, since an
+# overflow under encryption cannot be detected.
 #
 # Proven inputs (`private publish`, `private import`): an encrypting party
 # proves its ciphertext's range in zero knowledge with `tclmesh-tfhe-prove`,
@@ -58,6 +58,12 @@ proc ::tclmesh::tfhe::_call {request} {
 
 proc ::tclmesh::tfhe::_s {value} { json::write string $value }
 
+# The word width W of a profile's `int<W>-…` semantics.
+proc ::tclmesh::tfhe::_width {profile} {
+    regexp {^int(32|64)-(?:wrapping|checked)$} [dict get $profile semantics] -> width
+    return $width
+}
+
 proc ::tclmesh::tfhe::_token {response} {
     list tfhe [dict get $response token] bytes [dict get $response bytes]
 }
@@ -69,12 +75,12 @@ proc ::tclmesh::tfhe::_backend {operation args} {
     switch -- $operation {
         validate-profile {
             lassign $args profile
-            return [expr {[dict get $profile semantics] in {int32-wrapping int32-checked}}]
+            return [regexp {^int(32|64)-(wrapping|checked)$} [dict get $profile semantics]]
         }
         encrypt {
             lassign $args profile type value
             return [_token [_call [json::write object \
-                op [_s encrypt] type [_s $type] value [_s $value]]]]
+                op [_s encrypt] type [_s $type] value [_s $value] width [_width $profile]]]]
         }
         evaluate {
             lassign $args profile circuit prepared
@@ -102,7 +108,8 @@ proc ::tclmesh::tfhe::_backend {operation args} {
                 input_types [json::write object {*}$types] \
                 inputs [json::write object {*}$inputs] \
                 nodes [json::write object {*}$nodes] \
-                output_nodes [json::write object {*}$outputs]]]
+                output_nodes [json::write object {*}$outputs] \
+                width [_width $profile]]]
             set tokens {}
             dict for {name result} [dict get $response outputs] {
                 dict set tokens $name [_token $result]
@@ -135,7 +142,7 @@ proc ::tclmesh::tfhe::_backend {operation args} {
             set bound [expr {$hi eq "" ? {} : [::list hi [_s $hi]]}]
             return [_token [_call [json::write object op [_s import] \
                 proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits \
-                {*}$bound]]]
+                width [_width $profile] {*}$bound]]]
         }
         destroy {
             set token [lindex $args end]

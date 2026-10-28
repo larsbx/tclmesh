@@ -179,9 +179,9 @@ test R-012-unchecked-profiles {ranges belong to checked profiles of a supported 
     }
 } -body {
     list [refusal {tclmesh private encrypt unchecked-open int 1 {0 1}}] \
-        [refusal {tclmesh private profile define checked-64 [dict create \
-            backend plaintext semantics int64-checked]}]
-} -result {{TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} {TCLMESH RANGE INVALID_WIDTH 64}}
+        [refusal {tclmesh private profile define checked-65 [dict create \
+            backend plaintext semantics int65-checked]}]
+} -result {{TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} {TCLMESH RANGE INVALID_WIDTH 65}}
 
 # Guarded circuits: declared ranges enforced by clamping inside the circuit,
 # so the only input hypothesis is what a ciphertext holds (`guarded_sound`).

@@ -14,6 +14,7 @@ if {[testConstraint tfhe]} {
     foreach {name semantics decrypt} {
         tfhe-open int32-wrapping true tfhe-governed int32-wrapping false
         tfhe-checked int32-checked true
+        tfhe-wide int64-checked true tfhe-wide-open int64-wrapping true
     } {
         if {[catch {tclmesh private profile describe $name}]} {
             tclmesh private profile define $name [dict create \
@@ -293,6 +294,50 @@ test T-021-ceremony-crs {a CRS from a verified multi-party ceremony is adopted; 
         [file dirname [file dirname [file normalize [info script]]]] $dir $ceremony \
         [file join $zk crs.bin] [list $fresh]]
 } -result {1 refused adopted 42 foreign-refused fixed-refused}
+
+# 64-bit words (`FheInt64`): the same range certificates, for a word wide
+# enough that products of 32-bit-scale values stay exact.
+proc fma {} {
+    tclmesh private circuit fma \
+        [dict create x {cipher int range 0 3000000} y {cipher int range 0 3000000} \
+            z {cipher int range -5000000000 0}] [dict create r {cipher int}] \
+        [dict create nx [tclmesh private node input x] ny [tclmesh private node input y] \
+            nz [tclmesh private node input z] p [tclmesh private node multiply nx ny] \
+            r [tclmesh private node add p nz]] \
+        [dict create output_nodes [dict create r r]]
+}
+
+test T-022-int64-checked-exact {under int64-checked, results past 2^31 are exact; int32-checked refuses the circuit} -constraints tfhe -body {
+    set runtime [dict create \
+        x [tclmesh private encrypt tfhe-wide int 3000000 {0 3000000}] \
+        y [tclmesh private encrypt tfhe-wide int 2999999 {0 3000000}] \
+        z [tclmesh private encrypt tfhe-wide int -5000000000 {-5000000000 0}]]
+    set r [tclmesh private decrypt [dict get [tclmesh private evaluate tfhe-wide [fma] $runtime] r]]
+    list $r [expr {$r == 3000000 * 2999999 - 5000000000}] \
+        [refused {tclmesh private encrypt tfhe-checked int -5000000000 {-5000000000 0}}]
+} -result {8994997000000 1 {TCLMESH PRIVATE RANGE OUT_OF_RANGE encrypt}}
+
+test T-023-int64-wrapping {overflow wraps modulo 2^64 under int64-wrapping} -constraints tfhe -body {
+    set c [tclmesh private circuit wrap \
+        [dict create x {cipher int} y {cipher int}] [dict create s {cipher int}] \
+        [dict create nx [tclmesh private node input x] ny [tclmesh private node input y] \
+            s [tclmesh private node add nx ny]] \
+        [dict create output_nodes [dict create s s]]]
+    dict get [tclmesh views run tfhe-wide-open $c {x 9223372036854775807 y 1}] recipient
+} -result {s -9223372036854775808}
+
+test T-024-proven-int64 {a proven range above 2^31 is held as a 64-bit word and refused as a 32-bit one} -constraints tfhe -body {
+    set h [tclmesh private import tfhe-wide [proven $zk wide/1 5000000000 8 5000000007] wide/1 5000000000 8]
+    list [tclmesh private decrypt $h] [dict get [tclmesh private handle describe $h] range] \
+        [refused {tclmesh private import tfhe-checked [proven $zk wide/2 5000000000 8 5000000007] wide/2 5000000000 8}]
+} -result {5000000007 {5000000000 5000000255} {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}}
+
+test T-025-width-isolation {a handle of one width is not evaluated in a circuit of another} -constraints tfhe -body {
+    set c [tclmesh private circuit id [dict create x {cipher int}] [dict create y {cipher int}] \
+        [dict create y [tclmesh private node input x]] [dict create output_nodes [dict create y y]]]
+    set narrow [tclmesh private encrypt tfhe-open int 7]
+    catch {tclmesh private evaluate tfhe-wide-open $c [dict create x $narrow]}
+} -result 1
 
 if {[testConstraint tfhe]} {
     file delete -force $zk

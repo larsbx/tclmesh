@@ -3,9 +3,10 @@
 //! One JSON request per line on stdin, one JSON response per line on stdout:
 //!
 //! ```text
-//! {"op":"encrypt","type":"int","value":"120"}         → {"token":1,"bytes":N}
+//! {"op":"encrypt","type":"int","value":"120",
+//!  "width":32}                                         → {"token":1,"bytes":N}
 //! {"op":"evaluate","inputs":{..},"nodes":{..},
-//!  "output_nodes":{..},"input_types":{..}}             → {"outputs":{name:{"token":..,"bytes":..}},"trace":[ids]}
+//!  "output_nodes":{..},"input_types":{..},"width":32} → {"outputs":{name:{"token":..,"bytes":..}},"trace":[ids]}
 //! {"op":"decrypt","token":1}                           → {"value":"120"}
 //! {"op":"destroy","token":1}                           → {}
 //! {"op":"publish","dir":"/path","crs":"/path"}        → {"receipts":[..]} (public
@@ -16,7 +17,7 @@
 //!                                                         directory and adopts its
 //!                                                         CRS, listing its receipts)
 //! {"op":"import","proof":"/path","context":"c",
-//!  "lo":"-5","bits":8,"hi":"200"}                       → {"token":2,"bytes":N}
+//!  "lo":"-5","bits":8,"hi":"200","width":32}            → {"token":2,"bytes":N}
 //! ```
 //!
 //! `publish` writes what an encrypting party needs to prove an input without
@@ -30,9 +31,10 @@
 //! Every node is computed in the syntactic schedule (`spec/TclMesh/Circuit.lean`),
 //! whatever the data: `select` is a homomorphic multiplexer.
 //!
-//! Integers are `FheInt32` and wrap modulo 2^32: an overflow under encryption
-//! cannot be detected. The runtime advertises results as exact only under
-//! profile semantics `int32-checked`, which admits only circuits whose range
+//! Integers are `W`-bit words, `FheInt32` or `FheInt64` ("width", fixed by
+//! the profile), and wrap modulo 2^W: an overflow under encryption cannot be
+//! detected. The runtime advertises results as exact only under profile
+//! semantics `int<W>-checked`, which admits only circuits whose range
 //! certificate proves that no intermediate leaves the word
 //! (`spec/TclMesh/Range.lean`).
 //!
@@ -44,46 +46,52 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{BufRead, Write};
 use std::path::Path;
 use tclmesh_tfhe::{
-    ceremony, config, import_proven, load, save, upper_bound_ok, CRS, CRS_MAX_BITS, PROVEN_BITS,
-    PUBLIC_KEY,
+    ceremony, config, import_proven, lift, load, save, test, upper_bound_ok, Int, CRS,
+    CRS_MAX_BITS, LIMIT, PROVEN_BITS, PUBLIC_KEY, WIDTHS,
 };
 use tfhe::prelude::*;
 use tfhe::zk::CompactPkeCrs;
 use tfhe::{
-    set_server_key, ClientKey, CompactPublicKey, FheBool, FheInt32, ProvenCompactCiphertextList,
-    ServerKey,
+    set_server_key, ClientKey, CompactPublicKey, FheBool, ProvenCompactCiphertextList, ServerKey,
 };
 
 #[derive(Clone)]
 enum Val {
-    Int(FheInt32),
+    Int(Int),
     Bool(FheBool),
 }
 
 impl Val {
-    fn int(&self) -> FheInt32 {
+    /// This value as a `width`-bit integer: a bit is `0` or `1`; an integer
+    /// of another width is refused, never converted.
+    fn int(&self, width: u32) -> R<Int> {
         match self {
-            Val::Int(x) => x.clone(),
-            Val::Bool(b) => FheInt32::cast_from(b.clone()),
+            Val::Int(x) if x.width() == width => Ok(x.clone()),
+            Val::Int(x) => Err(format!(
+                "a {}-bit integer in a {width}-bit circuit",
+                x.width()
+            )),
+            Val::Bool(b) => Int::from_bool(width, b),
         }
     }
 
     fn bool(&self) -> FheBool {
         match self {
             Val::Bool(b) => b.clone(),
-            Val::Int(x) => x.ne(0),
+            Val::Int(x) => x.nonzero(),
         }
     }
 
     fn bytes(&self) -> usize {
-        let mut buf = Vec::new();
-        let limit = 1 << 30;
         match self {
-            Val::Int(x) => tfhe::safe_serialization::safe_serialize(x, &mut buf, limit),
-            Val::Bool(b) => tfhe::safe_serialization::safe_serialize(b, &mut buf, limit),
+            Val::Int(x) => x.bytes(),
+            Val::Bool(b) => {
+                let mut buf = Vec::new();
+                tfhe::safe_serialization::safe_serialize(b, &mut buf, LIMIT)
+                    .expect("serialize ciphertext");
+                buf.len()
+            }
         }
-        .expect("serialize ciphertext");
-        buf.len()
     }
 }
 
@@ -116,8 +124,16 @@ fn object(v: &Value) -> R<&Map<String, Value>> {
         .ok_or_else(|| "expected an object".to_string())
 }
 
-fn int(s: &str) -> R<i32> {
+fn int(s: &str) -> R<i64> {
     s.trim().parse().map_err(|_| format!("not an integer: {s}"))
+}
+
+fn width(req: &Value) -> R<u32> {
+    req["width"]
+        .as_u64()
+        .and_then(|w| u32::try_from(w).ok())
+        .filter(|w| WIDTHS.contains(w))
+        .ok_or_else(|| format!("width must be one of {WIDTHS:?}"))
 }
 
 fn refs(w: &[String]) -> Vec<String> {
@@ -204,18 +220,18 @@ impl Backend {
         json!({"token": self.next, "bytes": bytes})
     }
 
-    fn fresh(&self, ty: &str, value: &str) -> R<Val> {
+    fn fresh(&self, ty: &str, value: &str, width: u32) -> R<Val> {
         Ok(match ty {
             "bool" => Val::Bool(FheBool::encrypt(int(value)? != 0, &self.client)),
-            "int" => Val::Int(FheInt32::encrypt(int(value)?, &self.client)),
+            "int" => Val::Int(Int::encrypt(width, int(value)?, &self.client)?),
             other => return Err(format!("unsupported type: {other}")),
         })
     }
 
-    fn trivial(ty: &str, value: &str) -> R<Val> {
+    fn trivial(ty: &str, value: &str, width: u32) -> R<Val> {
         Ok(match ty {
             "bool" => Val::Bool(FheBool::encrypt_trivial(int(value)? != 0)),
-            _ => Val::Int(FheInt32::encrypt_trivial(int(value)?)),
+            _ => Val::Int(Int::trivial(width, int(value)?)?),
         })
     }
 
@@ -236,22 +252,24 @@ impl Backend {
             .map(|(k, v)| Ok((k.clone(), text(v)?)))
             .collect::<R<_>>()?;
         let types = object(&req["input_types"])?;
+        let w = width(req)?;
         let inputs = object(&req["inputs"])?;
         let order = schedule(&nodes, &outputs);
         let mut vals: HashMap<String, Val> = HashMap::new();
         for id in &order {
-            let w = nodes.get(id).ok_or_else(|| format!("unknown node {id}"))?;
+            let node = nodes.get(id).ok_or_else(|| format!("unknown node {id}"))?;
             let arg = |i: usize| -> R<Val> {
-                let r = w
+                let r = node
                     .get(i)
                     .ok_or_else(|| format!("node {id}: missing operand"))?;
                 vals.get(r)
                     .cloned()
                     .ok_or_else(|| format!("node {id}: operand {r} not computed"))
             };
-            let v = match w[0].as_str() {
+            let int = |i: usize| arg(i)?.int(w);
+            let v = match node[0].as_str() {
                 "input" => {
-                    let name = &w[1];
+                    let name = &node[1];
                     let input = inputs
                         .get(name)
                         .ok_or_else(|| format!("missing input {name}"))?;
@@ -259,38 +277,39 @@ impl Backend {
                     if let Some(t) = input.get("cipher") {
                         self.token(t)?.clone()
                     } else {
-                        Self::trivial(&ty, &text(&input["public"])?)?
+                        Self::trivial(&ty, &text(&input["public"])?, w)?
                     }
                 }
-                "constant" => Self::trivial("int", &w[1])?,
-                "add" => Val::Int(arg(1)?.int() + arg(2)?.int()),
-                "subtract" => Val::Int(arg(1)?.int() - arg(2)?.int()),
-                "multiply" => Val::Int(arg(1)?.int() * arg(2)?.int()),
-                "negate" => Val::Int(-arg(1)?.int()),
-                "equal" => Val::Bool(arg(1)?.int().eq(arg(2)?.int())),
-                "less-than" => Val::Bool(arg(1)?.int().lt(arg(2)?.int())),
-                "less-or-equal" => Val::Bool(arg(1)?.int().le(arg(2)?.int())),
-                "greater-than" => Val::Bool(arg(1)?.int().gt(arg(2)?.int())),
-                "greater-or-equal" => Val::Bool(arg(1)?.int().ge(arg(2)?.int())),
+                "constant" => Self::trivial("int", &node[1], w)?,
+                "add" => Val::Int(lift!(|a, b| a + b, int(1)?, int(2)?)?),
+                "subtract" => Val::Int(lift!(|a, b| a - b, int(1)?, int(2)?)?),
+                "multiply" => Val::Int(lift!(|a, b| a * b, int(1)?, int(2)?)?),
+                "negate" => Val::Int(lift!(|a| -a, int(1)?)),
+                "equal" => Val::Bool(test!(|a, b| a.eq(b), int(1)?, int(2)?)?),
+                "less-than" => Val::Bool(test!(|a, b| a.lt(b), int(1)?, int(2)?)?),
+                "less-or-equal" => Val::Bool(test!(|a, b| a.le(b), int(1)?, int(2)?)?),
+                "greater-than" => Val::Bool(test!(|a, b| a.gt(b), int(1)?, int(2)?)?),
+                "greater-or-equal" => Val::Bool(test!(|a, b| a.ge(b), int(1)?, int(2)?)?),
                 "and" => Val::Bool(arg(1)?.bool() & arg(2)?.bool()),
                 "or" => Val::Bool(arg(1)?.bool() | arg(2)?.bool()),
                 "not" => Val::Bool(!arg(1)?.bool()),
                 // max/min never overflow: the declared range holds whatever
                 // the ciphertext held (`spec/TclMesh/Range.lean`, `guarded_sound`).
                 "clamp" => {
-                    let bound = |i: usize| -> R<FheInt32> {
-                        let b = w
+                    let bound = |i: usize| -> R<Int> {
+                        let b = node
                             .get(i)
                             .ok_or_else(|| format!("node {id}: missing bound"))?;
-                        Ok(FheInt32::encrypt_trivial(int(b)?))
+                        Int::trivial(w, crate::int(b)?)
                     };
-                    Val::Int(arg(1)?.int().max(&bound(2)?).min(&bound(3)?))
+                    let x = lift!(|x, lo| x.max(&lo), int(1)?, bound(2)?)?;
+                    Val::Int(lift!(|x, hi| x.min(&hi), x, bound(3)?)?)
                 }
                 "select" => {
                     let c = arg(1)?.bool();
                     match (arg(2)?, arg(3)?) {
                         (Val::Bool(a), Val::Bool(b)) => Val::Bool((&c & &a) | (!&c & &b)),
-                        (a, b) => Val::Int(c.select(&a.int(), &b.int())),
+                        (a, b) => Val::Int(lift!(|a, b| c.select(&a, &b), a.int(w)?, b.int(w)?)?),
                     }
                 }
                 other => return Err(format!("unsupported operation under TFHE: {other}")),
@@ -341,13 +360,14 @@ impl Backend {
     }
 
     /// Verify a proven `bits`-bit offset bound to (context, lo, bits) and
-    /// return `lo + a` as an `FheInt32`. The caller checks that
-    /// `[lo, lo + 2^bits - 1]` lies in the word.
+    /// return `lo + a` as a `width`-bit word; `[lo, lo + 2^bits - 1]` must
+    /// lie in the word.
     fn import(&mut self, req: &Value) -> R<Value> {
         let bits = req["bits"].as_u64().ok_or("bits must be a number")? as usize;
         if !PROVEN_BITS.contains(&bits) {
             return Err(format!("bits must be one of {PROVEN_BITS:?}"));
         }
+        let w = width(req)?;
         let lo = int(&text(&req["lo"])?)?;
         let hi = match req.get("hi") {
             Some(h) => {
@@ -362,24 +382,23 @@ impl Backend {
         let list: ProvenCompactCiphertextList = load(Path::new(&text(&req["proof"])?))?;
         let context = text(&req["context"])?;
         let public = self.public.clone();
-        let x = import_proven(&list, self.crs()?, &public, &context, lo, bits, hi)?;
+        let x = import_proven(&list, self.crs()?, &public, &context, w, lo, bits, hi)?;
         Ok(self.keep(Val::Int(x)))
     }
 
     fn handle(&mut self, req: &Value) -> R<Value> {
         match req["op"].as_str().unwrap_or("") {
             "encrypt" => {
-                let v = self.fresh(&text(&req["type"])?, &text(&req["value"])?)?;
+                let ty = text(&req["type"])?;
+                let w = if ty == "int" { width(req)? } else { 32 };
+                let v = self.fresh(&ty, &text(&req["value"])?, w)?;
                 Ok(self.keep(v))
             }
             "evaluate" => self.evaluate(req),
             "publish" => self.publish(req),
             "import" => self.import(req),
             "decrypt" => Ok(match self.token(&req["token"])? {
-                Val::Int(x) => {
-                    let n: i32 = x.decrypt(&self.client);
-                    json!({"value": n.to_string()})
-                }
+                Val::Int(x) => json!({"value": x.decrypt(&self.client).to_string()}),
                 Val::Bool(b) => {
                     let v: bool = b.decrypt(&self.client);
                     json!({"value": if v { "1" } else { "0" }})
