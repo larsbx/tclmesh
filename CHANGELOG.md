@@ -2,6 +2,12 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- proven inputs: `tclmesh private publish` writes the public key and CRS, the
+  encrypting party proves a `k`-bit offset with `tclmesh-tfhe-prove` (TFHE-rs
+  `zk-pok`, no secret key), and `tclmesh private import` verifies the proof
+  bound to its context, offset and width, yielding a handle whose range
+  `[lo, lo + 2^k − 1]` is proved and whose value the runtime never sees;
+  `Range.inputs_of_proofs` proves the range consequence;
 - fix checked Boolean handle composition: validate consumed bit ranges and
   reject Boolean output labels whose certified ranges exceed `[0,1]`, before
   backend execution; `Range.bit_output_sound` proves the resulting invariant;

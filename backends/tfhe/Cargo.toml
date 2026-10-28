@@ -6,6 +6,19 @@ license = "Apache-2.0"
 description = "TFHE-rs backend for TclMesh private circuits, over a JSON-lines protocol"
 publish = false
 
+[lib]
+name = "tclmesh_tfhe"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tclmesh-tfhe"
+path = "src/main.rs"
+
+[[bin]]
+name = "tclmesh-tfhe-prove"
+path = "src/bin/prove.rs"
+
 [dependencies]
-tfhe = { version = "=1.8.2", features = ["integer"] }
+tfhe = { version = "=1.8.2", features = ["integer", "zk-pok"] }
+serde = "1"
 serde_json = "1"

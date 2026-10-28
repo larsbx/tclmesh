@@ -8,7 +8,15 @@
 //!  "output_nodes":{..},"input_types":{..}}             → {"outputs":{name:{"token":..,"bytes":..}},"trace":[ids]}
 //! {"op":"decrypt","token":1}                           → {"value":"120"}
 //! {"op":"destroy","token":1}                           → {}
+//! {"op":"publish","dir":"/path"}                       → {} (public key and CRS)
+//! {"op":"import","proof":"/path","context":"c",
+//!  "lo":"-5","bits":8}                                  → {"token":2,"bytes":N}
 //! ```
+//!
+//! `publish` writes what an encrypting party needs to prove an input without
+//! the client key (`tclmesh-tfhe-prove`, `src/lib.rs`). `import` verifies such
+//! a proof against its context, offset and width, and yields `lo + a` for the
+//! proven `a < 2^bits`: a ciphertext whose range is proved, not claimed.
 //!
 //! Errors are `{"error": message}`. Ciphertexts never leave the process; the
 //! runtime holds opaque token numbers and each ciphertext's serialized size.
@@ -27,8 +35,15 @@
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{BufRead, Write};
+use std::path::Path;
+use tclmesh_tfhe::{config, load, metadata, save, CRS, CRS_MAX_BITS, PROVEN_BITS, PUBLIC_KEY};
 use tfhe::prelude::*;
-use tfhe::{generate_keys, set_server_key, ClientKey, ConfigBuilder, FheBool, FheInt32};
+use tfhe::zk::CompactPkeCrs;
+use tfhe::{
+    set_server_key, ClientKey, CompactPublicKey, FheBool, FheInt32, FheUint10, FheUint12,
+    FheUint14, FheUint16, FheUint2, FheUint32, FheUint4, FheUint6, FheUint8,
+    ProvenCompactCiphertextList, ServerKey,
+};
 
 #[derive(Clone)]
 enum Val {
@@ -65,6 +80,8 @@ impl Val {
 
 struct Backend {
     client: ClientKey,
+    public: CompactPublicKey,
+    crs: Option<CompactPkeCrs>,
     store: HashMap<u64, Val>,
     next: u64,
 }
@@ -160,9 +177,11 @@ fn schedule(
 
 impl Backend {
     fn new() -> Self {
-        let (client, server) = generate_keys(ConfigBuilder::default().build());
-        set_server_key(server);
+        let client = ClientKey::generate(config());
+        set_server_key(ServerKey::new(&client));
         Backend {
+            public: CompactPublicKey::new(&client),
+            crs: None,
             client,
             store: HashMap::new(),
             next: 0,
@@ -277,6 +296,56 @@ impl Backend {
         Ok(json!({"outputs": out, "trace": order}))
     }
 
+    /// The CRS, generated on first use: it is public and takes a while.
+    fn crs(&mut self) -> R<&CompactPkeCrs> {
+        if self.crs.is_none() {
+            self.crs = Some(
+                CompactPkeCrs::from_config(config(), CRS_MAX_BITS).map_err(|e| e.to_string())?,
+            );
+        }
+        Ok(self.crs.as_ref().expect("generated above"))
+    }
+
+    fn publish(&mut self, req: &Value) -> R<Value> {
+        let dir = text(&req["dir"])?;
+        let dir = Path::new(&dir);
+        save(&self.public, &dir.join(PUBLIC_KEY))?;
+        save(self.crs()?, &dir.join(CRS))?;
+        Ok(json!({}))
+    }
+
+    /// Verify a proven `bits`-bit offset bound to (context, lo, bits) and
+    /// return `lo + a` as an `FheInt32`. The caller checks that
+    /// `[lo, lo + 2^bits - 1]` lies in the word.
+    fn import(&mut self, req: &Value) -> R<Value> {
+        let bits = req["bits"].as_u64().ok_or("bits must be a number")? as usize;
+        if !PROVEN_BITS.contains(&bits) {
+            return Err(format!("bits must be one of {PROVEN_BITS:?}"));
+        }
+        let lo = int(&text(&req["lo"])?)?;
+        let list: ProvenCompactCiphertextList = load(Path::new(&text(&req["proof"])?))?;
+        let statement = metadata(&text(&req["context"])?, lo, bits);
+        let public = self.public.clone();
+        let expander = list
+            .verify_and_expand(self.crs()?, &public, &statement)
+            .map_err(|e| format!("proof rejected: {e}"))?;
+        if expander.len() != 1 {
+            return Err("a proven input holds exactly one integer".into());
+        }
+        macro_rules! offset {
+            ($($n:literal => $t:ty),*) => {
+                match bits {
+                    $($n => FheUint32::cast_from(
+                        expander.get::<$t>(0).map_err(|e| e.to_string())?.ok_or("empty list")?),)*
+                    _ => unreachable!("bits checked against PROVEN_BITS"),
+                }
+            };
+        }
+        let a = offset!(2 => FheUint2, 4 => FheUint4, 6 => FheUint6, 8 => FheUint8,
+            10 => FheUint10, 12 => FheUint12, 14 => FheUint14, 16 => FheUint16);
+        Ok(self.keep(Val::Int(FheInt32::cast_from(a) + lo)))
+    }
+
     fn handle(&mut self, req: &Value) -> R<Value> {
         match req["op"].as_str().unwrap_or("") {
             "encrypt" => {
@@ -284,6 +353,8 @@ impl Backend {
                 Ok(self.keep(v))
             }
             "evaluate" => self.evaluate(req),
+            "publish" => self.publish(req),
+            "import" => self.import(req),
             "decrypt" => Ok(match self.token(&req["token"])? {
                 Val::Int(x) => {
                     let n: i32 = x.decrypt(&self.client);
