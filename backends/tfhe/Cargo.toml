@@ -18,6 +18,10 @@ path = "src/main.rs"
 name = "tclmesh-tfhe-prove"
 path = "src/bin/prove.rs"
 
+[[bin]]
+name = "tclmesh-tfhe-crs"
+path = "src/bin/crs.rs"
+
 [dependencies]
 tfhe = { version = "=1.8.2", features = ["integer", "zk-pok"] }
 serde = "1"

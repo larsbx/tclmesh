@@ -38,9 +38,13 @@ Important boundaries:
   out-of-range values are clamped, not rejected. Or it is the encrypting
   party's claim, checked against the plaintext at `encrypt`. Proven inputs
   rely on the soundness of TFHE-rs `zk-pok` and on its sanitizing expansion,
-  and on a CRS generated honestly by the key holder (`private publish`). A
-  verified proof can be replayed under the same context, so contexts should
-  name one use, for example an application, circuit, input and nonce. A
+  and on a CRS whose trapdoor no prover holds: `tclmesh-tfhe-crs` lets a third
+  party generate it and `private publish PROFILE DIR CRS` adopts it, so the
+  key holder need not know the trapdoor (without CRS the backend generates
+  one itself, and the key holder must be trusted not to forge proofs). A
+  proof context is single-use: a second import under it is refused while the
+  first handle's record exists, which on the TFHE backend means for the
+  lifetime of the runtime process. A
   proven range is `[lo, lo + 2^k − 1]`; for an exact `[lo, hi]`, `import`
   takes `hi` and holds `min(lo + a, hi)`, so a dishonest input is clamped to
   `hi`. To reject it instead, `range-check` computes the bit `lo ≤ x ≤ hi`
