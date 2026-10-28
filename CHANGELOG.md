@@ -2,6 +2,12 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- noise-budget soundness for bootstrapped circuits (`spec/TclMesh/Noise.lean`):
+  TFHE-rs's per-block degree and noise-level discipline as a static checker,
+  proved sound at any depth (`Noise.bootstrapped_sound`) under the bootstrap
+  contract, required only of the bootstraps that run, so failure is at most
+  `pbsCount · 2^-128`; `chain_check` accepts every depth, `leveled_rejected`
+  shows the bound without bootstraps;
 - proof hygiene: `tclmesh-tfhe-crs` generates the CRS for a party other than
   the key holder, and `tclmesh private publish PROFILE DIR CRS` adopts it
   (fixed once adopted); proof contexts are single-use (`CONTEXT_REUSED`);

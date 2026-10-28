@@ -37,7 +37,8 @@ whose corpus is replayed against these definitions (`spec-eval --word-range`).
 
 That TFHE computes `wrapped 32` — each operation decrypts to the wrapped
 result of its plaintext operation — is the backend's correctness within its
-noise budget, a named hypothesis outside this model (`docs/proofs.md`).
+noise budget, a named hypothesis outside this model (`docs/proofs.md`); its
+noise-budget part is `Noise.bootstrapped_sound`.
 -/
 
 namespace TclMesh.Range
