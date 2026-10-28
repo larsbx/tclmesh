@@ -40,7 +40,7 @@ jobs:
         run: |
           cargo fmt --check --manifest-path backends/tfhe/Cargo.toml
           cargo clippy --release --locked --all-targets --manifest-path backends/tfhe/Cargo.toml -- -D warnings
-      - name: A dishonest prover cannot leave the proven width
+      - name: Backend tests (proven widths, CRS ceremony)
         run: cargo test --release --locked --manifest-path backends/tfhe/Cargo.toml
       - name: The backend is registered (TFHE tests must not be skipped)
         run: |

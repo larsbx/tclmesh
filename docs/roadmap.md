@@ -107,9 +107,11 @@ Before a v0.3 release or a stronger claim, continue in this order:
    and checked at `encrypt`. Proven ranges are `[lo, lo + 2^k − 1]` for even
    `k ≤ 16`; an exact `[lo, hi]` is clamped by `import … hi` by default, or
    rejected through a released admission bit (`range-check`, `admit`), since
-   the proof system cannot relate two proven offsets. The CRS can be generated
-   by a third party (`tclmesh-tfhe-crs`) and adopted; a multi-party ceremony
-   would remove the remaining trust in that party. Proof contexts are
+   the proof system cannot relate two proven offsets. The CRS comes from a
+   multi-party ceremony (`tclmesh-tfhe-crs init|contribute|verify`) that
+   `publish` verifies before adopting, so its trapdoor is unknown unless every
+   contributor colludes; contributions are not yet signed, so a contributor
+   confirms inclusion by its receipt. Proof contexts are
    single-use per runtime; persisting that across restarts needs persistent
    TFHE handles.
    Packing metadata is hashed but not yet semantically validated.

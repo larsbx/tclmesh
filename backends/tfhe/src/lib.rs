@@ -10,6 +10,8 @@
 //! never sees `x`, and `x` lies in `[lo, lo + 2^k - 1]`
 //! (`spec/TclMesh/Range.lean`, `proven_input_range`).
 
+pub mod ceremony;
+
 use std::path::Path;
 use tfhe::prelude::*;
 use tfhe::safe_serialization::{safe_deserialize, safe_serialize};
