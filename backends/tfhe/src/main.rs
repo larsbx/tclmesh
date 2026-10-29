@@ -9,6 +9,12 @@
 //!  "output_nodes":{..},"input_types":{..},"width":32} → {"outputs":{name:{"token":..,"bytes":..}},"trace":[ids]}
 //! {"op":"decrypt","token":1}                           → {"value":"120"}
 //! {"op":"destroy","token":1}                           → {}
+//! {"op":"export","token":1}                            → {"keyset":K,"kind":"int32",
+//!                                                         "ciphertext":base64}
+//! {"op":"restore","keyset":K,"kind":..,
+//!  "ciphertext":..}                                    → {"token":3,"bytes":N}
+//!                                                         (refused unless K is
+//!                                                         this process's keyset)
 //! {"op":"publish","dir":"/path","crs":"/path",
 //!  "trusted":["/key.pub"]}                             → {"receipts":[..]} (public
 //!                                                         key and CRS; "crs" adopts
@@ -43,11 +49,14 @@
 //!
 //! Test deployment: this process holds the client key as well as the server
 //! key. A production deployment keeps the client key with the data owner.
+//! Keys are fresh per process unless `TCLMESH_TFHE_KEYS` names a directory,
+//! where the client key (mode 0600), public key and adopted CRS persist, so
+//! exported ciphertexts can be restored after a restart.
 
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{BufRead, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tclmesh_tfhe::{
     ceremony, config, import_proven, lift, load, save, test, upper_bound_ok, Int, CRS,
     CRS_MAX_BITS, LIMIT, PROVEN_BITS, PUBLIC_KEY, WIDTHS,
@@ -101,6 +110,10 @@ impl Val {
 struct Backend {
     client: ClientKey,
     public: CompactPublicKey,
+    /// Names the key pair: recovery material is restored only under it.
+    keyset: String,
+    /// Where the keys and CRS persist (`TCLMESH_TFHE_KEYS`), if anywhere.
+    keys: Option<PathBuf>,
     crs: Option<CompactPkeCrs>,
     store: HashMap<u64, Val>,
     next: u64,
@@ -203,17 +216,139 @@ fn schedule(
     order
 }
 
+const CLIENT_KEY: &str = "client-key.bin";
+
+/// A file only its owner can read, never written over.
+fn save_private<T: serde::Serialize + tfhe::named::Named + tfhe::Versionize>(
+    value: &T,
+    path: &Path,
+) -> R<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut buf = Vec::new();
+    tfhe::safe_serialization::safe_serialize(value, &mut buf, LIMIT).map_err(|e| e.to_string())?;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+        .and_then(|mut f| f.write_all(&buf))
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn keyset(public: &CompactPublicKey) -> R<String> {
+    use sha3::{Digest, Sha3_256};
+    let mut buf = Vec::new();
+    tfhe::safe_serialization::safe_serialize(public, &mut buf, LIMIT).map_err(|e| e.to_string())?;
+    Ok(Sha3_256::digest(&buf)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect())
+}
+
 impl Backend {
+    /// Fresh keys for this process only.
+    #[cfg(test)]
     fn new() -> Self {
-        let client = ClientKey::generate(config());
+        Self::open(None).expect("fresh keys")
+    }
+
+    /// The keys in `keys`, made there on first use, or fresh ones that die
+    /// with the process. The server key is derived from the client key.
+    fn open(keys: Option<&Path>) -> R<Self> {
+        let (public, crs, client) = match keys {
+            None => {
+                let client = ClientKey::generate(config());
+                (CompactPublicKey::new(&client), None, client)
+            }
+            Some(dir) => {
+                std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                let path = dir.join(CLIENT_KEY);
+                let client: ClientKey = if path.exists() {
+                    load(&path)?
+                } else {
+                    let client = ClientKey::generate(config());
+                    save_private(&client, &path)?;
+                    client
+                };
+                let path = dir.join(PUBLIC_KEY);
+                let public: CompactPublicKey = if path.exists() {
+                    load(&path)?
+                } else {
+                    let public = CompactPublicKey::new(&client);
+                    save(&public, &path)?;
+                    public
+                };
+                let path = dir.join(CRS);
+                let crs = if path.exists() {
+                    Some(load(&path)?)
+                } else {
+                    None
+                };
+                (public, crs, client)
+            }
+        };
         set_server_key(ServerKey::new(&client));
-        Backend {
-            public: CompactPublicKey::new(&client),
-            crs: None,
+        Ok(Backend {
+            keyset: keyset(&public)?,
+            keys: keys.map(Path::to_path_buf),
+            public,
+            crs,
             client,
             store: HashMap::new(),
             next: 0,
+        })
+    }
+
+    /// Keep the CRS with the keys, so it stays fixed across restarts.
+    fn persist_crs(&self) -> R<()> {
+        match (&self.keys, &self.crs) {
+            (Some(dir), Some(crs)) if !dir.join(CRS).exists() => save(crs, &dir.join(CRS)),
+            _ => Ok(()),
         }
+    }
+
+    /// A ciphertext as recovery material bound to this keyset.
+    fn export(&self, req: &Value) -> R<Value> {
+        let mut buf = Vec::new();
+        let kind = match self.token(&req["token"])? {
+            Val::Int(Int::W32(x)) => {
+                tfhe::safe_serialization::safe_serialize(x, &mut buf, LIMIT).map(|_| "int32")
+            }
+            Val::Int(Int::W64(x)) => {
+                tfhe::safe_serialization::safe_serialize(x, &mut buf, LIMIT).map(|_| "int64")
+            }
+            Val::Bool(b) => {
+                tfhe::safe_serialization::safe_serialize(b, &mut buf, LIMIT).map(|_| "bool")
+            }
+        }
+        .map_err(|e| e.to_string())?;
+        use base64::Engine;
+        Ok(json!({"keyset": self.keyset, "kind": kind,
+            "ciphertext": base64::engine::general_purpose::STANDARD.encode(buf)}))
+    }
+
+    /// The ciphertext in recovery material from [`Backend::export`], refused
+    /// unless it was made under this keyset.
+    fn restore(&mut self, req: &Value) -> R<Value> {
+        if text(&req["keyset"])? != self.keyset {
+            return Err("recovery material belongs to another keyset".into());
+        }
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(text(&req["ciphertext"])?)
+            .map_err(|e| e.to_string())?;
+        fn read<T: serde::de::DeserializeOwned + tfhe::named::Named + tfhe::Unversionize>(
+            bytes: &[u8],
+        ) -> R<T> {
+            tfhe::safe_serialization::safe_deserialize(bytes, LIMIT).map_err(|e| e.to_string())
+        }
+        let v = match text(&req["kind"])?.as_str() {
+            "int32" => Val::Int(Int::W32(read(&bytes)?)),
+            "int64" => Val::Int(Int::W64(read(&bytes)?)),
+            "bool" => Val::Bool(read(&bytes)?),
+            other => return Err(format!("unknown ciphertext kind: {other}")),
+        };
+        Ok(self.keep(v))
     }
 
     fn keep(&mut self, v: Val) -> Value {
@@ -345,6 +480,7 @@ impl Backend {
             self.crs = Some(
                 CompactPkeCrs::from_config(config(), CRS_MAX_BITS).map_err(|e| e.to_string())?,
             );
+            self.persist_crs()?;
         }
         Ok(self.crs.as_ref().expect("generated above"))
     }
@@ -379,6 +515,7 @@ impl Backend {
             } else {
                 return Err("trusted contributors need a ceremony directory".into());
             });
+            self.persist_crs()?;
         } else if !trusted.is_empty() {
             return Err("trusted contributors need a ceremony directory".into());
         }
@@ -432,6 +569,9 @@ impl Backend {
                     json!({"value": if v { "1" } else { "0" }})
                 }
             }),
+            "export" => self.export(req),
+            "restore" => self.restore(req),
+            "keyset" => Ok(json!({"keyset": self.keyset})),
             "destroy" => {
                 let id = req["token"].as_u64().ok_or("token must be a number")?;
                 self.store.remove(&id);
@@ -443,7 +583,11 @@ impl Backend {
 }
 
 fn main() {
-    let mut backend = Backend::new();
+    let keys = std::env::var_os("TCLMESH_TFHE_KEYS").map(PathBuf::from);
+    let mut backend = Backend::open(keys.as_deref()).unwrap_or_else(|e| {
+        eprintln!("tclmesh-tfhe: {e}");
+        std::process::exit(1);
+    });
     let stdout = std::io::stdout();
     for line in std::io::stdin().lock().lines() {
         let Ok(line) = line else { break };
@@ -468,6 +612,35 @@ mod test_support;
 mod tests {
     use super::*;
     use test_support::{crs_bytes, CeremonyRace};
+
+    /// Recovery material restores the same ciphertext under its keyset and
+    /// is refused under any other.
+    #[test]
+    fn recovery_material_is_bound_to_its_keyset() {
+        let mut backend = Backend::new();
+        let mut tokens = Vec::new();
+        for (ty, value, width) in [
+            ("int", "-7", 32),
+            ("int", "5000000000", 64),
+            ("bool", "1", 32),
+        ] {
+            let v = backend.fresh(ty, value, width).unwrap();
+            tokens.push((backend.keep(v)["token"].clone(), value));
+        }
+        for (token, value) in tokens {
+            let mut material = backend.export(&json!({"token": token})).unwrap();
+            let restored = backend.restore(&material).unwrap();
+            let got = backend
+                .handle(&json!({"op": "decrypt", "token": restored["token"]}))
+                .unwrap();
+            assert_eq!(got["value"], value);
+            material["keyset"] = json!("0".repeat(64));
+            assert!(backend
+                .restore(&material)
+                .unwrap_err()
+                .contains("another keyset"));
+        }
+    }
 
     #[test]
     fn publish_uses_verified_snapshot_when_ceremony_files_are_replaced() {

@@ -64,11 +64,16 @@ Important boundaries:
   trusted; without either, the backend generates one itself, and the key
   holder must be trusted not to forge proofs. A
   proof context is single-use: a second import under it is refused while the
-  first handle's record exists, which on the TFHE backend means for the
-  lifetime of the runtime process. A proof is also bound to the public key it
-  was made under, and each TFHE backend process generates fresh keys, so a
-  proof replayed into a later process fails verification; a deployment that
-  persists keys must persist the consumed contexts with them. A
+  first handle's record exists (destroyed handles keep theirs). A proof is
+  also bound to the public key it was made under. By default each TFHE
+  backend process generates fresh keys, so handles and consumed contexts last
+  one process and a proof replayed into a later one fails verification. With
+  `TCLMESH_TFHE_KEYS=DIR` the keys (the client key private to its owner) and
+  an adopted CRS persist in DIR, and the backend gains `persistent-handles`:
+  with a handle store attached (`tclmesh release use-store`), handles survive
+  restarts as ciphertexts bound to their keyset, refused under any other,
+  and so do the consumed contexts in their records. DIR holds the decryption
+  key and must be protected accordingly. A
   proven range is `[lo, lo + 2^k − 1]`, for even `k ≤ 16` or `k = 32`; for an exact `[lo, hi]`, `import`
   takes `hi` and holds `min(lo + a, hi)`, so a dishonest input is clamped to
   `hi`. To reject it instead, `range-check` computes the bit `lo ≤ x ≤ hi`

@@ -2,6 +2,11 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- persistent TFHE deployments: `TCLMESH_TFHE_KEYS=DIR` keeps the backend's
+  keys (client key mode 0600) and adopted CRS across restarts and enables
+  `persistent-handles`: handles export as ciphertexts bound to their keyset
+  (`export`, `restore`; refused under another keyset), so with a handle store
+  attached, handles and the proof contexts they consumed survive restarts;
 - signed CRS contributions: `tclmesh-tfhe-crs keygen` makes a contributor's
   long-term key, `contribute DIR SECRET` signs the contribution's receipt,
   and `verify DIR PUBLIC...` and `tclmesh private publish PROFILE DIR
