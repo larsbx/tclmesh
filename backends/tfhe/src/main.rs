@@ -318,6 +318,10 @@ impl Backend {
     }
 
     fn publish(&mut self, req: &Value) -> R<Value> {
+        self.publish_with_rng(req, &mut rand::rngs::OsRng)
+    }
+
+    fn publish_with_rng(&mut self, req: &Value, rng: &mut dyn rand::RngCore) -> R<Value> {
         let dir = text(&req["dir"])?;
         let dir = Path::new(&dir);
         let mut receipts = Vec::new();
@@ -328,7 +332,7 @@ impl Backend {
             let path = text(path)?;
             let path = Path::new(&path);
             self.crs = Some(if path.is_dir() {
-                let (rs, crs) = ceremony::verify(path, &mut rand::rngs::OsRng)?;
+                let (rs, crs) = ceremony::verify(path, rng)?;
                 receipts = rs;
                 crs
             } else {
@@ -410,5 +414,47 @@ fn main() {
         let mut out = stdout.lock();
         writeln!(out, "{response}").expect("write response");
         out.flush().expect("flush response");
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/support/mod.rs"]
+mod test_support;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_support::{crs_bytes, CeremonyRace};
+
+    #[test]
+    fn publish_uses_verified_snapshot_when_ceremony_files_are_replaced() {
+        let race = CeremonyRace::new("publish");
+        let mut backend = Backend::new();
+        let mut rng = race.replacing_rng();
+        let response = backend
+            .publish_with_rng(&json!({"dir": race.output, "crs": race.ceremony}), &mut rng)
+            .unwrap();
+
+        race.assert_replaced(&rng);
+        assert_eq!(response["receipts"], json!(race.receipts));
+        assert!(
+            crs_bytes(backend.crs.as_ref().unwrap()) == race.verified,
+            "CRS differs from verified snapshot"
+        );
+        assert!(std::fs::read(race.output.join(CRS)).unwrap() == race.verified);
+        let public: CompactPublicKey = load(&race.output.join(PUBLIC_KEY)).unwrap();
+        assert_eq!(public, backend.public);
+
+        // Later publication also uses the fixed in-memory object, despite
+        // the ceremony directory now containing the public-trapdoor CRS.
+        assert_eq!(
+            backend.publish(&json!({"dir": race.output})).unwrap(),
+            json!({"receipts": []})
+        );
+        assert!(std::fs::read(race.output.join(CRS)).unwrap() == race.verified);
+        assert!(backend
+            .publish(&json!({"dir": race.output, "crs": race.ceremony}))
+            .unwrap_err()
+            .contains("already fixed"));
     }
 }
