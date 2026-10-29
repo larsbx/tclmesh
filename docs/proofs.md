@@ -190,9 +190,10 @@ boundary through the Tcl/Lean differential gate; `tests/tfhe.test` exercises
 real encrypted endpoints, Boolean handle composition and counterexample
 refusals. Relevant PRs now run the TFHE workflow before merge.
 
-`UPSTREAM.toml` pins finite-math-kernels merge `c48568f57e1970ccfd5e20c6bb972ccda5c1ea46`
-(PR #83). Its provenance correction `cd889984` regenerated the manifest entry
-for `docs/theorems/hyperbolic-rt-contract.md`; it did not relax the verifier.
-The accepted merge passed CI, Exact RT, Frontier polyglot and Julia oracle
-workflows. The vendored 1,720-row corpus is byte-identical, with its existing
-SHA-256 unchanged.
+`UPSTREAM.toml` pins finite-math-kernels merge `7e921aa72c3bc59e7d1671f1a163f8bf34efd3a8`
+(PR #89), which extends the canonical word-range contract through 64 bits.
+The vendored 2,060-row corpus is byte-identical to that commit and has SHA-256
+`7e0a5905383a80b3ec2a39a556de45249238a1dc39b932928e58077bda439dc1`.
+The previous 1,720 rows are retained unchanged; 340 rows cover width 64.
+CI verifies the pin, regenerates and replays the corpus with the upstream
+Mojo kernel, and independently replays it through the Lean model.
