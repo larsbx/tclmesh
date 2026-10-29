@@ -16,6 +16,7 @@ on:
       - 'src/tfhe.tcl'
       - 'tests/range.test'
       - 'tests/tfhe.test'
+      - 'tools/check_crs_snapshot_mutant.py'
       - 'spec/TclMesh/Range.lean'
       - 'UPSTREAM.toml'
 
@@ -42,6 +43,8 @@ jobs:
           cargo clippy --release --locked --all-targets --manifest-path backends/tfhe/Cargo.toml -- -D warnings
       - name: Backend tests (proven widths, CRS ceremony)
         run: cargo test --release --locked --manifest-path backends/tfhe/Cargo.toml
+      - name: CRS snapshot regressions reject the original file-reopening mutant
+        run: python3 tools/check_crs_snapshot_mutant.py
       - name: The backend is registered (TFHE tests must not be skipped)
         run: |
           tclsh <<'EOF2'

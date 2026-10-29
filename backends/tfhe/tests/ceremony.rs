@@ -9,6 +9,42 @@ use tfhe::prelude::*;
 use tfhe::zk::{CompactPkeCrs, ZkComputeLoad};
 use tfhe::{set_server_key, ClientKey, CompactPublicKey, ProvenCompactCiphertextList, ServerKey};
 
+mod support;
+use support::{crs_bytes, CeremonyRace};
+
+#[test]
+fn verification_returns_checked_snapshot_when_ceremony_files_are_replaced() {
+    let race = CeremonyRace::new("verify");
+    let mut rng = race.replacing_rng();
+    let (receipts, crs) = verify(&race.ceremony, &mut rng).unwrap();
+    race.assert_replaced(&rng);
+    assert_eq!(receipts, race.receipts);
+    assert!(
+        crs_bytes(&crs) == race.verified,
+        "CRS differs from verified snapshot"
+    );
+    // The bytes now on disk are a real, deserializable CRS, but not an
+    // acceptable ceremony. The successful call above used its earlier snapshot.
+    assert!(verify(&race.ceremony, &mut rand::thread_rng()).is_err());
+    save(&crs, &race.output.join(CRS)).unwrap();
+    assert!(std::fs::read(race.output.join(CRS)).unwrap() == race.verified);
+}
+
+#[test]
+fn contribution_extends_checked_snapshot_when_ceremony_files_are_replaced() {
+    let race = CeremonyRace::new("contribute");
+    let mut rng = race.replacing_rng();
+    let receipt = contribute(&race.ceremony, &mut rng).unwrap();
+    rng.assert_fired();
+    // contribute() overwrites the attack with the extension of its checked
+    // snapshot, including the original two contributions, rather than rereading.
+    let (receipts, crs) = verify(&race.ceremony, &mut rand::thread_rng()).unwrap();
+    assert_eq!(&receipts[..2], race.receipts);
+    assert_eq!(receipts[2..], [receipt]);
+    assert!(crs_bytes(&crs) != race.verified);
+    assert!(crs_bytes(&crs) == std::fs::read(race.ceremony.join(CRS)).unwrap());
+}
+
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("tclmesh-ceremony-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
