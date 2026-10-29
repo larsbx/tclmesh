@@ -277,7 +277,23 @@ impl Backend {
                 (CompactPublicKey::new(&client), None, client)
             }
             Some(dir) => {
-                std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                // Newly created persistent key directories are private.  Do
+                // not silently trust an existing world- or group-accessible
+                // directory (including one reached through a symlink).
+                use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+                std::fs::DirBuilder::new()
+                    .recursive(true)
+                    .mode(0o700)
+                    .create(dir)
+                    .map_err(|e| format!("{}: {e}", dir.display()))?;
+                let dir_meta =
+                    std::fs::symlink_metadata(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                if !dir_meta.is_dir() || dir_meta.permissions().mode() & 0o077 != 0 {
+                    return Err(format!(
+                        "{}: persistent key directory must be a private, non-symlink directory (mode 0700)",
+                        dir.display()
+                    ));
+                }
                 let path = dir.join(CLIENT_KEY);
                 // A public key without its client key names a keyset whose
                 // secret is gone: a fresh client key must not take its name.
@@ -288,6 +304,17 @@ impl Backend {
                     ));
                 }
                 let client: ClientKey = if path.exists() {
+                    // The default loader follows links and does not validate
+                    // permissions.  Existing/backup-restored secrets must meet
+                    // the same security boundary as newly generated ones.
+                    let meta = std::fs::symlink_metadata(&path)
+                        .map_err(|e| format!("{}: {e}", path.display()))?;
+                    if !meta.is_file() || meta.permissions().mode() & 0o777 != 0o600 {
+                        return Err(format!(
+                            "{}: persistent client key must be a regular, non-symlink file with mode 0600",
+                            path.display()
+                        ));
+                    }
                     load(&path)?
                 } else {
                     let client = ClientKey::generate(config());
