@@ -348,6 +348,46 @@ test T-025-width-isolation {a handle of one width is not evaluated in a circuit 
     catch {tclmesh private evaluate tfhe-wide-open $c [dict create x $narrow]}
 } -result 1
 
+# Exercise the JSON backend below private::_prepare_inputs, which independently
+# rejects profile mismatches. Identity and Boolean consumers must enforce word
+# width even when they never call Val::int.
+test T-027-backend-width-isolation {the backend rejects foreign-width inputs before any consumer} -constraints tfhe -body {
+    set results {}
+    foreach {source target sourceWidth targetWidth} {
+        tfhe-open tfhe-wide-open 32 64
+        tfhe-wide-open tfhe-open 64 32
+    } {
+        set h [tclmesh private encrypt $source int 7]
+        set token [dict get $::tclmesh::private::handles $h token]
+        set prepared [dict create x [list cipher $token]]
+        foreach {consumer want} {identity 7 not 0 select 1 add 8} {
+            set nodes {x {input x} one {constant 1} zero {constant 0}}
+            switch -- $consumer {
+                identity { dict set nodes y {input x} }
+                not { dict set nodes y {not x} }
+                select { dict set nodes y {select x one zero} }
+                add { dict set nodes y {add x one} }
+            }
+            set c [tclmesh private circuit width-boundary {x {cipher int}} {y {cipher int}} \
+                $nodes {output_nodes {y y}}]
+            set same [::tclmesh::tfhe::_backend evaluate \
+                [tclmesh private profile describe $source] $c $prepared]
+            set value [::tclmesh::tfhe::_backend decrypt \
+                [tclmesh private profile describe $source] int [dict get $same y]]
+            ::tclmesh::tfhe::_backend destroy [dict get $same y]
+            set rejected [catch {
+                ::tclmesh::tfhe::_backend evaluate \
+                    [tclmesh private profile describe $target] $c $prepared
+            } message options]
+            set expected [list TCLMESH TFHE "a $sourceWidth-bit integer in a $targetWidth-bit circuit"]
+            lappend results [list [expr {$value == $want}] \
+                [expr {$rejected && [dict get $options -errorcode] eq $expected}]]
+        }
+        tclmesh private handle destroy $h
+    }
+    set results
+} -result {{1 1} {1 1} {1 1} {1 1} {1 1} {1 1} {1 1} {1 1}}
+
 if {[testConstraint tfhe]} {
     file delete -force $zk
 }
