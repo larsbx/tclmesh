@@ -49,8 +49,17 @@ Important boundaries:
   it (each contribution's proof of knowledge, the chain of contributions, and
   the CRS's power structure, by pairings) before adopting it; a ceremony
   without contributions has the public trapdoor `1` and is refused.
-  Contributions are not signed: a contributor confirms inclusion by its
-  receipt. Alternatively `private publish PROFILE DIR CRS` adopts a CRS that
+  The chain shows that each contribution's secret was known to someone, not
+  to whom: a coordinator could make every contribution itself. So a
+  contributor signs its receipt with a long-term key
+  (`tclmesh-tfhe-crs keygen`, `contribute DIR SECRET`); the receipt binds
+  the contribution and its place in the chain, so a signature cannot be
+  moved. `private publish PROFILE DIR CEREMONY TRUSTED` adopts the ceremony
+  only if one of the TRUSTED public keys signed a contribution, so trusting
+  any one of those parties to discard its secret suffices. Without TRUSTED,
+  unsigned ceremonies are accepted and the key holder must trust whoever ran
+  them; signatures are then checked but name no one the key holder relies
+  on. Alternatively `private publish PROFILE DIR CRS` adopts a CRS that
   one third party generated with `tclmesh-tfhe-crs CRS`, who must then be
   trusted; without either, the backend generates one itself, and the key
   holder must be trusted not to forge proofs. A

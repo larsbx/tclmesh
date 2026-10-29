@@ -295,6 +295,27 @@ test T-021-ceremony-crs {a CRS from a verified multi-party ceremony is adopted; 
         [file join $zk crs.bin] [list $fresh]]
 } -result {1 refused adopted 42 foreign-refused fixed-refused}
 
+test T-028-signed-ceremony {a ceremony is adopted only when a trusted party signed a contribution} -constraints tfhe -body {
+    set dir [file join $zk signed]
+    set ceremony [file join $dir crs]
+    file mkdir $ceremony
+    set tool [::tclmesh::tfhe::crs-generator]
+    foreach who {alice mallory} {
+        set fingerprint($who) [exec $tool keygen [file join $dir $who.key] [file join $dir $who.pub]]
+    }
+    exec $tool init $ceremony
+    set signed [exec $tool contribute $ceremony [file join $dir alice.key]]
+    exec $tool contribute $ceremony
+    set listed [split [exec $tool verify $ceremony [file join $dir alice.pub]] \n]
+    list [expr {[lindex $signed 1] eq $fingerprint(alice)}] \
+        [expr {[lindex $listed 0] eq $signed && [lindex $listed 1 1] eq "-"}] \
+        [refused {tclmesh private publish tfhe-checked $dir {} [list [file join $dir alice.pub]]}] \
+        {*}[exec [info nameofexecutable] [file join [file dirname [info script]] tfhe-crs-process.tcl] \
+        [file dirname [file dirname [file normalize [info script]]]] $dir \
+        [list $ceremony [list [file join $dir alice.pub]]] [file join $zk crs.bin] \
+        [list [list $ceremony [list [file join $dir mallory.pub]]]]]
+} -result {1 1 {TCLMESH PRIVATE RANGE TRUST_WITHOUT_CEREMONY} refused adopted 42 foreign-refused fixed-refused}
+
 # 64-bit words (`FheInt64`): the same range certificates, for a word wide
 # enough that products of 32-bit-scale values stay exact.
 proc fma {} {

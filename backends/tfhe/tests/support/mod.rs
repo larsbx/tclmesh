@@ -18,7 +18,7 @@ pub struct CeremonyRace {
     root: PathBuf,
     pub ceremony: PathBuf,
     pub output: PathBuf,
-    pub receipts: Vec<String>,
+    pub receipts: Vec<ceremony::Receipt>,
     pub verified: Vec<u8>,
     replacement: Vec<u8>,
     transcript: Vec<u8>,
@@ -44,8 +44,8 @@ impl CeremonyRace {
         let transcript = std::fs::read(ceremony.join(ceremony::TRANSCRIPT)).unwrap();
         let mut rng = StdRng::seed_from_u64(29);
         let receipts = vec![
-            ceremony::contribute(&ceremony, &mut rng).unwrap(),
-            ceremony::contribute(&ceremony, &mut rng).unwrap(),
+            ceremony::contribute(&ceremony, None, &mut rng).unwrap(),
+            ceremony::contribute(&ceremony, None, &mut rng).unwrap(),
         ];
         let verified = std::fs::read(ceremony.join(CRS)).unwrap();
         assert!(verified != replacement);

@@ -110,8 +110,10 @@ Before a v0.3 release or a stronger claim, continue in this order:
    the proof system cannot relate two proven offsets. The CRS comes from a
    multi-party ceremony (`tclmesh-tfhe-crs init|contribute|verify`) that
    `publish` verifies before adopting, so its trapdoor is unknown unless every
-   contributor colludes; contributions are not yet signed, so a contributor
-   confirms inclusion by its receipt. Proof contexts are
+   contributor colludes; contributors sign their receipts with long-term keys,
+   and `publish … TRUSTED` requires a contribution signed by a trusted party,
+   so one honest party suffices. Distributing and revoking those public keys
+   is the deployment's. Proof contexts are
    single-use per runtime, and a proof is bound to the public key it was made
    under, so with per-process TFHE keys a replay into a later process is
    refused; persisting keys will need a persisted consumed-context ledger.

@@ -9,13 +9,16 @@
 //!  "output_nodes":{..},"input_types":{..},"width":32} → {"outputs":{name:{"token":..,"bytes":..}},"trace":[ids]}
 //! {"op":"decrypt","token":1}                           → {"value":"120"}
 //! {"op":"destroy","token":1}                           → {}
-//! {"op":"publish","dir":"/path","crs":"/path"}        → {"receipts":[..]} (public
+//! {"op":"publish","dir":"/path","crs":"/path",
+//!  "trusted":["/key.pub"]}                             → {"receipts":[..]} (public
 //!                                                         key and CRS; "crs" adopts
 //!                                                         one made by
 //!                                                         `tclmesh-tfhe-crs`, or
 //!                                                         verifies a ceremony
-//!                                                         directory and adopts its
-//!                                                         CRS, listing its receipts)
+//!                                                         directory, requiring a
+//!                                                         contribution signed by a
+//!                                                         "trusted" key if given,
+//!                                                         and adopts its CRS)
 //! {"op":"import","proof":"/path","context":"c",
 //!  "lo":"-5","bits":8,"hi":"200","width":32}            → {"token":2,"bytes":N}
 //! ```
@@ -354,6 +357,13 @@ impl Backend {
         let dir = text(&req["dir"])?;
         let dir = Path::new(&dir);
         let mut receipts = Vec::new();
+        let trusted = match req.get("trusted") {
+            Some(t) => words(t)?
+                .iter()
+                .map(|p| ceremony::read_public(Path::new(p)))
+                .collect::<R<Vec<_>>>()?,
+            None => Vec::new(),
+        };
         if let Some(path) = req.get("crs") {
             if self.crs.is_some() {
                 return Err("the CRS is already fixed for this process".into());
@@ -361,12 +371,16 @@ impl Backend {
             let path = text(path)?;
             let path = Path::new(&path);
             self.crs = Some(if path.is_dir() {
-                let (rs, crs) = ceremony::verify(path, rng)?;
+                let (rs, crs) = ceremony::verify(path, &trusted, rng)?;
                 receipts = rs;
                 crs
-            } else {
+            } else if trusted.is_empty() {
                 load(path)?
+            } else {
+                return Err("trusted contributors need a ceremony directory".into());
             });
+        } else if !trusted.is_empty() {
+            return Err("trusted contributors need a ceremony directory".into());
         }
         save(&self.public, &dir.join(PUBLIC_KEY))?;
         save(self.crs()?, &dir.join(CRS))?;

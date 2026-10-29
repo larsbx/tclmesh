@@ -3,7 +3,9 @@
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use tclmesh_tfhe::ceremony::{contribute, init, verify, TRANSCRIPT};
+use tclmesh_tfhe::ceremony::{
+    contribute, init, keygen, read_public, read_secret, verify, write_keys, TRANSCRIPT,
+};
 use tclmesh_tfhe::{config, import_proven, metadata, save, CRS};
 use tfhe::zk::{CompactPkeCrs, ZkComputeLoad};
 use tfhe::{set_server_key, ClientKey, CompactPublicKey, ProvenCompactCiphertextList, ServerKey};
@@ -15,7 +17,7 @@ use support::{crs_bytes, CeremonyRace};
 fn verification_returns_checked_snapshot_when_ceremony_files_are_replaced() {
     let race = CeremonyRace::new("verify");
     let mut rng = race.replacing_rng();
-    let (receipts, crs) = verify(&race.ceremony, &mut rng).unwrap();
+    let (receipts, crs) = verify(&race.ceremony, &[], &mut rng).unwrap();
     race.assert_replaced(&rng);
     assert_eq!(receipts, race.receipts);
     assert!(
@@ -24,7 +26,7 @@ fn verification_returns_checked_snapshot_when_ceremony_files_are_replaced() {
     );
     // The bytes now on disk are a real, deserializable CRS, but not an
     // acceptable ceremony. The successful call above used its earlier snapshot.
-    assert!(verify(&race.ceremony, &mut rand::thread_rng()).is_err());
+    assert!(verify(&race.ceremony, &[], &mut rand::thread_rng()).is_err());
     save(&crs, &race.output.join(CRS)).unwrap();
     assert!(std::fs::read(race.output.join(CRS)).unwrap() == race.verified);
 }
@@ -33,11 +35,11 @@ fn verification_returns_checked_snapshot_when_ceremony_files_are_replaced() {
 fn contribution_extends_checked_snapshot_when_ceremony_files_are_replaced() {
     let race = CeremonyRace::new("contribute");
     let mut rng = race.replacing_rng();
-    let receipt = contribute(&race.ceremony, &mut rng).unwrap();
+    let receipt = contribute(&race.ceremony, None, &mut rng).unwrap();
     rng.assert_fired();
     // contribute() overwrites the attack with the extension of its checked
     // snapshot, including the original two contributions, rather than rereading.
-    let (receipts, crs) = verify(&race.ceremony, &mut rand::thread_rng()).unwrap();
+    let (receipts, crs) = verify(&race.ceremony, &[], &mut rand::thread_rng()).unwrap();
     assert_eq!(&receipts[..2], race.receipts);
     assert_eq!(receipts[2..], [receipt]);
     assert!(crs_bytes(&crs) != race.verified);
@@ -76,10 +78,10 @@ fn a_ceremony_crs_proves_inputs_and_tampering_is_refused() {
     init(&dir).unwrap();
     let start = copy(&dir, "start");
     let receipts = [
-        contribute(&dir, rng).unwrap(),
-        contribute(&dir, rng).unwrap(),
+        contribute(&dir, None, rng).unwrap(),
+        contribute(&dir, None, rng).unwrap(),
     ];
-    let (listed, crs) = verify(&dir, rng).unwrap();
+    let (listed, crs) = verify(&dir, &[], rng).unwrap();
     assert_eq!(listed, receipts);
 
     // The CRS works for proofs of encryption.
@@ -99,7 +101,7 @@ fn a_ceremony_crs_proves_inputs_and_tampering_is_refused() {
     assert_eq!(x.decrypt(&client), 32);
 
     // Without contributions, the trapdoor is 1.
-    assert!(verify(&start, rng).is_err());
+    assert!(verify(&start, &[], rng).is_err());
     let refused = [
         // A forged proof of knowledge.
         tampered(&dir, "s", |c| c[1]["s"] = c[0]["s"].clone()),
@@ -125,11 +127,76 @@ fn a_ceremony_crs_proves_inputs_and_tampering_is_refused() {
         },
     ];
     for d in refused {
-        assert!(verify(&d, rng).is_err(), "{}", d.display());
-        assert!(contribute(&d, rng).is_err(), "{}", d.display());
+        assert!(verify(&d, &[], rng).is_err(), "{}", d.display());
+        assert!(contribute(&d, None, rng).is_err(), "{}", d.display());
         std::fs::remove_dir_all(d).unwrap();
     }
     for d in [dir, start] {
+        std::fs::remove_dir_all(d).unwrap();
+    }
+}
+
+/// A signed contribution names its contributor: trusting a party means
+/// requiring its signature somewhere in the chain, and a signature cannot be
+/// moved, forged onto another key, or kept once removed.
+#[test]
+fn signed_contributions_name_who_contributed() {
+    let rng = &mut rand::thread_rng();
+    let ((a, pa), (b, pb), (_, pc)) = (keygen(rng), keygen(rng), keygen(rng));
+    let dir = scratch("signed");
+    init(&dir).unwrap();
+    let made = [
+        contribute(&dir, Some(&a), rng).unwrap(),
+        contribute(&dir, None, rng).unwrap(),
+        contribute(&dir, Some(&b), rng).unwrap(),
+    ];
+    let signers: Vec<_> = made.iter().map(|r| r.signer.clone()).collect();
+    assert_eq!(
+        signers,
+        [Some(pa.fingerprint()), None, Some(pb.fingerprint())]
+    );
+    assert_eq!(verify(&dir, &[], rng).unwrap().0, made);
+    for trusted in [vec![pa], vec![pb], vec![pc, pa]] {
+        assert!(verify(&dir, &trusted, rng).is_ok());
+    }
+    assert!(verify(&dir, &[pc], rng).is_err());
+
+    let refused = [
+        // A's signature moved onto the unsigned contribution.
+        tampered(&dir, "moved", |c| {
+            c[1]["signature"] = c[0]["signature"].clone();
+            c[0].as_object_mut().unwrap().remove("signature");
+        }),
+        // A's signature claimed by B's key.
+        tampered(&dir, "claimed", |c| {
+            c[0]["signature"]["signer"] = c[2]["signature"]["signer"].clone();
+        }),
+    ];
+    for d in refused {
+        assert!(verify(&d, &[], rng).is_err(), "{}", d.display());
+        std::fs::remove_dir_all(d).unwrap();
+    }
+    // Without A's signature, A is not a contributor, though the chain holds.
+    let stripped = tampered(&dir, "stripped", |c| {
+        c[0].as_object_mut().unwrap().remove("signature");
+    });
+    assert!(verify(&stripped, &[], rng).is_ok());
+    assert!(verify(&stripped, &[pa], rng).is_err());
+    assert!(verify(&stripped, &[pb], rng).is_ok());
+
+    // Key files: the secret is private to its owner and never overwritten.
+    let keys = scratch("keys");
+    let (secret, public) = (keys.join("a.key"), keys.join("a.pub"));
+    let pk = write_keys(&secret, &public, rng).unwrap();
+    assert_eq!(read_public(&public).unwrap(), pk);
+    assert!(read_secret(&secret).is_ok());
+    use std::os::unix::fs::PermissionsExt;
+    assert_eq!(
+        std::fs::metadata(&secret).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert!(write_keys(&secret, &keys.join("b.pub"), rng).is_err());
+    for d in [dir, stripped, keys] {
         std::fs::remove_dir_all(d).unwrap();
     }
 }

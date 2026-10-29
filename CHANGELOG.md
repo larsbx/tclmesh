@@ -2,6 +2,11 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- signed CRS contributions: `tclmesh-tfhe-crs keygen` makes a contributor's
+  long-term key, `contribute DIR SECRET` signs the contribution's receipt,
+  and `verify DIR PUBLIC...` and `tclmesh private publish PROFILE DIR
+  CEREMONY TRUSTED` require a contribution signed by a trusted key, so the
+  key holder can check that one party it trusts took part;
 - 64-bit words: `int64-checked` and `int64-wrapping` under TFHE
   (`FheInt64`), alongside 32-bit; the backend carries each value's width and
   refuses to mix widths, and proven inputs import into either word. Range
