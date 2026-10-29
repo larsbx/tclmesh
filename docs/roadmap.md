@@ -105,7 +105,7 @@ Before a v0.3 release or a stronger claim, continue in this order:
    knowledge (`private import`, TFHE-rs `zk-pok`, `inputs_of_proofs`), enforced
    inside the circuit by `range guard` (`clamp`, `guarded_sound`), or claimed
    and checked at `encrypt`. Proven ranges are `[lo, lo + 2^k − 1]` for even
-   `k ≤ 16`; an exact `[lo, hi]` is clamped by `import … hi` by default, or
+   `k ≤ 16` or `k = 32` (in a 64-bit word, or as the whole 32-bit word); an exact `[lo, hi]` is clamped by `import … hi` by default, or
    rejected through a released admission bit (`range-check`, `admit`), since
    the proof system cannot relate two proven offsets. The CRS comes from a
    multi-party ceremony (`tclmesh-tfhe-crs init|contribute|verify`) that

@@ -332,6 +332,15 @@ test T-024-proven-int64 {a proven range above 2^31 is held as a 64-bit word and 
         [refused {tclmesh private import tfhe-checked [proven $zk wide/2 5000000000 8 5000000007] wide/2 5000000000 8}]
 } -result {5000000007 {5000000000 5000000255} {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}}
 
+test T-026-proven-32-bit {32-bit proven offsets: amounts up to 2^32 - 1 in the 64-bit word, the whole 32-bit word in the 32-bit one} -constraints tfhe -body {
+    set cents [tclmesh private import tfhe-wide [proven $zk amount/1 0 32 4294967295] amount/1 0 32]
+    set word [tclmesh private import tfhe-checked \
+        [proven $zk word/1 -2147483648 32 2147483000] word/1 -2147483648 32]
+    list [tclmesh private decrypt $cents] [dict get [tclmesh private handle describe $cents] range] \
+        [tclmesh private decrypt $word] \
+        [refused {tclmesh private import tfhe-checked [proven $zk word/2 0 32 5] word/2 0 32}]
+} -result {4294967295 {0 4294967295} 2147483000 {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT}}
+
 test T-025-width-isolation {a handle of one width is not evaluated in a circuit of another} -constraints tfhe -body {
     set c [tclmesh private circuit id [dict create x {cipher int}] [dict create y {cipher int}] \
         [dict create y [tclmesh private node input x]] [dict create output_nodes [dict create y y]]]

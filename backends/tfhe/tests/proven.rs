@@ -2,7 +2,7 @@
 //! range check. Whatever it pushes, a verified `bits`-bit list expands to a
 //! value below `2^bits`: the bound comes from the ciphertext, not the prover.
 
-use tclmesh_tfhe::{config, import_proven, metadata};
+use tclmesh_tfhe::{config, import_proven, metadata, CRS_MAX_BITS};
 use tfhe::prelude::*;
 use tfhe::zk::{CompactPkeCrs, ZkComputeLoad};
 use tfhe::{
@@ -98,4 +98,44 @@ fn proofs_do_not_survive_a_change_of_keys() {
         .unwrap();
     assert!(import_proven(&list, &crs, &new, "replay", 32, 0, 8, None).is_err());
     assert!(import_proven(&list, &crs, &old, "replay", 32, 0, 8, None).is_ok());
+}
+
+/// 32-bit offsets: zero-extended into the 64-bit word; in the 32-bit word
+/// only the whole word fits, and an offset past 2^31 wraps back into it
+/// exactly.
+#[test]
+fn thirty_two_bit_offsets_are_exact_in_either_word() {
+    let client = ClientKey::generate(config());
+    set_server_key(ServerKey::new(&client));
+    let pk = CompactPublicKey::new(&client);
+    let crs = CompactPkeCrs::from_config(config(), CRS_MAX_BITS).unwrap();
+    let min = i64::from(i32::MIN);
+    for (width, lo, offset) in [
+        (64, 0, u32::MAX),
+        (64, -7, 3_000_000_000),
+        (32, min, 4_000_000_000),
+        (32, min, 5),
+    ] {
+        let list = ProvenCompactCiphertextList::builder(&pk)
+            .push_with_num_bits(offset, 32)
+            .unwrap()
+            .build_with_proof_packed(&crs, &metadata("wide", lo, 32, None), ZkComputeLoad::Proof)
+            .unwrap();
+        let x = import_proven(&list, &crs, &pk, "wide", width, lo, 32, None).unwrap();
+        assert_eq!(
+            x.decrypt(&client),
+            lo + i64::from(offset),
+            "{width} {lo} {offset}"
+        );
+    }
+    let list = ProvenCompactCiphertextList::builder(&pk)
+        .push_with_num_bits(0u32, 32)
+        .unwrap()
+        .build_with_proof_packed(
+            &crs,
+            &metadata("wide", min + 1, 32, None),
+            ZkComputeLoad::Proof,
+        )
+        .unwrap();
+    assert!(import_proven(&list, &crs, &pk, "wide", 32, min + 1, 32, None).is_err());
 }

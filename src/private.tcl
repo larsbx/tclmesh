@@ -553,9 +553,9 @@ proc ::tclmesh::private::import {profile_name proof context lo bits {hi {}}} {
         return -code error -errorcode {TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} \
             "proven inputs need an int<W>-checked profile"
     }
-    if {$bits ni {2 4 6 8 10 12 14 16} || ![::tclmesh::range::_int $lo]} {
+    if {$bits ni {2 4 6 8 10 12 14 16 32} || ![::tclmesh::range::_int $lo]} {
         return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} \
-            "a proven input needs a canonical lo and bits in 2, 4, ..., 16"
+            "a proven input needs a canonical lo and bits in 2, 4, ..., 16 or 32"
     }
     set top [expr {$lo + (1 << $bits) - 1}]
     if {$hi ne "" && !([::tclmesh::range::_int $hi] && $lo <= $hi && $hi <= $top)} {

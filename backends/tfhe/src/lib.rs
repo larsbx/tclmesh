@@ -77,7 +77,9 @@ impl Int {
         })
     }
 
-    /// `x` held exactly as a `width`-bit word: `x` lies in `[0, 2^16)`.
+    /// The offset `x < 2^32` as a `width`-bit word: zero-extended at 64 bits;
+    /// at 32 bits an `x >= 2^31` wraps to `x - 2^32`, so `lo + x` is still
+    /// exact whenever it lies in the word (wrapping is a ring homomorphism).
     fn from_offset(width: u32, x: FheUint32) -> Result<Int, String> {
         Ok(match width {
             32 => Int::W32(FheInt32::cast_from(x)),
@@ -142,12 +144,13 @@ macro_rules! test {
     };
 }
 
-/// Proven offsets have these widths: each has an `FheUint` type and fits the
-/// 32-bit word with room for the offset.
-pub const PROVEN_BITS: [usize; 8] = [2, 4, 6, 8, 10, 12, 14, 16];
+/// Proven offsets have these widths: each has an `FheUint` type. A 32-bit
+/// offset fills the 32-bit word (only `lo = -2^31` fits there) and leaves
+/// room in the 64-bit one.
+pub const PROVEN_BITS: [usize; 9] = [2, 4, 6, 8, 10, 12, 14, 16, 32];
 
 /// Largest number of bits one CRS proves.
-pub const CRS_MAX_BITS: usize = 16;
+pub const CRS_MAX_BITS: usize = 32;
 
 /// Serialization limit for keys, CRS and proven lists.
 pub const LIMIT: u64 = 1 << 32;
@@ -231,7 +234,7 @@ pub fn import_proven(
         };
     }
     let a = offset!(2 => FheUint2, 4 => FheUint4, 6 => FheUint6, 8 => FheUint8,
-        10 => FheUint10, 12 => FheUint12, 14 => FheUint14, 16 => FheUint16);
+        10 => FheUint10, 12 => FheUint12, 14 => FheUint14, 16 => FheUint16, 32 => FheUint32);
     let (lo, hi) = (
         Int::trivial(width, lo)?,
         hi.map(|h| Int::trivial(width, h)).transpose()?,

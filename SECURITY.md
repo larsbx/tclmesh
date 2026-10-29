@@ -60,7 +60,7 @@ Important boundaries:
   was made under, and each TFHE backend process generates fresh keys, so a
   proof replayed into a later process fails verification; a deployment that
   persists keys must persist the consumed contexts with them. A
-  proven range is `[lo, lo + 2^k − 1]`; for an exact `[lo, hi]`, `import`
+  proven range is `[lo, lo + 2^k − 1]`, for even `k ≤ 16` or `k = 32`; for an exact `[lo, hi]`, `import`
   takes `hi` and holds `min(lo + a, hi)`, so a dishonest input is clamped to
   `hi`. To reject it instead, `range-check` computes the bit `lo ≤ x ≤ hi`
   under encryption, a release quorum decrypts that bit alone, and `admit`
