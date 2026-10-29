@@ -132,8 +132,12 @@ proc ::tclmesh::tfhe::_backend {operation args} {
                 op [_s decrypt] token [lindex $token 1]]] value]
         }
         publish {
-            lassign $args profile dir crs
+            lassign $args profile dir crs trusted
             set adopt [expr {$crs eq "" ? {} : [::list crs [_s [file normalize $crs]]]}]
+            if {[llength $trusted] > 0} {
+                lappend adopt trusted [json::write array \
+                    {*}[lmap key $trusted {_s [file normalize $key]}]]
+            }
             _call [json::write object op [_s publish] dir [_s [file normalize $dir]] {*}$adopt]
             return
         }
@@ -171,8 +175,8 @@ proc ::tclmesh::tfhe::prover {} {
 }
 
 # The CRS tool (`tclmesh-tfhe-crs`): a multi-party ceremony
-# (`init|contribute|verify DIR`) or a one-party CRS file, either adopted with
-# `private publish PROFILE DIR CRS`.
+# (`keygen`, `init|contribute|verify DIR`) or a one-party CRS file, either
+# adopted with `private publish PROFILE DIR CRS ?TRUSTED?`.
 proc ::tclmesh::tfhe::crs-generator {} {
     variable binary
     file join [file dirname $binary] tclmesh-tfhe-crs

@@ -8,14 +8,18 @@
 //! A ceremony (`src/ceremony.rs`) needs no such party: the trapdoor stays
 //! unknown unless every contributor colludes.
 //!
+//! - `tclmesh-tfhe-crs keygen SECRET PUBLIC`: a contributor's long-term
+//!   signing key; PUBLIC is what verifiers trust.
 //! - `tclmesh-tfhe-crs init DIR`: start from the CRS with the public trapdoor 1.
-//! - `tclmesh-tfhe-crs contribute DIR`: check the ceremony, add a contribution
-//!   with a fresh secret, and print its receipt.
-//! - `tclmesh-tfhe-crs verify DIR`: check the ceremony and print every
-//!   receipt in order; a contributor checks that theirs is listed.
+//! - `tclmesh-tfhe-crs contribute DIR [SECRET]`: check the ceremony, add a
+//!   contribution with a fresh secret, signed with SECRET if given, and print
+//!   its receipt and signer.
+//! - `tclmesh-tfhe-crs verify DIR [PUBLIC...]`: check the ceremony and print
+//!   every receipt and signer in order (`-` when unsigned); with PUBLIC keys,
+//!   require a contribution signed by one of them.
 //!
 //! The runtime adopts OUT, or verifies and adopts DIR, with
-//! `{"op":"publish","crs":OUT|DIR}`.
+//! `{"op":"publish","crs":OUT|DIR,"trusted":[PUBLIC...]}`.
 
 use std::path::Path;
 use tclmesh_tfhe::{ceremony, config, save, CRS_MAX_BITS};
@@ -28,17 +32,32 @@ fn run(args: &[String]) -> Result<(), String> {
             &CompactPkeCrs::from_config(config(), CRS_MAX_BITS).map_err(|e| e.to_string())?,
             Path::new(out),
         ),
-        [op, dir] => {
-            let dir = Path::new(dir);
-            match op.as_str() {
-                "init" => ceremony::init(dir),
-                "contribute" => ceremony::contribute(dir, rng).map(|r| println!("{r}")),
-                "verify" => ceremony::verify(dir, rng)
-                    .map(|(rs, _)| rs.iter().for_each(|r| println!("{r}"))),
-                _ => Err(format!("unknown operation {op}")),
-            }
+        [op, secret, public] if op == "keygen" => {
+            let key = ceremony::write_keys(Path::new(secret), Path::new(public), rng)?;
+            println!("{}", key.fingerprint());
+            Ok(())
         }
-        _ => Err("usage: tclmesh-tfhe-crs OUT | (init|contribute|verify) DIR".into()),
+        [op, dir] if op == "init" => ceremony::init(Path::new(dir)),
+        [op, dir, key @ ..] if op == "contribute" && key.len() <= 1 => {
+            let key = key
+                .first()
+                .map(|k| ceremony::read_secret(Path::new(k)))
+                .transpose()?;
+            ceremony::contribute(Path::new(dir), key.as_ref(), rng).map(|r| println!("{r}"))
+        }
+        [op, dir, trusted @ ..] if op == "verify" => {
+            let trusted = trusted
+                .iter()
+                .map(|k| ceremony::read_public(Path::new(k)))
+                .collect::<Result<Vec<_>, _>>()?;
+            ceremony::verify(Path::new(dir), &trusted, rng)
+                .map(|(rs, _)| rs.iter().for_each(|r| println!("{r}")))
+        }
+        _ => Err(
+            "usage: tclmesh-tfhe-crs OUT | keygen SECRET PUBLIC | init DIR \
+                  | contribute DIR [SECRET] | verify DIR [PUBLIC...]"
+                .into(),
+        ),
     }
 }
 
