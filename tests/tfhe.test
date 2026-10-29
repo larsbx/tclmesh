@@ -316,6 +316,20 @@ test T-028-signed-ceremony {a ceremony is adopted only when a trusted party sign
         [list [list $ceremony [list [file join $dir mallory.pub]]]]]
 } -result {1 1 {TCLMESH PRIVATE RANGE TRUST_WITHOUT_CEREMONY} refused adopted 42 foreign-refused fixed-refused}
 
+test T-029-persistent-deployment {with persistent keys, handles and consumed proof contexts survive restarts; other keys are refused} -constraints tfhe -body {
+    set dir [file join $zk persistent]
+    file mkdir [file join $dir zk]
+    set run {{dir keys phase {store store.tcl}} {
+        exec [info nameofexecutable] [file join [file dirname [info script]] tfhe-persist-process.tcl] \
+            [file dirname [file dirname [file normalize [info script]]]] [file join $dir $keys] \
+            [file join $dir $store] [file join $dir zk] $phase
+    }}
+    # The last phase pins the boundary: another store has its own contexts.
+    list [apply $run $dir keys first] [apply $run $dir keys second] [apply $run $dir other foreign] \
+        [expr {[scan [file attributes [file join $dir keys client-key.bin] -permissions] %o] & 0o777}] \
+        [apply $run $dir keys elsewhere other-store.tcl]
+} -result {{ct:1 ct:2} {41 {TCLMESH PRIVATE RANGE CONTEXT_REUSED ct:2} 42} refused 384 5}
+
 # 64-bit words (`FheInt64`): the same range certificates, for a word wide
 # enough that products of 32-bit-scale values stay exact.
 proc fma {} {

@@ -64,12 +64,26 @@ Important boundaries:
   trusted; without either, the backend generates one itself, and the key
   holder must be trusted not to forge proofs. A
   proof context is single-use: a second import under it is refused while the
-  first handle's record exists, which on the TFHE backend means for the
-  lifetime of the runtime process. A proof is also bound to the public key it
-  was made under, and each TFHE backend process generates fresh keys, so a
-  proof replayed into a later process fails verification; a deployment that
-  persists keys must persist the consumed contexts with them. A
-  proven range is `[lo, lo + 2^k − 1]`, for even `k ≤ 16` or `k = 32`; for an exact `[lo, hi]`, `import`
+  first handle's record exists (destroyed handles keep theirs). A proof is
+  also bound to the public key it was made under. By default each TFHE
+  backend process generates fresh keys, so handles and consumed contexts last
+  one process and a proof replayed into a later one fails verification. With
+  `TCLMESH_TFHE_KEYS=DIR` the keys (the client key private to its owner) and
+  an adopted CRS persist in DIR, and the backend gains `persistent-handles`:
+  with a handle store attached (`tclmesh release use-store`), handles survive
+  restarts as ciphertexts bound to their keyset, refused under any other,
+  and so do the consumed contexts in their records. The persistent key
+  directory must be a private, non-symlink directory (mode 0700) and its
+  existing client-key.bin must be a regular, non-symlink file (mode 0600);
+  insecure backup restores fail closed. DIR contains the decryption key and
+  is not appropriate for an untrusted host. Context consumption is durable
+  **only within the one authoritative handle store used for both imports and
+  recovery**. Multiple stores sharing the same keyset do not coordinate
+  context reuse. Parallel processes and distributed at-most-once import
+  require an additional atomic, keyset-scoped claim protocol; this reference
+  file store does not provide it. In particular, do not operate separate
+  handle stores under a shared keyset while claiming global replay exclusion.
+  A proven range is `[lo, lo + 2^k − 1]`, for even `k ≤ 16` or `k = 32`; for an exact `[lo, hi]`, `import`
   takes `hi` and holds `min(lo + a, hi)`, so a dishonest input is clamped to
   `hi`. To reject it instead, `range-check` computes the bit `lo ≤ x ≤ hi`
   under encryption, a release quorum decrypts that bit alone, and `admit`

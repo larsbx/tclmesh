@@ -114,9 +114,16 @@ Before a v0.3 release or a stronger claim, continue in this order:
    and `publish … TRUSTED` requires a contribution signed by a trusted party,
    so one honest party suffices. Distributing and revoking those public keys
    is the deployment's. Proof contexts are
-   single-use per runtime, and a proof is bound to the public key it was made
-   under, so with per-process TFHE keys a replay into a later process is
-   refused; persisting keys will need a persisted consumed-context ledger.
+   single-use while their handle records exist, and a proof is bound to the
+   public key it was made under. With persistent TFHE keys
+   (`TCLMESH_TFHE_KEYS`) handles persist as keyset-bound ciphertexts, so
+   consumed contexts survive restarts with their records; recovery material
+   from another keyset is refused. This is a single-authoritative-store
+   persistence guarantee, not a distributed uniqueness proof: separate handle
+   stores sharing a keyset can reuse the same proof context. Until a durable
+   atomic keyset-scoped context claim is implemented and refined, deploy
+   persistent TFHE with only one authoritative handle store and do not claim
+   cross-process at-most-once admission.
    Packing metadata is hashed but not yet semantically validated.
 3. Extend integrated acceptance and provenance reconstruction through private
    evaluation/release; audit private operations without exposing protected data.

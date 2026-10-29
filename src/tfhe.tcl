@@ -148,6 +148,16 @@ proc ::tclmesh::tfhe::_backend {operation args} {
                 proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits \
                 width [_width $profile] {*}$bound]]]
         }
+        export-handle {
+            lassign $args profile type token
+            return [_call [json::write object op [_s export] token [lindex $token 1]]]
+        }
+        restore-handle {
+            lassign $args profile type recovery
+            return [_token [_call [json::write object op [_s restore] \
+                keyset [_s [dict get $recovery keyset]] kind [_s [dict get $recovery kind]] \
+                ciphertext [_s [dict get $recovery ciphertext]]]]]
+        }
         destroy {
             set token [lindex $args end]
             _call [json::write object op [_s destroy] token [lindex $token 1]]
@@ -162,9 +172,13 @@ proc ::tclmesh::tfhe::_backend {operation args} {
 }
 
 set ::tclmesh::tfhe::binary [::tclmesh::tfhe::_locate [file dirname $::tclmesh::here]]
+# Handles persist only with persistent keys: $TCLMESH_TFHE_KEYS names the
+# directory that holds them (and an adopted CRS). Recovery material is a
+# ciphertext bound to its keyset, refused under any other.
 if {$::tclmesh::tfhe::binary ne ""} {
-    ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend \
-        {decrypt destroy threshold-release homomorphic proven-inputs}
+    ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend [concat \
+        {decrypt destroy threshold-release homomorphic proven-inputs} \
+        [expr {[info exists ::env(TCLMESH_TFHE_KEYS)] ? "persistent-handles" : ""}]]
 }
 
 # The encrypting party's tool (`tclmesh-tfhe-prove`), built beside the
