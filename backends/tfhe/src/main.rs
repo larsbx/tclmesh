@@ -235,6 +235,22 @@ fn save_private<T: serde::Serialize + tfhe::named::Named + tfhe::Versionize>(
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// The public key belongs to the client key: a random 64-bit value
+/// encrypted under one decrypts under the other (a mismatched pair passes
+/// with probability about 2^-64).
+fn pair(client: &ClientKey, public: &CompactPublicKey) -> R<bool> {
+    let x: u64 = rand::random();
+    let list = tfhe::CompactCiphertextList::builder(public).push(x).build();
+    let y: tfhe::FheUint64 = list
+        .expand()
+        .map_err(|e| e.to_string())?
+        .get(0)
+        .map_err(|e| e.to_string())?
+        .ok_or("empty list")?;
+    let y: u64 = y.decrypt(client);
+    Ok(y == x)
+}
+
 fn keyset(public: &CompactPublicKey) -> R<String> {
     use sha3::{Digest, Sha3_256};
     let mut buf = Vec::new();
@@ -263,6 +279,14 @@ impl Backend {
             Some(dir) => {
                 std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
                 let path = dir.join(CLIENT_KEY);
+                // A public key without its client key names a keyset whose
+                // secret is gone: a fresh client key must not take its name.
+                if !path.exists() && dir.join(PUBLIC_KEY).exists() {
+                    return Err(format!(
+                        "{}: a public key without its client key",
+                        dir.display()
+                    ));
+                }
                 let client: ClientKey = if path.exists() {
                     load(&path)?
                 } else {
@@ -288,6 +312,9 @@ impl Backend {
             }
         };
         set_server_key(ServerKey::new(&client));
+        if keys.is_some() && !pair(&client, &public)? {
+            return Err("the public key does not belong to the client key".into());
+        }
         Ok(Backend {
             keyset: keyset(&public)?,
             keys: keys.map(Path::to_path_buf),
@@ -299,11 +326,38 @@ impl Backend {
         })
     }
 
-    /// Keep the CRS with the keys, so it stays fixed across restarts.
-    fn persist_crs(&self) -> R<()> {
-        match (&self.keys, &self.crs) {
-            (Some(dir), Some(crs)) if !dir.join(CRS).exists() => save(crs, &dir.join(CRS)),
-            _ => Ok(()),
+    /// Keep the CRS with the keys, so it stays fixed across restarts. The
+    /// file is created atomically: when another process sharing the keys
+    /// fixed one first, its CRS wins, and an `adopted` CRS that differs
+    /// from it is refused.
+    fn persist_crs(&mut self, adopted: bool) -> R<()> {
+        let (Some(dir), Some(crs)) = (&self.keys, &self.crs) else {
+            return Ok(());
+        };
+        let (path, tmp) = (
+            dir.join(CRS),
+            dir.join(format!(".{CRS}.{}", std::process::id())),
+        );
+        save(crs, &tmp)?;
+        let linked = std::fs::hard_link(&tmp, &path);
+        let ours = std::fs::read(&tmp).map_err(|e| format!("{}: {e}", tmp.display()));
+        let _ = std::fs::remove_file(&tmp);
+        match linked {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                let theirs =
+                    std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+                if theirs == ours? {
+                    return Ok(());
+                }
+                self.crs = Some(load(&path)?);
+                if adopted {
+                    Err("another CRS is already fixed for these keys".into())
+                } else {
+                    Ok(())
+                }
+            }
+            Err(e) => Err(format!("{}: {e}", path.display())),
         }
     }
 
@@ -480,7 +534,7 @@ impl Backend {
             self.crs = Some(
                 CompactPkeCrs::from_config(config(), CRS_MAX_BITS).map_err(|e| e.to_string())?,
             );
-            self.persist_crs()?;
+            self.persist_crs(false)?;
         }
         Ok(self.crs.as_ref().expect("generated above"))
     }
@@ -515,7 +569,7 @@ impl Backend {
             } else {
                 return Err("trusted contributors need a ceremony directory".into());
             });
-            self.persist_crs()?;
+            self.persist_crs(true)?;
         } else if !trusted.is_empty() {
             return Err("trusted contributors need a ceremony directory".into());
         }
@@ -612,6 +666,63 @@ mod test_support;
 mod tests {
     use super::*;
     use test_support::{crs_bytes, CeremonyRace};
+
+    fn keydir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("tclmesh-keys-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    /// A key directory missing its client key, or holding another pair's
+    /// public key, is refused rather than given fresh secrets under an old
+    /// keyset's name.
+    #[test]
+    fn incomplete_or_mismatched_key_directories_are_refused() {
+        let (a, b) = (keydir("a"), keydir("b"));
+        let first = Backend::open(Some(&a)).unwrap().keyset;
+        assert_eq!(Backend::open(Some(&a)).unwrap().keyset, first);
+        Backend::open(Some(&b)).unwrap();
+        std::fs::copy(b.join(PUBLIC_KEY), a.join(PUBLIC_KEY)).unwrap();
+        let err = Backend::open(Some(&a)).err().unwrap();
+        assert!(err.contains("does not belong"), "{err}");
+        std::fs::remove_file(b.join(CLIENT_KEY)).unwrap();
+        let err = Backend::open(Some(&b)).err().unwrap();
+        assert!(err.contains("without its client key"), "{err}");
+        for d in [a, b] {
+            std::fs::remove_dir_all(d).unwrap();
+        }
+    }
+
+    /// Backends sharing a key directory fix one CRS: the first to persist
+    /// wins, a later lazily generated one yields to it, and adopting a
+    /// different one is refused.
+    #[test]
+    fn backends_sharing_keys_fix_one_crs() {
+        let dir = keydir("shared");
+        Backend::open(Some(&dir)).unwrap();
+        let (mut first, mut second, mut third) = (
+            Backend::open(Some(&dir)).unwrap(),
+            Backend::open(Some(&dir)).unwrap(),
+            Backend::open(Some(&dir)).unwrap(),
+        );
+        let fixed = crs_bytes(first.crs().unwrap());
+        assert!(crs_bytes(second.crs().unwrap()) == fixed);
+        let other = dir.join("other-crs.bin");
+        save(
+            &CompactPkeCrs::from_config(config(), CRS_MAX_BITS).unwrap(),
+            &other,
+        )
+        .unwrap();
+        let out = dir.join("published");
+        std::fs::create_dir_all(&out).unwrap();
+        let err = third
+            .publish(&json!({"dir": out, "crs": other}))
+            .unwrap_err();
+        assert!(err.contains("already fixed"), "{err}");
+        assert!(crs_bytes(third.crs.as_ref().unwrap()) == fixed);
+        assert!(std::fs::read(dir.join(CRS)).unwrap() == fixed);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     /// Recovery material restores the same ciphertext under its keyset and
     /// is refused under any other.
