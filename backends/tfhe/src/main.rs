@@ -720,6 +720,35 @@ mod tests {
         }
     }
 
+    /// Existing key material must not bypass the creation-time security
+    /// invariants after a backup restore, chmod, or symlink substitution.
+    #[test]
+    fn insecure_existing_key_material_is_refused() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+        let dir = keydir("permissions");
+        Backend::open(Some(&dir)).unwrap();
+        let key = dir.join(CLIENT_KEY);
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let error = Backend::open(Some(&dir)).err().unwrap();
+        assert!(error.contains("mode 0600"), "{error}");
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+        let original = dir.join("client-key-original.bin");
+        std::fs::rename(&key, &original).unwrap();
+        symlink(&original, &key).unwrap();
+        let error = Backend::open(Some(&dir)).err().unwrap();
+        assert!(error.contains("non-symlink"), "{error}");
+        std::fs::remove_file(&key).unwrap();
+        std::fs::rename(&original, &key).unwrap();
+
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let error = Backend::open(Some(&dir)).err().unwrap();
+        assert!(error.contains("private, non-symlink"), "{error}");
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(Backend::open(Some(&dir)).is_ok());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// Backends sharing a key directory fix one CRS: the first to persist
     /// wins, a later lazily generated one yields to it, and adopting a
     /// different one is refused.
