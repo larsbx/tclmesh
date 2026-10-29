@@ -1178,6 +1178,7 @@ name = "tclmesh-tfhe"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "libc",
  "rand",
  "rayon",
  "serde",

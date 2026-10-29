@@ -7,6 +7,9 @@
 #            refused, since destroyed records keep their context; ctx/2 is
 #            accepted, since the public key and CRS persisted.
 #   foreign: other keys refuse the store's recovery material.
+#   elsewhere: the same keys with another store accept ctx/1 again: consumed
+#            contexts are recorded in the selected handle store, not per
+#            keyset, so at-most-once holds per authoritative store only.
 lassign $argv root keys path zk phase
 set ::env(TCLMESH_TFHE_KEYS) $keys
 lappend auto_path $root
@@ -40,5 +43,9 @@ switch -- $phase {
     foreign {
         puts [expr {[catch {tclmesh release use-store $store} msg] &&
             [string match "*another keyset*" $msg] ? "refused" : "restored: $msg"}]
+    }
+    elsewhere {
+        tclmesh release use-store $store
+        puts [tclmesh private decrypt [tclmesh private import p [proven $zk ctx/1 5] ctx/1 0 8]]
     }
 }

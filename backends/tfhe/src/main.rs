@@ -251,6 +251,17 @@ fn pair(client: &ClientKey, public: &CompactPublicKey) -> R<bool> {
     Ok(y == x)
 }
 
+/// Key material belongs to the user this process runs as: a private mode
+/// on a file another user owns still lets that user read or replace it.
+fn owned(path: &Path, meta: &std::fs::Metadata) -> R<()> {
+    use std::os::unix::fs::MetadataExt;
+    // SAFETY: geteuid has no preconditions and cannot fail.
+    if meta.uid() != unsafe { libc::geteuid() } {
+        return Err(format!("{}: owned by another user", path.display()));
+    }
+    Ok(())
+}
+
 fn keyset(public: &CompactPublicKey) -> R<String> {
     use sha3::{Digest, Sha3_256};
     let mut buf = Vec::new();
@@ -286,14 +297,15 @@ impl Backend {
                     .mode(0o700)
                     .create(dir)
                     .map_err(|e| format!("{}: {e}", dir.display()))?;
-                let dir_meta =
-                    std::fs::symlink_metadata(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                let dir_meta = std::fs::symlink_metadata(dir)
+                    .map_err(|e| format!("{}: {e}", dir.display()))?;
                 if !dir_meta.is_dir() || dir_meta.permissions().mode() & 0o077 != 0 {
                     return Err(format!(
                         "{}: persistent key directory must be a private, non-symlink directory (mode 0700)",
                         dir.display()
                     ));
                 }
+                owned(dir, &dir_meta)?;
                 let path = dir.join(CLIENT_KEY);
                 // A public key without its client key names a keyset whose
                 // secret is gone: a fresh client key must not take its name.
@@ -315,6 +327,7 @@ impl Backend {
                             path.display()
                         ));
                     }
+                    owned(&path, &meta)?;
                     load(&path)?
                 } else {
                     let client = ClientKey::generate(config());
@@ -746,6 +759,15 @@ mod tests {
         assert!(error.contains("private, non-symlink"), "{error}");
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
         assert!(Backend::open(Some(&dir)).is_ok());
+
+        // Another user's key: only root can hand a file to another user, so
+        // the case is exercised where the tests run as root.
+        // SAFETY: geteuid has no preconditions and cannot fail.
+        if unsafe { libc::geteuid() } == 0 {
+            std::os::unix::fs::chown(&key, Some(65534), None).unwrap();
+            let error = Backend::open(Some(&dir)).err().unwrap();
+            assert!(error.contains("owned by another user"), "{error}");
+        }
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
