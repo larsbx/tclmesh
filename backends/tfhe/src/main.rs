@@ -275,7 +275,17 @@ impl Backend {
                         .ok_or_else(|| format!("missing input {name}"))?;
                     let ty = text(types.get(name).ok_or("missing input type")?)?;
                     if let Some(t) = input.get("cipher") {
-                        self.token(t)?.clone()
+                        // Identity outputs and Boolean consumers need not
+                        // pass through Val::int, so check width at ingress.
+                        match self.token(t)? {
+                            Val::Int(x) if x.width() != w => {
+                                return Err(format!(
+                                    "a {}-bit integer in a {w}-bit circuit",
+                                    x.width()
+                                ));
+                            }
+                            value => value.clone(),
+                        }
                     } else {
                         Self::trivial(&ty, &text(&input["public"])?, w)?
                     }
