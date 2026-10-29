@@ -553,9 +553,9 @@ proc ::tclmesh::private::import {profile_name proof context lo bits {hi {}}} {
         return -code error -errorcode {TCLMESH PRIVATE RANGE UNCHECKED_PROFILE} \
             "proven inputs need an int<W>-checked profile"
     }
-    if {$bits ni {2 4 6 8 10 12 14 16} || ![::tclmesh::range::_int $lo]} {
+    if {$bits ni {2 4 6 8 10 12 14 16 32} || ![::tclmesh::range::_int $lo]} {
         return -code error -errorcode {TCLMESH PRIVATE RANGE INVALID_PROOF_STATEMENT} \
-            "a proven input needs a canonical lo and bits in 2, 4, ..., 16"
+            "a proven input needs a canonical lo and bits in 2, 4, ..., 16 or 32"
     }
     set top [expr {$lo + (1 << $bits) - 1}]
     if {$hi ne "" && !([::tclmesh::range::_int $hi] && $lo <= $hi && $hi <= $top)} {
@@ -570,7 +570,8 @@ proc ::tclmesh::private::import {profile_name proof context lo bits {hi {}}} {
     # A context names one use: a proof accepted under it once is not accepted
     # again while its handle record exists (destroyed handles keep theirs).
     # The record outlives the process only on backends with persistent
-    # handles; the TFHE backend has none, so there it lasts one process.
+    # handles; the TFHE backend has none, so there it lasts one process, but
+    # its keys do too, and a proof does not verify under another key.
     variable handles
     dict for {id record} $handles {
         if {[dict get $record profile] eq $profile_name && [dict exists $record proof_context] &&

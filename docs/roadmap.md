@@ -105,15 +105,16 @@ Before a v0.3 release or a stronger claim, continue in this order:
    knowledge (`private import`, TFHE-rs `zk-pok`, `inputs_of_proofs`), enforced
    inside the circuit by `range guard` (`clamp`, `guarded_sound`), or claimed
    and checked at `encrypt`. Proven ranges are `[lo, lo + 2^k − 1]` for even
-   `k ≤ 16`; an exact `[lo, hi]` is clamped by `import … hi` by default, or
+   `k ≤ 16` or `k = 32` (in a 64-bit word, or as the whole 32-bit word); an exact `[lo, hi]` is clamped by `import … hi` by default, or
    rejected through a released admission bit (`range-check`, `admit`), since
    the proof system cannot relate two proven offsets. The CRS comes from a
    multi-party ceremony (`tclmesh-tfhe-crs init|contribute|verify`) that
    `publish` verifies before adopting, so its trapdoor is unknown unless every
    contributor colludes; contributions are not yet signed, so a contributor
    confirms inclusion by its receipt. Proof contexts are
-   single-use per runtime; persisting that across restarts needs persistent
-   TFHE handles.
+   single-use per runtime, and a proof is bound to the public key it was made
+   under, so with per-process TFHE keys a replay into a later process is
+   refused; persisting keys will need a persisted consumed-context ledger.
    Packing metadata is hashed but not yet semantically validated.
 3. Extend integrated acceptance and provenance reconstruction through private
    evaluation/release; audit private operations without exposing protected data.

@@ -22,7 +22,7 @@ fn run(args: &[String]) -> Result<(), String> {
         _ => return Err("usage: tclmesh-tfhe-prove DIR CONTEXT LO BITS X OUT [HI]".into()),
     };
     let dir = Path::new(dir);
-    let lo: i32 = lo.parse().map_err(|_| format!("LO is not an i32: {lo}"))?;
+    let lo: i64 = lo.parse().map_err(|_| format!("LO is not an i64: {lo}"))?;
     let bits: usize = bits
         .parse()
         .map_err(|_| format!("BITS is not a width: {bits}"))?;
@@ -32,7 +32,7 @@ fn run(args: &[String]) -> Result<(), String> {
     }
     let hi = match hi {
         Some(h) => {
-            let h: i32 = h.parse().map_err(|_| format!("HI is not an i32: {h}"))?;
+            let h: i64 = h.parse().map_err(|_| format!("HI is not an i64: {h}"))?;
             if !upper_bound_ok(lo, bits, h) {
                 return Err(format!("HI must lie in [LO, LO + 2^{bits} - 1]"));
             }
@@ -40,8 +40,8 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         None => None,
     };
-    let offset = x - i64::from(lo);
-    if !(0..1i64 << bits).contains(&offset) || hi.is_some_and(|h| x > i64::from(h)) {
+    let offset = i128::from(x) - i128::from(lo);
+    if !(0..1i128 << bits).contains(&offset) || hi.is_some_and(|h| x > h) {
         return Err("X lies outside the claimed range".into());
     }
     let pk: CompactPublicKey = load(&dir.join(PUBLIC_KEY))?;

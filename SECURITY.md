@@ -34,7 +34,7 @@ Important boundaries:
   (`tclmesh private import`); the runtime verifies the proof, bound to a
   context, offset and width, and never sees the value. It can be enforced
   inside the circuit by `tclmesh range guard`, which clamps each such input
-  homomorphically, so only the ciphertext type (a 32-bit word) is assumed;
+  homomorphically, so only the ciphertext type (a `W`-bit word) is assumed;
   out-of-range values are clamped, not rejected. Or it is the encrypting
   party's claim, checked against the plaintext at `encrypt`. A proven range
   rests on the ciphertext's width and TFHE-rs's sanitizing expansion, which
@@ -56,15 +56,20 @@ Important boundaries:
   holder must be trusted not to forge proofs. A
   proof context is single-use: a second import under it is refused while the
   first handle's record exists, which on the TFHE backend means for the
-  lifetime of the runtime process. A
-  proven range is `[lo, lo + 2^k − 1]`; for an exact `[lo, hi]`, `import`
+  lifetime of the runtime process. A proof is also bound to the public key it
+  was made under, and each TFHE backend process generates fresh keys, so a
+  proof replayed into a later process fails verification; a deployment that
+  persists keys must persist the consumed contexts with them. A
+  proven range is `[lo, lo + 2^k − 1]`, for even `k ≤ 16` or `k = 32`; for an exact `[lo, hi]`, `import`
   takes `hi` and holds `min(lo + a, hi)`, so a dishonest input is clamped to
   `hi`. To reject it instead, `range-check` computes the bit `lo ≤ x ≤ hi`
   under encryption, a release quorum decrypts that bit alone, and `admit`
   narrows the handle only if it is `1`. The release reveals exactly that bit,
   which a zero-knowledge verifier's verdict would also reveal, and the quorum
   is trusted to decrypt it honestly.
-  Profiles declaring `int32-wrapping` make no exactness claim;
+  Profiles declaring `int<W>-wrapping` make no exactness claim. The TFHE
+  backend supports `W` = 32 and 64 (`FheInt32`, `FheInt64`); a handle of one
+  width is never evaluated in a circuit of the other;
 - governed circuits require manifest-declared release policy and role-specific
   holder/language authorization; caller identity must be authenticated by the
   trusted adapter. These checks do not authenticate cryptographic shares.
