@@ -6,7 +6,7 @@
   (`FheInt64`), alongside 32-bit; the backend carries each value's width and
   refuses to mix widths, and proven inputs import into either word. Range
   certificates accept `W ≤ 64`, following finite-math-kernels' widened
-  `word_range` contract (corpus re-pinned with its `w = 64` rows); the Tcl/Lean
+  `word_range` contract (corpus re-pinned with its `w = 64` rows, finite-math-kernels#89); the Tcl/Lean
   range differential runs at width 64;
 - CRS ceremony: `tclmesh-tfhe-crs init|contribute|verify DIR` runs a
   multi-party powers-of-tau setup from the public trapdoor `1`; each
