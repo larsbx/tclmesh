@@ -60,7 +60,7 @@ typing rule:
 | `Canonical` | `cmp_ok_canonical` | in the canonical domain, comparison success implies exact decimal order |
 | `Range` | `wrap_id` | reduction modulo `2^w` into the signed word is the identity on the word |
 | | `mul_mem` | a product lies in any range holding the four products of its operands' bounds |
-| | `check_sound` | **if the range checker accepts a circuit and every input lies in its declared range, then wherever exact evaluation over `ℤ` is defined, `w`-bit wrapped evaluation (TFHE `FheInt32` at `w = 32`) is defined and equal to it, and every node's value lies in its certified range: no intermediate wraps** |
+| | `check_sound` | **if the range checker accepts a circuit and every input lies in its declared range, then wherever exact evaluation over `ℤ` is defined, `w`-bit wrapped evaluation (TFHE `FheInt32` at `w = 32`, `FheInt64` at `w = 64`) is defined and equal to it, and every node's value lies in its certified range: no intermediate wraps** |
 | | `inputs_of_type`, `guarded_sound` | **for a circuit whose inputs declare no narrower range than their type (the form `range guard` produces, enforcing declared ranges with `clamp`), acceptance alone gives `wrapped = exact` on every input a ciphertext can hold — a word, or a bit — whoever encrypted it** |
 | | `blocks_lt`, `offset_lt`, `proven_in_range`, `inputs_of_proofs` | **a proven input discharges the input hypothesis of `check_sound`: `k/2` sanitized base-4 blocks give an offset below `2^k`, so `lo + a` lies in `[lo, lo + 2^k − 1]` and in any declared range holding it; the soundness of TFHE-rs `zk-pok` and its sanitizing expansion are named hypotheses** |
 | | `bounded_import`, `admission_sound` | **an exact `[lo, hi]`: `min (lo + a) hi` lies in `[lo, hi]` and equals `lo + a` for an honest input; the released admission bit is `1` exactly when `x ∈ [lo, hi]`, under any arithmetic reduction (comparisons never wrap), so releasing it reveals only the admission verdict** |
@@ -199,9 +199,10 @@ boundary through the Tcl/Lean differential gate; `tests/tfhe.test` exercises
 real encrypted endpoints, Boolean handle composition and counterexample
 refusals. Relevant PRs now run the TFHE workflow before merge.
 
-`UPSTREAM.toml` pins finite-math-kernels merge `c48568f57e1970ccfd5e20c6bb972ccda5c1ea46`
-(PR #83). Its provenance correction `cd889984` regenerated the manifest entry
-for `docs/theorems/hyperbolic-rt-contract.md`; it did not relax the verifier.
-The accepted merge passed CI, Exact RT, Frontier polyglot and Julia oracle
-workflows. The vendored 1,720-row corpus is byte-identical, with its existing
-SHA-256 unchanged.
+`UPSTREAM.toml` pins finite-math-kernels merge `7e921aa72c3bc59e7d1671f1a163f8bf34efd3a8`
+(PR #89), which extends the canonical word-range contract through 64 bits.
+The vendored 2,060-row corpus is byte-identical to that commit and has SHA-256
+`7e0a5905383a80b3ec2a39a556de45249238a1dc39b932928e58077bda439dc1`.
+The previous 1,720 rows are retained unchanged; 340 rows cover width 64.
+CI verifies the pin, regenerates and replays the corpus with the upstream
+Mojo kernel, and independently replays it through the Lean model.

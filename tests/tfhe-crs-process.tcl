@@ -1,12 +1,17 @@
-# Child-process fixture for CRS adoption (tests/tfhe.test T-020): a fresh
-# backend adopts a CRS that a third party generated, proves and imports under
-# it, refuses a proof made under another CRS, and refuses to change a fixed CRS.
-lassign $argv root dir foreign_crs
+# Child-process fixture for CRS adoption (tests/tfhe.test T-020, T-021): a
+# fresh backend refuses each CRS source in BAD, adopts CRS (a file a third
+# party generated, or a ceremony directory; each source is `PATH ?TRUSTED?`), proves and imports under it,
+# refuses a proof made under another CRS, and refuses to change a fixed CRS.
+lassign $argv root dir crs foreign_crs bad
 lappend auto_path $root
 package require tclmesh 0.2.0
 tclmesh private profile define p [dict create backend tfhe semantics int32-checked allow_decrypt true]
-tclmesh private publish p $dir [file join $dir third-party-crs.bin]
 set out {}
+foreach source $bad {
+    lappend out [expr {[catch {tclmesh private publish p $dir {*}$source} msg] ?
+        "refused" : "adopted-bad: $source"}]
+}
+tclmesh private publish p $dir {*}$crs
 
 set proof [file join $dir proof.bin]
 exec [::tclmesh::tfhe::prover] $dir ctx/1 0 8 42 $proof

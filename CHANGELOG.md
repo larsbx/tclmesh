@@ -8,6 +8,32 @@
   contract, required only of the bootstraps that run, so failure is at most
   `pbsCount · 2^-128`; `chain_check` accepts every depth, `leveled_rejected`
   shows the bound without bootstraps;
+- persistent TFHE deployments: `TCLMESH_TFHE_KEYS=DIR` keeps the backend's
+  keys (client key mode 0600) and adopted CRS across restarts and enables
+  `persistent-handles`: handles export as ciphertexts bound to their keyset
+  (`export`, `restore`; refused under another keyset), so with a handle store
+  attached, handles and the proof contexts they consumed survive restarts;
+- signed CRS contributions: `tclmesh-tfhe-crs keygen` makes a contributor's
+  long-term key, `contribute DIR SECRET` signs the contribution's receipt,
+  and `verify DIR PUBLIC...` and `tclmesh private publish PROFILE DIR
+  CEREMONY TRUSTED` require a contribution signed by a trusted key, so the
+  key holder can check that one party it trusts took part;
+- 64-bit words: `int64-checked` and `int64-wrapping` under TFHE
+  (`FheInt64`), alongside 32-bit; the backend carries each value's width and
+  refuses to mix widths, and proven inputs import into either word. Range
+  certificates accept `W ≤ 64`, following finite-math-kernels' widened
+  `word_range` contract (corpus re-pinned with its `w = 64` rows, finite-math-kernels#89); the Tcl/Lean
+  range differential runs at width 64; proven offsets may be 32 bits wide
+  (amounts up to `2^32 − 1` in a 64-bit word, or the whole 32-bit word), for
+  a CRS 0.3% larger and proofs as fast as 16-bit ones;
+- CRS ceremony: `tclmesh-tfhe-crs init|contribute|verify DIR` runs a
+  multi-party powers-of-tau setup from the public trapdoor `1`; each
+  contribution carries a Schnorr proof of knowledge chained to its
+  predecessor, and `verify` checks the chain and the CRS's power structure
+  by pairings. `tclmesh private publish PROFILE DIR CEREMONY` verifies and
+  adopts it, refusing a ceremony without contributions. SECURITY.md now
+  states that a proven range does not depend on the CRS; its trapdoor
+  threatens knowledge soundness (input independence);
 - proof hygiene: `tclmesh-tfhe-crs` generates the CRS for a party other than
   the key holder, and `tclmesh private publish PROFILE DIR CRS` adopts it
   (fixed once adopted); proof contexts are single-use (`CONTEXT_REUSED`);

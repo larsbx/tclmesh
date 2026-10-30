@@ -193,7 +193,7 @@ proc check_certificates {certs_path spec_path} {
 
 # Range certificates: for every circuit as declared, with every int input
 # declared in [-1000, 1000], and with the k-th int input in [-k, 1000(k+1)]
-# (so that branches differ), at widths 32 and 8, the emitted certificate and,
+# (so that branches differ), at widths 64, 32 and 8, the emitted certificate and,
 # when it is accepted, its mutations (each node's range narrowed past its
 # least range, each node dropped), with the Tcl checker's verdict.
 proc ranges {circuits_path} {
@@ -212,7 +212,7 @@ proc ranges {circuits_path} {
         }
         foreach {variant c} [list declared $raw bounded $bounded skewed $skewed] {
             set circuit [circuit_of $c]
-            foreach width {32 8} {
+            foreach width {64 32 8} {
                 set id "[dict get $vector id]/$variant/$width"
                 set cert [tclmesh range emit $circuit $width]
                 set variants [list $id $cert]

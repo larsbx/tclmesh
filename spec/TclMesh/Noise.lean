@@ -40,8 +40,8 @@ Named hypotheses, outside this model:
 
 Phases are modelled over `ℤ` rather than the torus `ℤ/qℤ`: degrees bound every
 cleartext to `[0, maxDeg]`, below the padding bit, so reduction modulo `q`
-never acts on a well-checked program. That integer operations (`FheInt32`)
-compile to gate programs computing `wrapped 32` is TFHE-rs's functional
+never acts on a well-checked program. That integer operations (`FheInt32`, `FheInt64`)
+compile to gate programs computing `wrapped w` is TFHE-rs's functional
 correctness, the hypothesis `TclMesh.Range` names; this file discharges its
 noise-budget part.
 -/

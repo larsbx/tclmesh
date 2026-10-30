@@ -2,13 +2,13 @@
 # encryption by the `tclmesh-tfhe` process. Registered as backend `tfhe` when
 # the binary exists: $TCLMESH_TFHE, or backends/tfhe/target/release.
 #
-# Integers are `FheInt32`: arithmetic wraps modulo 2^32, as profiles must
-# declare. Under `semantics int32-wrapping` results equal the exact reference
-# only while every intermediate value fits; under `int32-checked` the runtime
-# evaluates only circuits whose range certificate proves that they all do
-# (src/range.tcl, spec/TclMesh/Range.lean). A profile claiming exact integers
-# unconditionally is rejected, since an overflow under encryption cannot be
-# detected.
+# Integers are `W`-bit words, `FheInt32` or `FheInt64`: arithmetic wraps
+# modulo 2^W, as profiles must declare. Under `semantics int<W>-wrapping`
+# results equal the exact reference only while every intermediate value fits;
+# under `int<W>-checked` the runtime evaluates only circuits whose range
+# certificate proves that they all do (src/range.tcl, spec/TclMesh/Range.lean).
+# A profile claiming exact integers unconditionally is rejected, since an
+# overflow under encryption cannot be detected.
 #
 # Proven inputs (`private publish`, `private import`): an encrypting party
 # proves its ciphertext's range in zero knowledge with `tclmesh-tfhe-prove`,
@@ -58,6 +58,12 @@ proc ::tclmesh::tfhe::_call {request} {
 
 proc ::tclmesh::tfhe::_s {value} { json::write string $value }
 
+# The word width W of a profile's `int<W>-…` semantics.
+proc ::tclmesh::tfhe::_width {profile} {
+    regexp {^int(32|64)-(?:wrapping|checked)$} [dict get $profile semantics] -> width
+    return $width
+}
+
 proc ::tclmesh::tfhe::_token {response} {
     list tfhe [dict get $response token] bytes [dict get $response bytes]
 }
@@ -69,12 +75,12 @@ proc ::tclmesh::tfhe::_backend {operation args} {
     switch -- $operation {
         validate-profile {
             lassign $args profile
-            return [expr {[dict get $profile semantics] in {int32-wrapping int32-checked}}]
+            return [regexp {^int(32|64)-(wrapping|checked)$} [dict get $profile semantics]]
         }
         encrypt {
             lassign $args profile type value
             return [_token [_call [json::write object \
-                op [_s encrypt] type [_s $type] value [_s $value]]]]
+                op [_s encrypt] type [_s $type] value [_s $value] width [_width $profile]]]]
         }
         evaluate {
             lassign $args profile circuit prepared
@@ -102,7 +108,8 @@ proc ::tclmesh::tfhe::_backend {operation args} {
                 input_types [json::write object {*}$types] \
                 inputs [json::write object {*}$inputs] \
                 nodes [json::write object {*}$nodes] \
-                output_nodes [json::write object {*}$outputs]]]
+                output_nodes [json::write object {*}$outputs] \
+                width [_width $profile]]]
             set tokens {}
             dict for {name result} [dict get $response outputs] {
                 dict set tokens $name [_token $result]
@@ -125,8 +132,12 @@ proc ::tclmesh::tfhe::_backend {operation args} {
                 op [_s decrypt] token [lindex $token 1]]] value]
         }
         publish {
-            lassign $args profile dir crs
+            lassign $args profile dir crs trusted
             set adopt [expr {$crs eq "" ? {} : [::list crs [_s [file normalize $crs]]]}]
+            if {[llength $trusted] > 0} {
+                lappend adopt trusted [json::write array \
+                    {*}[lmap key $trusted {_s [file normalize $key]}]]
+            }
             _call [json::write object op [_s publish] dir [_s [file normalize $dir]] {*}$adopt]
             return
         }
@@ -135,7 +146,17 @@ proc ::tclmesh::tfhe::_backend {operation args} {
             set bound [expr {$hi eq "" ? {} : [::list hi [_s $hi]]}]
             return [_token [_call [json::write object op [_s import] \
                 proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits \
-                {*}$bound]]]
+                width [_width $profile] {*}$bound]]]
+        }
+        export-handle {
+            lassign $args profile type token
+            return [_call [json::write object op [_s export] token [lindex $token 1]]]
+        }
+        restore-handle {
+            lassign $args profile type recovery
+            return [_token [_call [json::write object op [_s restore] \
+                keyset [_s [dict get $recovery keyset]] kind [_s [dict get $recovery kind]] \
+                ciphertext [_s [dict get $recovery ciphertext]]]]]
         }
         destroy {
             set token [lindex $args end]
@@ -151,9 +172,13 @@ proc ::tclmesh::tfhe::_backend {operation args} {
 }
 
 set ::tclmesh::tfhe::binary [::tclmesh::tfhe::_locate [file dirname $::tclmesh::here]]
+# Handles persist only with persistent keys: $TCLMESH_TFHE_KEYS names the
+# directory that holds them (and an adopted CRS). Recovery material is a
+# ciphertext bound to its keyset, refused under any other.
 if {$::tclmesh::tfhe::binary ne ""} {
-    ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend \
-        {decrypt destroy threshold-release homomorphic proven-inputs}
+    ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend [concat \
+        {decrypt destroy threshold-release homomorphic proven-inputs} \
+        [expr {[info exists ::env(TCLMESH_TFHE_KEYS)] ? "persistent-handles" : ""}]]
 }
 
 # The encrypting party's tool (`tclmesh-tfhe-prove`), built beside the
@@ -163,8 +188,9 @@ proc ::tclmesh::tfhe::prover {} {
     file join [file dirname $binary] tclmesh-tfhe-prove
 }
 
-# The CRS generator (`tclmesh-tfhe-crs`), for a party other than the key
-# holder: its output is adopted with `private publish PROFILE DIR CRS`.
+# The CRS tool (`tclmesh-tfhe-crs`): a multi-party ceremony
+# (`keygen`, `init|contribute|verify DIR`) or a one-party CRS file, either
+# adopted with `private publish PROFILE DIR CRS ?TRUSTED?`.
 proc ::tclmesh::tfhe::crs-generator {} {
     variable binary
     file join [file dirname $binary] tclmesh-tfhe-crs

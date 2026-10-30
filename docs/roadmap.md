@@ -105,13 +105,25 @@ Before a v0.3 release or a stronger claim, continue in this order:
    knowledge (`private import`, TFHE-rs `zk-pok`, `inputs_of_proofs`), enforced
    inside the circuit by `range guard` (`clamp`, `guarded_sound`), or claimed
    and checked at `encrypt`. Proven ranges are `[lo, lo + 2^k − 1]` for even
-   `k ≤ 16`; an exact `[lo, hi]` is clamped by `import … hi` by default, or
+   `k ≤ 16` or `k = 32` (in a 64-bit word, or as the whole 32-bit word); an exact `[lo, hi]` is clamped by `import … hi` by default, or
    rejected through a released admission bit (`range-check`, `admit`), since
-   the proof system cannot relate two proven offsets. The CRS can be generated
-   by a third party (`tclmesh-tfhe-crs`) and adopted; a multi-party ceremony
-   would remove the remaining trust in that party. Proof contexts are
-   single-use per runtime; persisting that across restarts needs persistent
-   TFHE handles.
+   the proof system cannot relate two proven offsets. The CRS comes from a
+   multi-party ceremony (`tclmesh-tfhe-crs init|contribute|verify`) that
+   `publish` verifies before adopting, so its trapdoor is unknown unless every
+   contributor colludes; contributors sign their receipts with long-term keys,
+   and `publish … TRUSTED` requires a contribution signed by a trusted party,
+   so one honest party suffices. Distributing and revoking those public keys
+   is the deployment's. Proof contexts are
+   single-use while their handle records exist, and a proof is bound to the
+   public key it was made under. With persistent TFHE keys
+   (`TCLMESH_TFHE_KEYS`) handles persist as keyset-bound ciphertexts, so
+   consumed contexts survive restarts with their records; recovery material
+   from another keyset is refused. This is a single-authoritative-store
+   persistence guarantee, not a distributed uniqueness proof: separate handle
+   stores sharing a keyset can reuse the same proof context. Until a durable
+   atomic keyset-scoped context claim is implemented and refined, deploy
+   persistent TFHE with only one authoritative handle store and do not claim
+   cross-process at-most-once admission.
    Packing metadata is hashed but not yet semantically validated.
 3. Extend integrated acceptance and provenance reconstruction through private
    evaluation/release; audit private operations without exposing protected data.

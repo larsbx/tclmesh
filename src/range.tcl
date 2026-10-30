@@ -34,9 +34,9 @@ proc ::tclmesh::range::_int {text} {
 }
 
 proc ::tclmesh::range::word {width} {
-    if {![_int $width] || $width < 1 || $width > 32} {
+    if {![_int $width] || $width < 1 || $width > 64} {
         return -code error -errorcode [list TCLMESH RANGE INVALID_WIDTH $width] \
-            "word width must be an integer in 1..32"
+            "word width must be an integer in 1..64"
     }
     set half [expr {1 << ($width - 1)}]
     list [expr {-$half}] [expr {$half - 1}]

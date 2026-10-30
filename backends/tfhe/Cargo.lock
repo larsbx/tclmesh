@@ -1177,9 +1177,15 @@ dependencies = [
 name = "tclmesh-tfhe"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "libc",
+ "rand",
+ "rayon",
  "serde",
  "serde_json",
+ "sha3",
  "tfhe",
+ "tfhe-zk-pok",
 ]
 
 [[package]]
