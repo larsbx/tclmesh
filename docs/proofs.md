@@ -65,13 +65,20 @@ typing rule:
 | | `blocks_lt`, `offset_lt`, `proven_in_range`, `inputs_of_proofs` | **a proven input discharges the input hypothesis of `check_sound`: `k/2` sanitized base-4 blocks give an offset below `2^k`, so `lo + a` lies in `[lo, lo + 2^k − 1]` and in any declared range holding it; the soundness of TFHE-rs `zk-pok` and its sanitizing expansion are named hypotheses** |
 | | `bounded_import`, `admission_sound` | **an exact `[lo, hi]`: `min (lo + a) hi` lies in `[lo, hi]` and equals `lo + a` for an honest input; the released admission bit is `1` exactly when `x ∈ [lo, hi]`, under any arithmetic reduction (comparisons never wrap), so releasing it reveals only the admission verdict** |
 | | 12 cases checked by `decide` | canonical integer spellings; `maxBid` over whole words is rejected (`a − b` can leave the word), accepted with bids in `[0, 10⁶]`, rejected when a range is narrowed, and accepted guarded with `clamp`; the upstream word-range contract (`fit`, `wordOp`) at the word edge |
+| `Noise` | `decode_correct` | decryption (rounding the phase `Δ·m + e`) returns `m` while `2\|e\| < Δ` |
+| | `lin_bounds`, `lin_noise` | a linear combination `Σ w·cᵢ + k` lies in the interval extension of its operands, with noise at most `Σ \|w\|·levelᵢ · fresh` (TFHE-rs's noise-level accounting) |
+| | `bootstrapped_sound` | **noise-budget soundness of bootstrapped circuits: if the degree and noise-level checker accepts a block-level gate program, inputs are fresh encryptions, `2·maxLevel·fresh < Δ`, and each bootstrap that runs meets its contract, every output decrypts to the cleartext evaluation; no hypothesis bounds depth, and the bootstrap contract (a named hypothesis, failing with probability `≤ 2^-128` per bootstrap for the `2M128` parameters) is needed only of the `pbsCount` bootstraps that run, so the evaluation fails with probability at most `pbsCount · 2^-128`** |
+| | `chain_check`, `leveled_rejected` | under `tfhe22` (`max_degree 15`, `max_noise_level 5`), bootstrapped doubling chains are accepted at every depth; without bootstraps three doublings are rejected |
 | | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
 | | `cmp_ok`, `mem_ok` | a successful comparison had both operands in the canonical numeric domain; a successful membership test had a canonical list |
 | | `and_fault_left`, `and_false_left`, `or_true_left` | fault propagation and short-circuiting, as in the Tcl and Rust evaluators |
 
 `Range` takes TFHE's correctness as a named hypothesis outside the model: each
 homomorphic operation decrypts to the wrapped result of its plaintext
-operation (`wrapped w`), within its noise budget. What it proves is that the
+operation (`wrapped w`), within its noise budget. `Noise` discharges the
+noise-budget part for bootstrapped circuits at the block level; that
+TFHE-rs's integer algorithms are block programs computing `wrapped w` remains
+TFHE-rs's functional correctness. What it proves is that the
 wrapping never happens on an accepted circuit. Its arithmetic is the contract
 of `finite_exact/word_range.mojo` in `larsbx/finite-math-kernels`, pinned in
 `UPSTREAM.toml`; `spec-eval --word-range` replays the vendored upstream corpus
@@ -162,7 +169,9 @@ These are listed in the [roadmap](roadmap.md#formal-methods-first):
   by exact conformance with the executable specification only;
 - ciphertext and labels in the kernel IR;
 - per-mechanism lemmas under cryptographic assumptions;
-- noise-budget soundness;
+- noise-budget soundness for leveled (bootstrap-free) evaluation beyond the
+  block discipline, and the refinement of TFHE-rs integer operations to
+  block gate programs;
 - differential-privacy budgets.
 
 ## Checked handle and clamp admission

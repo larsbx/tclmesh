@@ -204,7 +204,10 @@ Proof obligations:
   each "correct and leaks exactly L" under named assumptions (zero-knowledge
   range proofs: the range consequence is proved in `Range.inputs_of_proofs`,
   with proof-system soundness a named hypothesis);
-- [ ] noise-budget soundness for leveled and bootstrapped circuits;
+- [x] noise-budget soundness for bootstrapped circuits (`Noise.bootstrapped_sound`:
+  any depth, under the per-bootstrap contract and a union bound);
+- [ ] noise-budget soundness for leveled circuits, and the refinement of
+  TFHE-rs integer operations to block gate programs;
 - [ ] leakage budgets in bits and in differential-privacy epsilon across runs.
 
 Engineering sequence, after the proofs above:
