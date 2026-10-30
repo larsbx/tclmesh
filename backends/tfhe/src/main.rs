@@ -285,7 +285,7 @@ fn keyset(public: &CompactPublicKey) -> R<String> {
 }
 
 const CLAIMS: &str = "claims";
-const CLAIM_VERSION: &str = "tclmesh-proof-claim-v1";
+const CLAIM_VERSION: &str = "tclmesh-proof-claim-v2";
 
 /// Claim proof context `context` for `statement` under `keyset`, durably and
 /// exclusively, in `dir` (`spec/TclMesh/Claims.lean`): the record is written
@@ -303,8 +303,12 @@ fn claim(dir: &Path, keyset: &str, context: &str, statement: &str) -> R<()> {
         .create(&claims)
         .map_err(|e| format!("{}: {e}", claims.display()))?;
     let path = claims.join(sha3_hex(&[keyset.as_bytes(), context.as_bytes()]));
-    let record = json!({"version": CLAIM_VERSION, "keyset": keyset, "context": context,
-        "statement": statement, "attempt": format!("{:016x}", rand::random::<u64>())});
+    // Contexts are caller-supplied identifiers: persist only their public digest.
+    // "consumed" is irreversible even when the process never exposes a handle.
+    let context_digest = sha3_hex(&[context.as_bytes()]);
+    let record = json!({"version": CLAIM_VERSION, "keyset": keyset,
+        "context_digest": context_digest, "statement": statement,
+        "attempt": format!("{:016x}", rand::random::<u64>()), "status": "consumed"});
     let tmp = claims.join(format!(".{}.{}", std::process::id(), rand::random::<u64>()));
     let io = |e: std::io::Error| format!("{}: {e}", claims.display());
     let mut file = std::fs::OpenOptions::new()
@@ -328,7 +332,9 @@ fn claim(dir: &Path, keyset: &str, context: &str, statement: &str) -> R<()> {
         Err(e) if e.kind() == ErrorKind::AlreadyExists => {
             let held: Value = serde_json::from_slice(&std::fs::read(&path).map_err(io)?)
                 .map_err(|e| format!("{}: {e}", path.display()))?;
-            Err(if held["keyset"] != keyset || held["context"] != context {
+            Err(if held["version"] != CLAIM_VERSION || held["status"] != "consumed" {
+                format!("context claimed: {context} has an unrecognized claim record; HOLD")
+            } else if held["keyset"] != keyset || held["context_digest"] != context_digest {
                 format!(
                     "context claimed: {} holds a claim of another keyset or context",
                     path.display()
@@ -910,6 +916,15 @@ mod tests {
         std::fs::copy(claims.join(sha3_hex(&[b"K", b"ctx/race"])), &forged).unwrap();
         let err = claim(&dir, "K", "ctx/forged", "S").unwrap_err();
         assert!(err.contains("another keyset or context"), "{err}");
+        // Invalid or incomplete authority records can never authorize a retry.
+        let original = std::fs::read(&forged).unwrap();
+        for field in ["version", "status"] {
+            let mut record: Value = serde_json::from_slice(&original).unwrap();
+            record[field] = json!("unknown");
+            std::fs::write(&forged, record.to_string()).unwrap();
+            let err = claim(&dir, "K", "ctx/forged", "S").unwrap_err();
+            assert!(err.contains("HOLD"), "{err}");
+        }
         // No temporary files are left behind.
         let names: Vec<_> = std::fs::read_dir(&claims)
             .unwrap()

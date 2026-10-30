@@ -16,7 +16,12 @@ on:
       - 'src/tfhe.tcl'
       - 'tests/range.test'
       - 'tests/tfhe.test'
+      - 'tests/tfhe-persist-process.tcl'
+      - 'spec/TclMesh/Claims.lean'
       - 'tools/check_crs_snapshot_mutant.py'
+      - 'tools/check_claim_durability.py'
+      - 'tools/check_claim_parent_mutant.py'
+      - 'tools/claim_sync_probe.c'
       - 'spec/TclMesh/Range.lean'
       - 'UPSTREAM.toml'
 
@@ -43,6 +48,10 @@ jobs:
           cargo clippy --release --locked --all-targets --manifest-path backends/tfhe/Cargo.toml -- -D warnings
       - name: Backend tests (proven widths, CRS ceremony)
         run: cargo test --release --locked --manifest-path backends/tfhe/Cargo.toml
+      - name: Claim durability, sync failures, interrupted imports and concurrent processes
+        run: python3 tools/check_claim_durability.py
+      - name: Claim durability regression rejects the missing-parent-sync mutant
+        run: python3 tools/check_claim_parent_mutant.py
       - name: CRS snapshot regressions reject the original file-reopening mutant
         run: python3 tools/check_crs_snapshot_mutant.py
       - name: The backend is registered (TFHE tests must not be skipped)

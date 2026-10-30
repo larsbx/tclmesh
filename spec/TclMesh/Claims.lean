@@ -49,6 +49,10 @@ inductive Event
   | interrupted (c : Claim)
   /-- A process stops; only durable state survives. -/
   | crash
+  /-- The handle was persisted, but its response was lost. No new admission. -/
+  | lostAck
+  /-- Read the existing durable outcome; never mint another authorization. -/
+  | recover
   /-- A handle is destroyed. -/
   | destroy
 
@@ -66,7 +70,7 @@ def step (s : State) : Event → State
     match claim s.ledger c with
     | some l => { s with ledger := l }
     | none => s
-  | .crash | .destroy => s
+  | .crash | .lostAck | .recover | .destroy => s
 
 def run (es : List Event) : State := es.foldl step {}
 
@@ -106,8 +110,7 @@ theorem step_inv {s : State} (h : Inv s) (e : Event) : Inv (step s e) := by
       obtain ⟨rfl, hk⟩ := claim_some hl
       exact ⟨List.nodup_cons.mpr ⟨hk, hn⟩, hs.cons c⟩
     · exact ⟨hn, hs⟩
-  | crash => exact ⟨hn, hs⟩
-  | destroy => exact ⟨hn, hs⟩
+  | crash | lostAck | recover | destroy => exact ⟨hn, hs⟩
 
 theorem run_inv (es : List Event) : Inv (run es) := by
   unfold run
@@ -135,7 +138,7 @@ theorem claimed_step {s : State} {k : Key} (h : claimed s.ledger k = true) (e : 
       unfold claimed at h ⊢
       rw [List.any_cons, h, Bool.or_true]
     · exact h
-  | crash | destroy => exact h
+  | crash | lostAck | recover | destroy => exact h
 
 /-- **Fail closed**: once `(K, C)` is claimed (accepted, or interrupted after
 its claim), a later import of it exposes nothing. -/
@@ -147,5 +150,20 @@ example : ((run [.accept ⟨("K", "ctx/1"), "s", 1⟩, .crash,
     .accept ⟨("K", "ctx/1"), "s", 2⟩]).exposed.map (·.attempt)) = [1] := by decide
 example : ((run [.interrupted ⟨("K", "ctx/1"), "s", 1⟩,
     .accept ⟨("K", "ctx/1"), "s", 2⟩]).exposed) = [] := by decide
+
+/-- Every accepted import has a committed claim in the owning authority. -/
+theorem commit_before_expose (es : List Event) :
+    (run es).exposed.Sublist (run es).ledger := (run_inv es).2
+
+-- Recovery preserves the original authorization, even with a changed statement.
+example : ((run [.accept ⟨("K", "ctx/ack"), "s", 1⟩, .lostAck, .crash, .recover,
+    .accept ⟨("K", "ctx/ack"), "changed", 2⟩, .destroy,
+    .accept ⟨("K", "ctx/ack"), "s", 3⟩]).exposed.map (·.attempt)) = [1] := by decide
+
+-- The theorem assumes ONE ledger for each keyset: two independent authorities
+-- each admit the same key. Local persistence cannot establish global uniqueness.
+example :
+    let c : Claim := ⟨("K", "ctx/split"), "s", 1⟩
+    ((run [.accept c]).exposed ++ (run [.accept c]).exposed).length = 2 := by decide
 
 end TclMesh.Claims

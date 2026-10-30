@@ -51,6 +51,27 @@ switch -- $phase {
         catch {tclmesh private import p [proven $zk ctx/1 5] ctx/1 0 8} - options
         puts [dict get $options -errorcode]
     }
+    lost-ack {
+        tclmesh release use-store $store
+        # import commits the handle store before returning; die before the
+        # requesting process receives a handle response. Keys/CRS preexist.
+        tclmesh private import p [proven $zk ctx/lost-ack 11] ctx/lost-ack 0 8
+        exit 86
+    }
+    recover-ack {
+        tclmesh release use-store $store
+        set h [lindex [tclmesh private handle list] 0]
+        catch {tclmesh private import p [proven $zk ctx/lost-ack 12] ctx/lost-ack 0 8} - options
+        set consumed [dict get $options -errorcode]
+        set value [tclmesh private decrypt $h]
+        tclmesh private handle destroy $h
+        puts [list $h $value $consumed]
+    }
+    after-ack-destroy {
+        tclmesh release use-store $store
+        catch {tclmesh private import p [proven $zk ctx/lost-ack 13] ctx/lost-ack 0 8} - options
+        puts [dict get $options -errorcode]
+    }
     race {
         tclmesh release use-store $store
         set proof [proven $zk ctx/race 3]

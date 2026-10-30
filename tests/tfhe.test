@@ -349,6 +349,20 @@ test T-030-concurrent-claims {two processes sharing keys but not a store race to
     }]
 } -result {3 {TCLMESH PRIVATE RANGE CONTEXT_CLAIMED}}
 
+test T-031-lost-ack {death after store commit recovers the same handle, and destroy never releases the cross-store claim} -constraints tfhe -body {
+    set dir [file join $zk lost-ack]
+    file mkdir [file join $dir zk]
+    set fixture [file join [file dirname [info script]] tfhe-persist-process.tcl]
+    set root [file dirname [file dirname [file normalize [info script]]]]
+    set run [list [info nameofexecutable] $fixture $root [file join $dir keys]]
+    exec {*}$run [file join $dir setup.tcl] [file join $dir zk] first
+    set failed [catch {exec {*}$run [file join $dir lost.tcl] [file join $dir zk] lost-ack} message options]
+    list $failed [lindex [dict get $options -errorcode] 2] \
+        [exec {*}$run [file join $dir lost.tcl] [file join $dir zk] recover-ack] \
+        [exec {*}$run [file join $dir lost.tcl] [file join $dir zk] after-ack-destroy] \
+        [exec {*}$run [file join $dir other.tcl] [file join $dir zk] after-ack-destroy]
+} -result {1 86 {ct:1 11 {TCLMESH PRIVATE RANGE CONTEXT_REUSED ct:1}} {TCLMESH PRIVATE RANGE CONTEXT_REUSED ct:1} {TCLMESH PRIVATE RANGE CONTEXT_CLAIMED ctx/lost-ack}}
+
 # 64-bit words (`FheInt64`): the same range certificates, for a word wide
 # enough that products of 32-bit-scale values stay exact.
 proc fma {} {
