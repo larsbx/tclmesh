@@ -31,13 +31,17 @@ v0.2.0 does **not** claim FULL v1 conformance. Ceremony execution, process super
 ## Unreleased v0.3 work on main
 
 The private reference runtime now provides backend profiles, opaque handles,
-differential evaluation, and threshold-release state with actual process-restart
+differential evaluation, and reference/authorization-quorum state with actual process-restart
 recovery. `private digest` identifies a canonical circuit;
 `private evaluate-bound` resolves an installed circuit from the active manifest
 and carries its version/hash and output provenance into release requests.
 
-Manifest-declared threshold-release policies now enforce holder/language roles,
-context, revocation, and current manifest authority on governed outputs.
+Manifest-declared `authorization-quorum` policies enforce holder/language roles,
+context, revocation, and current manifest authority. These approvals are not
+cryptographic decryption shares. `threshold-release` policies fail closed: no
+cryptographic threshold backend is integrated. The TFHE process retains a complete
+client key and offers only explicitly named single-key authorization release.
+See [the threshold boundary and KMS compatibility investigation](docs/threshold-release-boundary.md).
 Range certificates make encrypted integer arithmetic exact by proof: under an
 `int<W>-checked` profile a circuit is evaluated only if interval arithmetic from
 its declared input ranges keeps every intermediate inside the `W`-bit word, and

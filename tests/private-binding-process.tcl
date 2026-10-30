@@ -3,7 +3,7 @@ lappend auto_path [file dirname [file dirname [file normalize [info script]]]]
 package require tclmesh 0.2.0
 lassign $argv mode path
 proc binding_backend {op args} {
-    if {$op eq "combine-release"} {
+    if {$op eq "combine-authorization-quorum"} {
         set context [lindex $args 4]
         set binding [dict get $context binding]
         if {[dict get $binding output_name] ne "total" ||
@@ -15,7 +15,7 @@ proc binding_backend {op args} {
     return [::tclmesh::private::_plaintext_backend $op {*}$args]
 }
 tclmesh private backend register binding-backend binding_backend {
-    threshold-release idempotent-release persistent-handles
+    reference-release authorization-quorum idempotent-release persistent-handles
 }
 tclmesh private profile define binding-profile [dict create \
     backend binding-backend semantics exact-integer allow_decrypt false]

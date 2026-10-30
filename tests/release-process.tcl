@@ -6,14 +6,14 @@ proc durable_reference {op args} {
     if {$op eq "restore-handle" && $::mode eq "deny-restore"} {
         error "backend denied restoration"
     }
-    if {$op eq "combine-release" && $::mode eq "interrupt"} {
+    if {$op eq "combine-authorization-quorum" && $::mode eq "interrupt"} {
         # Simulate loss of the process after the combining state was committed.
         exit 0
     }
     return [::tclmesh::private::_plaintext_backend $op {*}$args]
 }
 tclmesh private backend register durable-reference durable_reference {
-    threshold-release idempotent-release persistent-handles destroy
+    reference-release authorization-quorum idempotent-release persistent-handles destroy
 }
 tclmesh private profile define durable-profile [dict create \
     backend durable-reference semantics [expr {$mode eq "changed-profile" ? "changed" : "exact-integer"}] allow_decrypt false]

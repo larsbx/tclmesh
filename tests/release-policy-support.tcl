@@ -6,7 +6,7 @@ proc policytest_manifest {app version} {
             profile policy-profile release_policy report]]
     set manifest [tclmesh manifest new $app $version]
     dict set manifest circuits aggregate $circuit
-    dict set manifest ceremonies report [dict create kind threshold-release \
+    dict set manifest ceremonies report [dict create kind authorization-quorum \
         circuit aggregate output total purpose quarterly-report profile policy-profile \
         quorum 2 holders {b a} requesters {operator} combiners {operator} recoverers {operator} \
         request_capability release:request contribute_capability release:share \

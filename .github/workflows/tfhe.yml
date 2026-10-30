@@ -14,6 +14,8 @@ on:
       - 'src/private.tcl'
       - 'src/range.tcl'
       - 'src/tfhe.tcl'
+      - 'src/release.tcl'
+      - 'src/release_policy.tcl'
       - 'tests/range.test'
       - 'tests/tfhe.test'
       - 'tools/check_crs_snapshot_mutant.py'
