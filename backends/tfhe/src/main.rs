@@ -332,18 +332,20 @@ fn claim(dir: &Path, keyset: &str, context: &str, statement: &str) -> R<()> {
         Err(e) if e.kind() == ErrorKind::AlreadyExists => {
             let held: Value = serde_json::from_slice(&std::fs::read(&path).map_err(io)?)
                 .map_err(|e| format!("{}: {e}", path.display()))?;
-            Err(if held["version"] != CLAIM_VERSION || held["status"] != "consumed" {
-                format!("context claimed: {context} has an unrecognized claim record; HOLD")
-            } else if held["keyset"] != keyset || held["context_digest"] != context_digest {
-                format!(
-                    "context claimed: {} holds a claim of another keyset or context",
-                    path.display()
-                )
-            } else if held["statement"] != statement {
-                format!("context claimed: {context} was claimed for another statement")
-            } else {
-                format!("context claimed: {context} (attempt {})", held["attempt"])
-            })
+            Err(
+                if held["version"] != CLAIM_VERSION || held["status"] != "consumed" {
+                    format!("context claimed: {context} has an unrecognized claim record; HOLD")
+                } else if held["keyset"] != keyset || held["context_digest"] != context_digest {
+                    format!(
+                        "context claimed: {} holds a claim of another keyset or context",
+                        path.display()
+                    )
+                } else if held["statement"] != statement {
+                    format!("context claimed: {context} was claimed for another statement")
+                } else {
+                    format!("context claimed: {context} (attempt {})", held["attempt"])
+                },
+            )
         }
         Err(e) => Err(io(e)),
     }

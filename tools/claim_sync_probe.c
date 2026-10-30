@@ -56,3 +56,12 @@ int link(const char *old, const char *new) {
     if (!result) event("linked", "claim");
     return result;
 }
+
+/* Rust's std::fs::hard_link calls linkat(AT_FDCWD, ..., AT_FDCWD, ..., 0)
+ * on Linux, not link(): observe both. */
+int linkat(int olddirfd, const char *old, int newdirfd, const char *new, int flags) {
+    int (*real_linkat)(int, const char *, int, const char *, int) = dlsym(RTLD_NEXT, "linkat");
+    int result = real_linkat(olddirfd, old, newdirfd, new, flags);
+    if (!result) event("linked", "claim");
+    return result;
+}
