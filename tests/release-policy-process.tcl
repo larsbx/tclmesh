@@ -3,7 +3,7 @@ package require tclmesh 0.2.0
 source [file join [file dirname [info script]] release-policy-support.tcl]
 lassign $argv mode path
 proc policy_process_backend {op args} {
-    if {$op eq "combine-release"} {
+    if {$op eq "combine-authorization-quorum"} {
         set context [lindex $args 4]
         if {[dict get $context authorization policy_id] ne "report" ||
             [dict get $context contribution_authority a actor_id] ne "a"} {
@@ -14,17 +14,21 @@ proc policy_process_backend {op args} {
     return [::tclmesh::private::_plaintext_backend $op {*}$args]
 }
 tclmesh private backend register policy-backend policy_process_backend {
-    threshold-release idempotent-release persistent-handles
+    authorization-quorum idempotent-release persistent-handles
 }
 tclmesh private profile define policy-profile [dict create \
     backend policy-backend semantics exact-integer allow_decrypt false]
 set store [tclmesh store create file $path]
 tclmesh manifest use-store $store
 tclmesh language use-store $store
-if {$mode eq "extra-context"} {
+if {$mode in {extra-context legacy-mode}} {
     set state [tclmesh store get $store release.registry]
     set id [lindex [dict keys [dict get $state requests]] 0]
-    dict set state requests $id context recipient unapproved
+    if {$mode eq "legacy-mode"} {
+        dict unset state requests $id release_mode
+    } else {
+        dict set state requests $id context recipient unapproved
+    }
     tclmesh store put $store release.registry $state
 }
 tclmesh release use-store $store
@@ -40,7 +44,7 @@ if {$mode in {produce interrupt}} {
     set id [lindex [tclmesh release list] 0]
     set request [tclmesh release get $id]
     set op [dict get $request authorization requester language_id]
-    if {$mode eq "extra-context"} {
+    if {$mode in {extra-context legacy-mode}} {
         catch {tclmesh release combine-authorized $op $id operator} message options
         set after [tclmesh release get $id]
         puts [list [dict get $options -errorcode] [dict get $after status] [dict get $after attempts]]

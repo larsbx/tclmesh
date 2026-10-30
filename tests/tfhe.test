@@ -12,7 +12,7 @@ source [file join [file dirname [info script]] languages exemplars.tcl]
 
 if {[testConstraint tfhe]} {
     foreach {name semantics decrypt} {
-        tfhe-open int32-wrapping true tfhe-governed int32-wrapping false
+        tfhe-open int32-wrapping true tfhe-authorization-only int32-wrapping false
         tfhe-checked int32-checked true
         tfhe-wide int64-checked true tfhe-wide-open int64-wrapping true
     } {
@@ -52,15 +52,15 @@ test T-003-ciphertext-sizes {ciphertext size does not depend on the plaintext} -
     set sizes
 } -result {int 1 bool 1}
 
-test T-004-released-under-tfhe {a 2-of-3 quorum releases the clearing price; direct decryption is forbidden} -constraints tfhe -body {
+test T-004-released-under-tfhe {explicit single-key authorization quorum releases the clearing price; direct decryption is forbidden} -constraints tfhe -body {
     tclmesh release use-store {}
     set e [::exemplars::second_price]
     set runtime [dict create \
-        a [tclmesh private encrypt tfhe-governed int 120] \
-        b [tclmesh private encrypt tfhe-governed int 95]]
-    set price [dict get [tclmesh private evaluate tfhe-governed [dict get $e circuit] $runtime] price]
+        a [tclmesh private encrypt tfhe-authorization-only int 120] \
+        b [tclmesh private encrypt tfhe-authorization-only int 95]]
+    set price [dict get [tclmesh private evaluate tfhe-authorization-only [dict get $e circuit] $runtime] price]
     set direct [catch {tclmesh private decrypt $price}]
-    set id [dict get [tclmesh release request $price clearing-price 2 {holder:a holder:b holder:c}] id]
+    set id [dict get [tclmesh release request-authorization $price clearing-price 2 {holder:a holder:b holder:c}] id]
     tclmesh release contribute $id holder:b share-b
     tclmesh release contribute $id holder:c share-c
     list $direct [dict get [tclmesh release combine $id] result]
@@ -247,7 +247,7 @@ test T-018-admission-under-tfhe {a released range bit admits in-range inputs and
     lmap x {120 230} {
         set h [tclmesh private import tfhe-checked [proven $zk adm/$x 0 8 $x] adm/$x 0 8]
         set ok [tclmesh private range-check tfhe-checked $h 0 200]
-        set id [dict get [tclmesh release request $ok admission 2 {holder:a holder:b holder:c}] id]
+        set id [dict get [tclmesh release request-authorization $ok admission 2 {holder:a holder:b holder:c}] id]
         tclmesh release contribute $id holder:a s-a
         tclmesh release contribute $id holder:b s-b
         tclmesh release combine $id
@@ -431,7 +431,7 @@ if {[testConstraint tfhe]} {
 if {[testConstraint tfhe]} {
     foreach h [tclmesh private handle list] {
         if {![catch {tclmesh private handle describe $h} d] &&
-            [dict get $d profile] in {tfhe-open tfhe-governed tfhe-checked}} {
+            [dict get $d profile] in {tfhe-open tfhe-authorization-only tfhe-checked}} {
             catch {tclmesh private handle destroy $h}
         }
     }
