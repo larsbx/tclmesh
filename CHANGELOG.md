@@ -2,6 +2,12 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- keyset-scoped proof-context claims (#34): with persistent TFHE keys the
+  backend claims each verified proof's context for its keyset, durably and
+  exclusively, before minting the handle, so a context is accepted at most
+  once across processes and handle stores sharing the key directory;
+  `Claims.at_most_one_accepted_per_keyset_context` proves the protocol, and
+  a claimed context is refused with `CONTEXT_CLAIMED`;
 - persistent TFHE deployments: `TCLMESH_TFHE_KEYS=DIR` keeps the backend's
   keys (client key mode 0600) and adopted CRS across restarts and enables
   `persistent-handles`: handles export as ciphertexts bound to their keyset

@@ -7,9 +7,11 @@
 #            refused, since destroyed records keep their context; ctx/2 is
 #            accepted, since the public key and CRS persisted.
 #   foreign: other keys refuse the store's recovery material.
-#   elsewhere: the same keys with another store accept ctx/1 again: consumed
-#            contexts are recorded in the selected handle store, not per
-#            keyset, so at-most-once holds per authoritative store only.
+#   elsewhere: the same keys with another store refuse ctx/1: the context
+#            was claimed for the keyset (spec/TclMesh/Claims.lean), whatever
+#            store the claimant used.
+#   race:    import a proof under ctx/race; with RACE set, the same as a
+#            concurrent sibling with another store: one of them may win.
 lassign $argv root keys path zk phase
 set ::env(TCLMESH_TFHE_KEYS) $keys
 lappend auto_path $root
@@ -46,6 +48,37 @@ switch -- $phase {
     }
     elsewhere {
         tclmesh release use-store $store
-        puts [tclmesh private decrypt [tclmesh private import p [proven $zk ctx/1 5] ctx/1 0 8]]
+        catch {tclmesh private import p [proven $zk ctx/1 5] ctx/1 0 8} - options
+        puts [dict get $options -errorcode]
+    }
+    lost-ack {
+        tclmesh release use-store $store
+        # import commits the handle store before returning; die before the
+        # requesting process receives a handle response. Keys/CRS preexist.
+        tclmesh private import p [proven $zk ctx/lost-ack 11] ctx/lost-ack 0 8
+        exit 86
+    }
+    recover-ack {
+        tclmesh release use-store $store
+        set h [lindex [tclmesh private handle list] 0]
+        catch {tclmesh private import p [proven $zk ctx/lost-ack 12] ctx/lost-ack 0 8} - options
+        set consumed [dict get $options -errorcode]
+        set value [tclmesh private decrypt $h]
+        tclmesh private handle destroy $h
+        puts [list $h $value $consumed]
+    }
+    after-ack-destroy {
+        tclmesh release use-store $store
+        catch {tclmesh private import p [proven $zk ctx/lost-ack 13] ctx/lost-ack 0 8} - options
+        puts [dict get $options -errorcode]
+    }
+    race {
+        tclmesh release use-store $store
+        set proof [proven $zk ctx/race 3]
+        if {[catch {tclmesh private import p $proof ctx/race 0 8} h options]} {
+            puts [lrange [dict get $options -errorcode] 0 3]
+        } else {
+            puts [tclmesh private decrypt $h]
+        }
     }
 }

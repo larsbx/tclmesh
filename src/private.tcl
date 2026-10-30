@@ -576,8 +576,9 @@ proc ::tclmesh::private::import {profile_name proof context lo bits {hi {}}} {
     # A context names one use: a proof accepted under it once is not accepted
     # again while its handle record exists (destroyed handles keep theirs).
     # The record outlives the process only on backends with persistent
-    # handles; the TFHE backend has none, so there it lasts one process, but
-    # its keys do too, and a proof does not verify under another key.
+    # handles. With persistent TFHE keys, an additional keyset-scoped claim
+    # precedes token creation and protects distinct stores; without them,
+    # fresh process keys prevent proofs from surviving a restart.
     variable handles
     dict for {id record} $handles {
         if {[dict get $record profile] eq $profile_name && [dict exists $record proof_context] &&

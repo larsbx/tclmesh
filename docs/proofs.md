@@ -68,6 +68,7 @@ typing rule:
 | | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
 | | `cmp_ok`, `mem_ok` | a successful comparison had both operands in the canonical numeric domain; a successful membership test had a canonical list |
 | | `and_fault_left`, `and_false_left`, `or_true_left` | fault propagation and short-circuiting, as in the Tcl and Rust evaluators |
+| `Claims` | `at_most_one_accepted_per_keyset_context`, `claimed_never_accepted_again`, `claimed_step` | **over every trace of imports, imports interrupted after their claim, crashes and destroyed handles, across all processes and handle stores: each (keyset, context) is accepted at most once; claims are monotone; once claimed, a context is never accepted again. The model requires each accepted import to hold an exclusive durable claim first, as the TFHE backend does (`claim`, `concurrent_claims_admit_exactly_one`, T-030)** |
 
 `Range` takes TFHE's correctness as a named hypothesis outside the model: each
 homomorphic operation decrypts to the wrapped result of its plaintext

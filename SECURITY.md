@@ -76,13 +76,22 @@ Important boundaries:
   directory must be a private, non-symlink directory (mode 0700) and its
   existing client-key.bin must be a regular, non-symlink file (mode 0600);
   insecure backup restores fail closed. DIR contains the decryption key and
-  is not appropriate for an untrusted host. Context consumption is durable
-  **only within the one authoritative handle store used for both imports and
-  recovery**. Multiple stores sharing the same keyset do not coordinate
-  context reuse. Parallel processes and distributed at-most-once import
-  require an additional atomic, keyset-scoped claim protocol; this reference
-  file store does not provide it. In particular, do not operate separate
-  handle stores under a shared keyset while claiming global replay exclusion.
+  is not appropriate for an untrusted host. With persistent keys, the backend
+  also claims each proof context for its keyset before exposing the input:
+  after verifying the proof, it creates DIR/claims/H(keyset, context)
+  exclusively (written and synced, then linked into place, which fails if
+  any process claimed it first) and only then mints the handle. Claims hold
+  public keyset/context/statement digests, a random attempt and fixed
+  version/status tags only and are never removed, so a context is accepted at
+  most once per keyset across processes, restarts, destroyed handles and
+  distinct handle stores (`spec/TclMesh/Claims.lean`,
+  `at_most_one_accepted_per_keyset_context`), and an import interrupted
+  after its claim holds the context for good rather than retrying it
+  (`CONTEXT_CLAIMED`). The authority is DIR's filesystem: processes on hosts
+  that do not share it, with copies of the keys, are not coordinated, and
+  need a shared transactional or consensus-backed claim authority. The keyset
+  owner MUST bind every importer for K to the same claims namespace and preserve
+  that namespace while K remains usable; see [claim durability and ownership](docs/claim-durability.md).
   A proven range is `[lo, lo + 2^k − 1]`, for even `k ≤ 16` or `k = 32`; for an exact `[lo, hi]`, `import`
   takes `hi` and holds `min(lo + a, hi)`, so a dishonest input is clamped to
   `hi`. To reject it instead, `range-check` computes the bit `lo ≤ x ≤ hi`

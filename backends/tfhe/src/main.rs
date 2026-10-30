@@ -58,7 +58,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use tclmesh_tfhe::{
-    ceremony, config, import_proven, lift, load, save, test, upper_bound_ok, Int, CRS,
+    ceremony, config, import_proven, lift, load, metadata, save, test, upper_bound_ok, Int, CRS,
     CRS_MAX_BITS, LIMIT, PROVEN_BITS, PUBLIC_KEY, WIDTHS,
 };
 use tfhe::prelude::*;
@@ -262,14 +262,93 @@ fn owned(path: &Path, meta: &std::fs::Metadata) -> R<()> {
     Ok(())
 }
 
+fn hex(digest: &[u8]) -> String {
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// SHA3-256 of length-prefixed parts, so no two part lists collide.
+fn sha3_hex(parts: &[&[u8]]) -> String {
+    use sha3::{Digest, Sha3_256};
+    let mut hash = Sha3_256::new();
+    for part in parts {
+        hash.update((part.len() as u64).to_le_bytes());
+        hash.update(part);
+    }
+    hex(&hash.finalize())
+}
+
 fn keyset(public: &CompactPublicKey) -> R<String> {
     use sha3::{Digest, Sha3_256};
     let mut buf = Vec::new();
     tfhe::safe_serialization::safe_serialize(public, &mut buf, LIMIT).map_err(|e| e.to_string())?;
-    Ok(Sha3_256::digest(&buf)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect())
+    Ok(hex(&Sha3_256::digest(&buf)))
+}
+
+const CLAIMS: &str = "claims";
+const CLAIM_VERSION: &str = "tclmesh-proof-claim-v2";
+
+/// Claim proof context `context` for `statement` under `keyset`, durably and
+/// exclusively, in `dir` (`spec/TclMesh/Claims.lean`): the record is written
+/// and synced under a private name, then linked into place, which fails if
+/// any process sharing the directory claimed the context first, and the
+/// directories holding it are synced before success. Claims are never
+/// removed, so a crash after this call holds the context for good.
+fn claim(dir: &Path, keyset: &str, context: &str, statement: &str) -> R<()> {
+    use std::io::ErrorKind;
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+    let claims = dir.join(CLAIMS);
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&claims)
+        .map_err(|e| format!("{}: {e}", claims.display()))?;
+    let path = claims.join(sha3_hex(&[keyset.as_bytes(), context.as_bytes()]));
+    // Contexts are caller-supplied identifiers: persist only their public digest.
+    // "consumed" is irreversible even when the process never exposes a handle.
+    let context_digest = sha3_hex(&[context.as_bytes()]);
+    let record = json!({"version": CLAIM_VERSION, "keyset": keyset,
+        "context_digest": context_digest, "statement": statement,
+        "attempt": format!("{:016x}", rand::random::<u64>()), "status": "consumed"});
+    let tmp = claims.join(format!(".{}.{}", std::process::id(), rand::random::<u64>()));
+    let io = |e: std::io::Error| format!("{}: {e}", claims.display());
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&tmp)
+        .map_err(io)?;
+    file.write_all(record.to_string().as_bytes())
+        .and_then(|()| file.sync_all())
+        .map_err(io)?;
+    let linked = std::fs::hard_link(&tmp, &path);
+    let _ = std::fs::remove_file(&tmp);
+    match linked {
+        // The claim is durable once its entry is: sync the claims directory
+        // and the key directory holding it, which may have just created it.
+        Ok(()) => [claims.as_path(), dir]
+            .iter()
+            .try_for_each(|d| std::fs::File::open(d).and_then(|d| d.sync_all()))
+            .map_err(io),
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            let held: Value = serde_json::from_slice(&std::fs::read(&path).map_err(io)?)
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+            Err(
+                if held["version"] != CLAIM_VERSION || held["status"] != "consumed" {
+                    format!("context claimed: {context} has an unrecognized claim record; HOLD")
+                } else if held["keyset"] != keyset || held["context_digest"] != context_digest {
+                    format!(
+                        "context claimed: {} holds a claim of another keyset or context",
+                        path.display()
+                    )
+                } else if held["statement"] != statement {
+                    format!("context claimed: {context} was claimed for another statement")
+                } else {
+                    format!("context claimed: {context} (attempt {})", held["attempt"])
+                },
+            )
+        }
+        Err(e) => Err(io(e)),
+    }
 }
 
 impl Backend {
@@ -642,6 +721,13 @@ impl Backend {
         let context = text(&req["context"])?;
         let public = self.public.clone();
         let x = import_proven(&list, self.crs()?, &public, &context, w, lo, bits, hi)?;
+        // Commit before expose: with persistent keys, the context is claimed
+        // for this keyset, across processes and stores, before any handle
+        // to the input exists. Only verified proofs reach the claim.
+        if let Some(dir) = &self.keys {
+            let statement = sha3_hex(&[&metadata(&context, lo, bits, hi), &w.to_le_bytes()]);
+            claim(dir, &self.keyset, &context, &statement)?;
+        }
         Ok(self.keep(Val::Int(x)))
     }
 
@@ -799,6 +885,95 @@ mod tests {
         assert!(err.contains("already fixed"), "{err}");
         assert!(crs_bytes(third.crs.as_ref().unwrap()) == fixed);
         assert!(std::fs::read(dir.join(CRS)).unwrap() == fixed);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Claims are exclusive under real concurrency: of many threads claiming
+    /// one context at once, exactly one succeeds; the rest learn why.
+    #[test]
+    fn concurrent_claims_admit_exactly_one() {
+        let dir = keydir("claims-race");
+        std::fs::create_dir_all(&dir).unwrap();
+        let wins: Vec<bool> = std::thread::scope(|s| {
+            (0..16)
+                .map(|_| s.spawn(|| claim(&dir, "K", "ctx/race", "S").is_ok()))
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|t| t.join().unwrap())
+                .collect()
+        });
+        assert_eq!(wins.iter().filter(|w| **w).count(), 1);
+        let err = claim(&dir, "K", "ctx/race", "S").unwrap_err();
+        assert!(
+            err.starts_with("context claimed: ctx/race (attempt"),
+            "{err}"
+        );
+        // Another statement under the same context is refused as such; a
+        // claim file whose record names another context is refused too.
+        let err = claim(&dir, "K", "ctx/race", "other").unwrap_err();
+        assert!(err.contains("another statement"), "{err}");
+        assert!(claim(&dir, "K2", "ctx/race", "S").is_ok());
+        let claims = dir.join(CLAIMS);
+        let forged = claims.join(sha3_hex(&[b"K", b"ctx/forged"]));
+        std::fs::copy(claims.join(sha3_hex(&[b"K", b"ctx/race"])), &forged).unwrap();
+        let err = claim(&dir, "K", "ctx/forged", "S").unwrap_err();
+        assert!(err.contains("another keyset or context"), "{err}");
+        // Invalid or incomplete authority records can never authorize a retry.
+        let original = std::fs::read(&forged).unwrap();
+        for field in ["version", "status"] {
+            let mut record: Value = serde_json::from_slice(&original).unwrap();
+            record[field] = json!("unknown");
+            std::fs::write(&forged, record.to_string()).unwrap();
+            let err = claim(&dir, "K", "ctx/forged", "S").unwrap_err();
+            assert!(err.contains("HOLD"), "{err}");
+        }
+        // No temporary files are left behind.
+        let names: Vec<_> = std::fs::read_dir(&claims)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert!(
+            names.iter().all(|n| !n.to_string_lossy().starts_with('.')),
+            "{names:?}"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Commit before expose, and fail closed: a backend that claimed a
+    /// context and then died before any handle persisted holds the context
+    /// for every later backend on the same keys; a new context still imports.
+    #[test]
+    fn a_claim_outlives_its_importer() {
+        let dir = keydir("claim-crash");
+        let prove = |b: &mut Backend, context: &str| {
+            let path = dir.join(format!("{}.proof", context.replace('/', "-")));
+            let list = ProvenCompactCiphertextList::builder(&b.public)
+                .push_with_num_bits(7u32, 8)
+                .unwrap()
+                .build_with_proof_packed(
+                    b.crs().unwrap(),
+                    &metadata(context, 0, 8, None),
+                    tfhe::zk::ZkComputeLoad::Proof,
+                )
+                .unwrap();
+            save(&list, &path).unwrap();
+            json!({"op": "import", "proof": path, "context": context, "lo": "0", "bits": 8,
+                "width": 32})
+        };
+        let mut first = Backend::open(Some(&dir)).unwrap();
+        let req = prove(&mut first, "ctx/1");
+        assert!(first.handle(&req).is_ok());
+        drop(first);
+        let mut second = Backend::open(Some(&dir)).unwrap();
+        let req = prove(&mut second, "ctx/1");
+        let err = second.handle(&req).unwrap_err();
+        assert!(err.starts_with("context claimed: ctx/1"), "{err}");
+        let req = prove(&mut second, "ctx/2");
+        let token = second.handle(&req).unwrap()["token"].clone();
+        let value = second
+            .handle(&json!({"op": "decrypt", "token": token}))
+            .unwrap();
+        assert_eq!(value["value"], "7");
         std::fs::remove_dir_all(dir).unwrap();
     }
 
