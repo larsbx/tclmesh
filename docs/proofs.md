@@ -69,9 +69,9 @@ typing rule:
 | | `lin_bounds`, `lin_noise` | a linear combination `Σ w·cᵢ + k` lies in the interval extension of its operands, with noise at most `Σ \|w\|·levelᵢ · fresh` (TFHE-rs's noise-level accounting) |
 | | `bootstrapped_sound` | **noise-budget soundness of bootstrapped circuits: if the degree and noise-level checker accepts a block-level gate program, inputs are fresh encryptions, `2·maxLevel·fresh < Δ`, and each bootstrap that runs meets its contract, every output decrypts to the cleartext evaluation; no hypothesis bounds depth, and the bootstrap contract (a named hypothesis, failing with probability `≤ 2^-128` per bootstrap for the `2M128` parameters) is needed only of the `pbsCount` bootstraps that run, so the evaluation fails with probability at most `pbsCount · 2^-128`** |
 | | `chain_check`, `leveled_rejected` | under `tfhe22` (`max_degree 15`, `max_noise_level 5`), bootstrapped doubling chains are accepted at every depth; without bootstraps three doublings are rejected |
-| `Radix` | `add_check` | the base-4 ripple-carry adder over `n` blocks (`addProg n`) is accepted by the noise checker for every `n` |
-| | `add_digits` | its output digits are those of `(A + B) mod 4^n` |
-| | `add_sound`, `add_wrap32` | **encrypted, it decrypts to `(A + B) mod 4^n` under the hypotheses of `bootstrapped_sound`; at 16 blocks, read as a two's-complement word, to `Range.wrapped 32` of `add`: for this adder, the `Range` hypothesis is discharged down to the per-bootstrap contract** |
+| `Radix` | `radix_check` | the base-4 ripple-carry adder over `n` blocks, and the subtracter (the same adder on complemented digits `3 − bᵢ` with carry in `1`), are accepted by the noise checker for every `n` |
+| | `add_digits`, `sub_digits` | their output digits are those of `(A + B) mod 4^n`, respectively `(A − B) mod 4^n` |
+| | `radix_sound`, `add_wrap32`, `sub_wrap32` | **encrypted, they decrypt to those digits under the hypotheses of `bootstrapped_sound`; at 16 blocks, read as a two's-complement word, to `Range.wrapped 32` of `add`, respectively `subtract`: for these programs, the `Range` hypothesis is discharged down to the per-bootstrap contract** |
 | | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
 | | `cmp_ok`, `mem_ok` | a successful comparison had both operands in the canonical numeric domain; a successful membership test had a canonical list |
 | | `and_fault_left`, `and_false_left`, `or_true_left` | fault propagation and short-circuiting, as in the Tcl and Rust evaluators |
@@ -80,7 +80,7 @@ typing rule:
 homomorphic operation decrypts to the wrapped result of its plaintext
 operation (`wrapped w`), within its noise budget. `Noise` discharges the
 noise-budget part for bootstrapped circuits at the block level, and `Radix`
-proves a ripple-carry adder of blocks computes `wrapped 32`; that TFHE-rs's
+proves ripple-carry addition and subtraction of blocks compute `wrapped 32`; that TFHE-rs's
 other integer algorithms (and its parallel carry propagation) are block
 programs computing `wrapped w` remains TFHE-rs's functional correctness. What it proves is that the
 wrapping never happens on an accepted circuit. Its arithmetic is the contract
@@ -175,7 +175,7 @@ These are listed in the [roadmap](roadmap.md#formal-methods-first):
 - per-mechanism lemmas under cryptographic assumptions;
 - noise-budget soundness for leveled (bootstrap-free) evaluation beyond the
   block discipline, and the refinement of TFHE-rs integer operations to
-  block gate programs beyond ripple-carry addition (`Radix`);
+  block gate programs beyond ripple-carry addition and subtraction (`Radix`);
 - differential-privacy budgets.
 
 ## Checked handle and clamp admission

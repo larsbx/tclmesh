@@ -2,11 +2,13 @@
 
 ## Unreleased — v0.3 reference runtime
 
-- radix addition as a block gate program (`spec/TclMesh/Radix.lean`): the
-  base-4 ripple-carry adder passes the noise checker at every width
-  (`add_check`), computes `(A + B) mod 4^n` (`add_digits`), and, encrypted at
-  16 blocks, decrypts to `Range.wrapped 32` of `add` under the per-bootstrap
-  contract (`add_wrap32`);
+- radix addition and subtraction as block gate programs
+  (`spec/TclMesh/Radix.lean`): the base-4 ripple-carry adder, and the same
+  adder on complemented digits with carry in `1`, pass the noise checker at
+  every width (`radix_check`), compute `(A ± B) mod 4^n` (`add_digits`,
+  `sub_digits`), and, encrypted at 16 blocks, decrypt to `Range.wrapped 32`
+  of `add` and `subtract` under the per-bootstrap contract (`add_wrap32`,
+  `sub_wrap32`);
 - noise-budget soundness for bootstrapped circuits (`spec/TclMesh/Noise.lean`):
   TFHE-rs's per-block degree and noise-level discipline as a static checker,
   proved sound at any depth (`Noise.bootstrapped_sound`) under the bootstrap

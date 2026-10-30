@@ -208,8 +208,9 @@ Proof obligations:
   any depth, under the per-bootstrap contract and a union bound);
 - [ ] noise-budget soundness for leveled circuits, and the refinement of
   TFHE-rs integer operations to block gate programs (done for ripple-carry
-  addition: `Radix.add_wrap32`; open for subtraction, multiplication,
-  comparison, select and TFHE-rs's parallel carry propagation);
+  addition and subtraction: `Radix.add_wrap32`, `Radix.sub_wrap32`; open for
+  negation, multiplication, comparison, select and TFHE-rs's parallel carry
+  propagation);
 - [ ] leakage budgets in bits and in differential-privacy epsilon across runs.
 
 Engineering sequence, after the proofs above:
