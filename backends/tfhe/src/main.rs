@@ -290,8 +290,9 @@ const CLAIM_VERSION: &str = "tclmesh-proof-claim-v1";
 /// Claim proof context `context` for `statement` under `keyset`, durably and
 /// exclusively, in `dir` (`spec/TclMesh/Claims.lean`): the record is written
 /// and synced under a private name, then linked into place, which fails if
-/// any process sharing the directory claimed the context first. Claims are
-/// never removed, so a crash after this call holds the context for good.
+/// any process sharing the directory claimed the context first, and the
+/// directories holding it are synced before success. Claims are never
+/// removed, so a crash after this call holds the context for good.
 fn claim(dir: &Path, keyset: &str, context: &str, statement: &str) -> R<()> {
     use std::io::ErrorKind;
     use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
@@ -318,8 +319,11 @@ fn claim(dir: &Path, keyset: &str, context: &str, statement: &str) -> R<()> {
     let linked = std::fs::hard_link(&tmp, &path);
     let _ = std::fs::remove_file(&tmp);
     match linked {
-        Ok(()) => std::fs::File::open(&claims)
-            .and_then(|d| d.sync_all())
+        // The claim is durable once its entry is: sync the claims directory
+        // and the key directory holding it, which may have just created it.
+        Ok(()) => [claims.as_path(), dir]
+            .iter()
+            .try_for_each(|d| std::fs::File::open(d).and_then(|d| d.sync_all()))
             .map_err(io),
         Err(e) if e.kind() == ErrorKind::AlreadyExists => {
             let held: Value = serde_json::from_slice(&std::fs::read(&path).map_err(io)?)
