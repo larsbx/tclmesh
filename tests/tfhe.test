@@ -324,11 +324,30 @@ test T-029-persistent-deployment {with persistent keys, handles and consumed pro
             [file dirname [file dirname [file normalize [info script]]]] [file join $dir $keys] \
             [file join $dir $store] [file join $dir zk] $phase
     }}
-    # The last phase pins the boundary: another store has its own contexts.
+    # The last phase: the claim on ctx/1 holds across stores.
     list [apply $run $dir keys first] [apply $run $dir keys second] [apply $run $dir other foreign] \
         [expr {[scan [file attributes [file join $dir keys client-key.bin] -permissions] %o] & 0o777}] \
         [apply $run $dir keys elsewhere other-store.tcl]
-} -result {{ct:1 ct:2} {41 {TCLMESH PRIVATE RANGE CONTEXT_REUSED ct:2} 42} refused 384 5}
+} -result {{ct:1 ct:2} {41 {TCLMESH PRIVATE RANGE CONTEXT_REUSED ct:2} 42} refused 384 {TCLMESH PRIVATE RANGE CONTEXT_CLAIMED ctx/1}}
+
+test T-030-concurrent-claims {two processes sharing keys but not a store race to import one context: exactly one wins} -constraints tfhe -body {
+    set dir [file join $zk racing]
+    file mkdir [file join $dir zk]
+    set fixture [file join [file dirname [info script]] tfhe-persist-process.tcl]
+    set root [file dirname [file dirname [file normalize [info script]]]]
+    # Set up the keys and the published key and CRS once, then race.
+    exec [info nameofexecutable] $fixture $root [file join $dir keys] [file join $dir setup.tcl] \
+        [file join $dir zk] first
+    set pipes [lmap store {a.tcl b.tcl} {
+        open |[list [info nameofexecutable] $fixture $root [file join $dir keys] \
+            [file join $dir $store] [file join $dir zk] race] r
+    }]
+    lsort [lmap pipe $pipes {
+        set line [string trim [read $pipe]]
+        close $pipe
+        set line
+    }]
+} -result {3 {TCLMESH PRIVATE RANGE CONTEXT_CLAIMED}}
 
 # 64-bit words (`FheInt64`): the same range certificates, for a word wide
 # enough that products of 32-bit-scale values stay exact.

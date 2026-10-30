@@ -118,12 +118,11 @@ Before a v0.3 release or a stronger claim, continue in this order:
    public key it was made under. With persistent TFHE keys
    (`TCLMESH_TFHE_KEYS`) handles persist as keyset-bound ciphertexts, so
    consumed contexts survive restarts with their records; recovery material
-   from another keyset is refused. This is a single-authoritative-store
-   persistence guarantee, not a distributed uniqueness proof: separate handle
-   stores sharing a keyset can reuse the same proof context. Until a durable
-   atomic keyset-scoped context claim is implemented and refined, deploy
-   persistent TFHE with only one authoritative handle store and do not claim
-   cross-process at-most-once admission.
+   from another keyset is refused. Each context is also claimed for the
+   keyset, durably and exclusively, before its handle exists
+   (`spec/TclMesh/Claims.lean`, #34), so at-most-once holds across processes
+   and handle stores sharing the key directory's filesystem; hosts that do
+   not share it need a shared claim authority.
    Packing metadata is hashed but not yet semantically validated.
 3. Extend integrated acceptance and provenance reconstruction through private
    evaluation/release; audit private operations without exposing protected data.

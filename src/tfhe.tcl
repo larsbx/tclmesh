@@ -144,9 +144,20 @@ proc ::tclmesh::tfhe::_backend {operation args} {
         import {
             lassign $args profile proof context lo bits hi
             set bound [expr {$hi eq "" ? {} : [::list hi [_s $hi]]}]
-            return [_token [_call [json::write object op [_s import] \
-                proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits \
-                width [_width $profile] {*}$bound]]]
+            # With persistent keys the backend claims the context for its
+            # keyset before exposing the input; a claimed one is refused.
+            try {
+                set response [_call [json::write object op [_s import] \
+                    proof [_s [file normalize $proof]] context [_s $context] lo [_s $lo] bits $bits \
+                    width [_width $profile] {*}$bound]]
+            } trap {TCLMESH TFHE} {message options} {
+                if {[string match "tfhe backend: context claimed:*" $message]} {
+                    return -code error \
+                        -errorcode [::list TCLMESH PRIVATE RANGE CONTEXT_CLAIMED $context] $message
+                }
+                return -options $options $message
+            }
+            return [_token $response]
         }
         export-handle {
             lassign $args profile type token
