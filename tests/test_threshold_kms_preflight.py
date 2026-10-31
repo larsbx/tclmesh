@@ -105,7 +105,7 @@ class SourcePreflightTests(unittest.TestCase):
 
     def test_reject_ignored_untracked_lockfile(self):
         run("git", "-C", str(self.kms), "rm", "-q", "--cached", "Cargo.lock")
-        (self.kms / ".gitignore").write_text("/Cargo.lock\\n")
+        (self.kms / ".gitignore").write_text("/Cargo.lock\n")
         run("git", "-C", str(self.kms), "add", ".gitignore")
         self._commit(self.kms)
         with self.assertRaises(subprocess.CalledProcessError):
@@ -115,7 +115,7 @@ class SourcePreflightTests(unittest.TestCase):
         path = self.kms / "core-client" / "config" / "client_local_threshold.toml"
         run("git", "-C", str(self.kms), "rm", "-q", "--cached",
             "core-client/config/client_local_threshold.toml")
-        (self.kms / ".gitignore").write_text("/core-client/config/client_local_threshold.toml\\n")
+        (self.kms / ".gitignore").write_text("/core-client/config/client_local_threshold.toml\n")
         run("git", "-C", str(self.kms), "add", ".gitignore")
         self._commit(self.kms)
         self.assertTrue(path.is_file())
