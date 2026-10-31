@@ -43,7 +43,22 @@ jobs:
           source_dir="$RUNNER_TEMP/kms-source"
           git init -q "$source_dir"
           git -C "$source_dir" remote add origin https://github.com/zama-ai/kms.git
-          git -C "$source_dir" -c protocol.version=2 fetch -q --depth=1 --filter=blob:none origin afcc7e5a48c31f7c3772b1799c8e856c8e3166f1
+          if ! git -C "$source_dir" -c protocol.version=2 fetch -q --depth=1 --filter=blob:none origin afcc7e5a48c31f7c3772b1799c8e856c8e3166f1; then
+            python3 - "$RUNNER_TEMP/kms-source-preflight.json" <<'PY'
+          import json
+          import sys
+
+          report = {
+              "status": "BLOCKED",
+              "blockers": ["kms_source_unavailable"],
+              "expected_kms_commit": "afcc7e5a48c31f7c3772b1799c8e856c8e3166f1",
+              "note": "Exact upstream source fetch failed; no compatibility or security conclusion is possible.",
+          }
+          with open(sys.argv[1], "w", encoding="utf-8") as file:
+              json.dump(report, file, sort_keys=True, indent=2)
+          PY
+            exit 1
+          fi
           git -C "$source_dir" checkout --detach -q FETCH_HEAD
           test "$(git -C "$source_dir" rev-parse HEAD)" = "afcc7e5a48c31f7c3772b1799c8e856c8e3166f1"
           test -f "$source_dir/Cargo.lock"
