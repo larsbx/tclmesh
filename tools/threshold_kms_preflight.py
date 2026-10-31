@@ -33,27 +33,27 @@ def git(repo: Path, *args: str) -> str:
     return completed.stdout.strip()
 
 
-def lock_versions(root: Path) -> dict[str, list[str]]:
-    data = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
+def lock_versions(lock: Path) -> dict[str, list[str]]:
+    data = tomllib.loads(lock.read_text(encoding="utf-8"))
     packages = data.get("package")
     if not isinstance(packages, list):
-        raise ValueError(f"missing Cargo.lock package array in {root}")
+        raise ValueError(f"missing Cargo.lock package array in {lock}")
     return {
         name: sorted({p["version"] for p in packages if p.get("name") == name})
         for name in CRATES
     }
 
 
-def inspect_checkout(root: Path) -> dict:
+def inspect_checkout(root: Path, lock_relative: Path) -> dict:
     root = root.resolve(strict=True)
     head = git(root, "rev-parse", "HEAD")
     dirty = bool(git(root, "status", "--porcelain", "--untracked-files=normal"))
-    lock = root / "Cargo.lock"
+    lock = root / lock_relative
     return {
         "head": head,
         "tracked_dirty": dirty,
         "cargo_lock_sha256": sha256(lock),
-        "crates": lock_versions(root),
+        "crates": lock_versions(lock),
     }
 
 
@@ -101,8 +101,8 @@ def evaluate(tclmesh: dict, kms: dict, expected_kms_commit: str,
 def preflight(tclmesh_root: Path, kms_root: Path, kms_commit: str) -> dict:
     if not re.fullmatch(r"[0-9a-f]{40}", kms_commit):
         raise ValueError("--kms-commit must be a full lowercase 40-digit SHA")
-    tclmesh = inspect_checkout(tclmesh_root)
-    kms = inspect_checkout(kms_root)
+    tclmesh = inspect_checkout(tclmesh_root, Path("backends/tfhe/Cargo.lock"))
+    kms = inspect_checkout(kms_root, Path("Cargo.lock"))
     conf_path = kms_root / "core-client" / "config" / "client_local_threshold.toml"
     config = tomllib.loads(conf_path.read_text(encoding="utf-8")) if conf_path.is_file() else None
     return evaluate(tclmesh, kms, kms_commit, config)
