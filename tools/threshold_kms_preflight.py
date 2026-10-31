@@ -44,16 +44,46 @@ def lock_versions(lock: Path) -> dict[str, list[str]]:
     }
 
 
-def inspect_checkout(root: Path, lock_relative: Path) -> dict:
+def verify_committed_file(root: Path, relative: Path) -> str:
+    """Read only files tracked *at HEAD* and byte-identical to HEAD.
+
+    Git's nearest-repository behavior and ignored files are not evidence of a
+    pinned checkout. Reject both, including symlinks pointing out of the tree.
+    """
+    name = relative.as_posix()
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"unsafe source path: {name}")
+    path = root / relative
+    if not path.is_file() or path.is_symlink() or path.resolve() != path:
+        raise ValueError(f"non-regular or missing source: {name}")
+    git(root, "ls-files", "--error-unmatch", "--", name)
+    committed = subprocess.run(
+        ["git", "-C", str(root), "show", "HEAD:" + name],
+        check=True, capture_output=True, timeout=15,
+    ).stdout
+    digest = sha256(path)
+    if hashlib.sha256(committed).hexdigest() != digest:
+        raise ValueError(f"source does not match HEAD: {name}")
+    return digest
+
+
+def inspect_checkout(root: Path, lock_relative: Path, additional: tuple[Path, ...] = ()) -> dict:
     root = root.resolve(strict=True)
+    actual_root = Path(git(root, "rev-parse", "--show-toplevel")).resolve(strict=True)
+    if actual_root != root:
+        raise ValueError(f"source directory is not Git checkout root: {root}")
     head = git(root, "rev-parse", "HEAD")
     dirty = bool(git(root, "status", "--porcelain", "--untracked-files=normal"))
-    lock = root / lock_relative
+    verified = {
+        path.as_posix(): verify_committed_file(root, path)
+        for path in (lock_relative, *additional)
+    }
     return {
         "head": head,
         "tracked_dirty": dirty,
-        "cargo_lock_sha256": sha256(lock),
-        "crates": lock_versions(lock),
+        "cargo_lock_sha256": verified[lock_relative.as_posix()],
+        "verified_source_digests": verified,
+        "crates": lock_versions(root / lock_relative),
     }
 
 
@@ -102,8 +132,9 @@ def preflight(tclmesh_root: Path, kms_root: Path, kms_commit: str) -> dict:
     if not re.fullmatch(r"[0-9a-f]{40}", kms_commit):
         raise ValueError("--kms-commit must be a full lowercase 40-digit SHA")
     tclmesh = inspect_checkout(tclmesh_root, Path("backends/tfhe/Cargo.lock"))
-    kms = inspect_checkout(kms_root, Path("Cargo.lock"))
-    conf_path = kms_root / "core-client" / "config" / "client_local_threshold.toml"
+    config_relative = Path("core-client/config/client_local_threshold.toml")
+    kms = inspect_checkout(kms_root, Path("Cargo.lock"), (config_relative,))
+    conf_path = kms_root / config_relative
     config = tomllib.loads(conf_path.read_text(encoding="utf-8")) if conf_path.is_file() else None
     return evaluate(tclmesh, kms, kms_commit, config)
 
