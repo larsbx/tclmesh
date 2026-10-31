@@ -21,8 +21,11 @@ git -C kms-source checkout --detach afcc7e5a48c31f7c3772b1799c8e856c8e3166f1
 python3 tools/threshold_kms_preflight.py --kms-source /absolute/path/to/kms-source
 ```
 
-The script **does not fetch arbitrary remote code or execute KMS**. It checks both
-checkouts' HEAD and cleanliness, hashes their Cargo.lock files, compares the
+The script **does not fetch arbitrary remote code or execute KMS**. It rejects
+nested/subdirectory checkouts and untracked, ignored, symlinked or modified
+evidence files. It verifies lockfiles and sample configuration against the
+actual HEAD Git objects rather than trusting bytes from the working tree.
+It checks both checkouts' HEAD and cleanliness, hashes their Cargo.lock files, compares the
 locked `tfhe` and `tfhe-zk-pok` package versions when present, and inspects the
 four-party client sample configuration. A missing/unverifiable source, unexpected
 commit, differing locked versions, insecure `Test` parameters or incorrect sample
@@ -48,6 +51,31 @@ the initial KMS release investigation reported TFHE-rs 1.6.2. Version parity is
 a necessary triage check for direct integration, but is not sufficient for
 cryptographic, parameter, ciphertext, encoding or API compatibility. Even if
 the script reports `SOURCE_PREFLIGHT_ONLY`, **Issue #36 remains open**.
+
+## Current source-access blocker (2026-10-31)
+
+The hosted pinned-source workflow initially failed before reaching dependency
+checks: the upstream `git fetch` returned
+`fatal: could not read Username for 'https://github.com'`.
+That observation establishes an **unavailable source fetch in the CI runner**,
+not that the repo has been deleted or that the proposed commit is valid/invalid.
+A second source check through the configured GitHub connector was also not
+accessible. No downloaded revision, lockfile hash, KMS build or interoperability
+result is established.
+
+The workflow intentionally stays red when source retrieval fails and writes a
+nonsecret JSON report labeled `kms_source_unavailable` to preserve the exact
+blocker. Never fall back to another tag, commit, mirror, unchecked archive or
+centralized key without an explicit independently verified new pin.
+
+Hosted `pull_request` evidence is tied to the exact PR head (rather than
+GitHub's synthetic merge commit). The script additionally insists the supplied
+directory be the Git working-tree root and the inspected files be tracked at
+HEAD and byte-identical to those committed.
+
+Proceed with an authenticated local exact checkout if the upstream repository
+can be accessed. Until then the failure is a **reproducible retrieval blocker**,
+not evidence supporting crypto acceptance.
 
 ## Next real cryptographic validation (not performed by this script)
 
