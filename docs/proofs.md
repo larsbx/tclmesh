@@ -68,7 +68,7 @@ typing rule:
 | `Noise` | `decode_correct` | decryption (rounding the phase `Δ·m + e`) returns `m` while `2\|e\| < Δ` |
 | | `lin_bounds`, `lin_noise` | a linear combination `Σ w·cᵢ + k` lies in the interval extension of its operands, with noise at most `Σ \|w\|·levelᵢ · fresh` (the model's conservative absolute-noise accounting) |
 | | `bootstrapped_sound`, `bootstrapped_representable` | **conditional abstract block soundness at any depth: every checked wire has a representable interval; under fresh bounded input noise, `2·maxLevel·fresh < Δ`, and success of the actual PBS calls, outputs decode to cleartext evaluation. Native PBS/noise correspondence remains an assumption.** |
-| | `torus_decode_tfhe22` | exact modular rounding at Δ = 2^59 and q = 2^64 agrees with the integer lift for cleartexts 0..15 under the explicit absolute-noise bound |
+| | `torus_decode_tfhe22`, `bootstrapped_torus_sound` | exact modular rounding and checked output correctness at Δ = 2^59 and q = 2^64 agrees with the integer lift for cleartexts 0..15 under the explicit absolute-noise bound |
 | `NoiseProbability` | `failureMass_eq`, `conditional_union_bound`, `output_failure_bound` | **finite weighted adaptive execution theorem: `den * outputErrorMass ≤ pbsCount * num * totalMass`, assuming a conditional bound `num/den` on the full actual-call failure event after each successful prefix; no independence or unconditional native 2^-128 claim** |
 | `Noise` | `chain_check`, `leveled_rejected` | under `tfhe22` (`max_degree 15`, `max_noise_level 5`), bootstrapped doubling chains are accepted at every depth; without bootstraps three doublings are rejected |
 | | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |

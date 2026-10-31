@@ -456,6 +456,37 @@ theorem torus_decode_tfhe22 (c : Ct) (hm : 0 ≤ c.m ∧ c.m ≤ 15)
   change (576460752303423488 * c.m + c.e + 288230376151711744) / 576460752303423488 = c.m at hd
   omega
 
+/-- Checked output correctness for the audited rounded torus encoding.
+This still assumes the modeled phase/actual-call contracts; it is not a
+refinement proof for the native cryptographic implementation. -/
+theorem bootstrapped_torus_sound (fresh : Nat)
+    (hdec : 2 * (tfhe22.maxLevel * fresh) < 2^59)
+    (p : Prog) (hc : check tfhe22 p = true) (boots : Nat → Boot) (inp : Nat → Ct)
+    (hinp : Fresh tfhe22 fresh inp) (hg : CallsGood fresh boots inp [] p.gates) :
+    ∀ o ∈ p.outputs, torusDecode (2^59) 32 ((evalCt boots inp [] p.gates).getD o zeroCt) =
+      (evalV (fun i => (inp i).m) [] p.gates).getD o 0 := by
+  intro o ho
+  unfold check at hc
+  split at hc
+  · rename_i s hs
+    simp only [List.all_eq_true, Bool.and_eq_true, decide_eq_true_eq] at hc
+    obtain ⟨hlt, hadm⟩ := hc o ho
+    simp only [admissible, Bool.and_eq_true, decide_eq_true_eq] at hadm
+    obtain ⟨hm, hlen, hw⟩ := analyze_sound tfhe22 fresh boots inp hinp p.gates [] [] s hs
+      ⟨rfl, rfl, by simp⟩ hg
+    have hb := hw o (hlen ▸ hlt)
+    simp only [List.map_nil] at hm hb
+    rw [← hm, getD_map_m] at hb
+    have hmrange : 0 ≤ ((evalCt boots inp [] p.gates).getD o zeroCt).m ∧
+        ((evalCt boots inp [] p.gates).getD o zeroCt).m ≤ 15 := by
+      simp only [tfhe22] at hadm
+      omega
+    have he : 2 * ((evalCt boots inp [] p.gates).getD o zeroCt).e.natAbs < 2^59 := by
+      have := Nat.mul_le_mul_right fresh hadm.2
+      omega
+    rw [torus_decode_tfhe22 _ hmrange he, ← hm, getD_map_m]
+  · contradiction
+
 /-! ## Depth -/
 
 /-- `x ↦ 2x mod 4` on cleartexts `[0, 15]`. -/
