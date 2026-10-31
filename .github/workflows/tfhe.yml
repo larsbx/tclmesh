@@ -18,6 +18,7 @@ on:
       - 'tests/tfhe.test'
       - 'tools/check_crs_snapshot_mutant.py'
       - 'spec/TclMesh/Range.lean'
+      - 'spec/TclMesh/Noise*.lean'
       - 'UPSTREAM.toml'
 
 jobs:

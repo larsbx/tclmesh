@@ -23,7 +23,10 @@ This file writes that sequential ripple-carry adder as a gate program
   result is `Range.wrapped 32` of `add`, respectively `subtract`.
 
 So for these programs the hypothesis `Range` names, that TFHE computes
-`wrapped 32`, is discharged down to the per-bootstrap contract. TFHE-rs also
+`wrapped 32`, reduces to the hypotheses of `Noise.bootstrapped_sound`: fresh
+bounded input noise, `2·maxLevel·fresh < Δ`, and success of the actual PBS
+calls (`CallsGood`); their correspondence with native TFHE-rs is the open
+audit of `docs/noise-correspondence.md`. TFHE-rs also
 has parallel carry propagation, which is a different gate program; that the
 gate program `FheInt32 + FheInt32` (or `-`) actually runs is this one (or
 computes the same digits) is not proved here.
@@ -79,24 +82,27 @@ theorem getD_append_len0 {α} (l l' : List α) (d : α) : (l ++ l').getD l.lengt
   getD_append_len l l' d 0
 
 /-- After `i` blocks: inputs are fresh blocks, the carry into block `i` is a
-nonnegative block of at most 3 and level at most 1, and every message produced
-is level 1. -/
+nonempty interval within `[0, 3]` of level at most 1, and every message
+produced is a fresh-looking block. -/
 def AInv (n i : Nat) (s : List Abs) : Prop :=
   s.length = 2 * n + 1 + 3 * i ∧ (∀ j < 2 * n, s.getD j zeroAbs = ⟨0, 3, 1⟩) ∧
-    0 ≤ (s.getD (2 * n + 3 * i) zeroAbs).lo ∧ (s.getD (2 * n + 3 * i) zeroAbs).hi ≤ 3 ∧
-    (s.getD (2 * n + 3 * i) zeroAbs).level ≤ 1 ∧
-    ∀ k < i, (s.getD (msgWire n k) zeroAbs).level = 1
+    0 ≤ (s.getD (2 * n + 3 * i) zeroAbs).lo ∧
+    (s.getD (2 * n + 3 * i) zeroAbs).lo ≤ (s.getD (2 * n + 3 * i) zeroAbs).hi ∧
+    (s.getD (2 * n + 3 * i) zeroAbs).hi ≤ 3 ∧ (s.getD (2 * n + 3 * i) zeroAbs).level ≤ 1 ∧
+    ∀ k < i, s.getD (msgWire n k) zeroAbs = ⟨0, 3, 1⟩
 
 theorem block_check (n : Nat) (neg : Bool) (i : Nat) (hi : i < n) (s : List Abs) (h : AInv n i s) :
     ∃ s', analyze tfhe22 s (block n neg i) = some s' ∧ AInv n (i + 1) s' := by
-  obtain ⟨hl, hin, clo, chi, clev, hmsg⟩ := h
+  obtain ⟨hl, hin, clo, cord, chi, clev, hmsg⟩ := h
   have ha := hin i (by omega)
   have hb := hin (n + i) (by omega)
-  generalize hc : s.getD (2 * n + 3 * i) zeroAbs = c at clo chi clev
+  generalize hc : s.getD (2 * n + 3 * i) zeroAbs = c at clo cord chi clev
   let sum : Abs := ⟨linLo s (terms n neg i) + bk neg, linHi s (terms n neg i) + bk neg,
     linLevel s (terms n neg i)⟩
   have hlo : 0 ≤ sum.lo := by
     simp only [sum, terms, linLo, ha, hb, hc]; cases neg <;> simp [bw, bk] <;> omega
+  have hord : sum.lo ≤ sum.hi := by
+    simp only [sum, terms, linLo, linHi, ha, hb, hc]; cases neg <;> simp [bw, bk] <;> omega
   have hhi : sum.hi ≤ 15 := by
     simp only [sum, terms, linHi, ha, hb, hc]; cases neg <;> simp [bw, bk] <;> omega
   have hlev : sum.level ≤ 5 := by
@@ -106,16 +112,20 @@ theorem block_check (n : Nat) (neg : Bool) (i : Nat) (hi : i < n) (s : List Abs)
       simp [terms]; omega
     have hm : lutIn modLut 3 = true := by decide
     have hd : lutIn divLut 3 = true := by decide
-    simp only [block, analyze, stepAbs, hall, ite_true, Option.bind_some]
+    have hadm : admissible tfhe22 sum = true := by
+      simp [admissible, tfhe22, hlo, hord, hhi, hlev]
+    simp only [block, analyze, checkedStep, stepAbs, hall, ite_true, Option.bind_some]
+    simp only [sum] at hadm
+    simp only [hadm, ite_true, Option.bind_some]
     rw [show 2 * n + 1 + 3 * i = s.length by omega]
     simp only [List.append_assoc, List.cons_append, List.nil_append, getD_append_len0,
       List.getD_cons_zero]
     simp only [sum] at hlo hhi hlev
-    simp [hlo, hhi, hlev, hm, hd, tfhe22, sum]
+    simp [hlo, hhi, hlev, hm, hd, tfhe22, admissible, sum]
   · refine ⟨by simp [hl]; omega, fun j hj => ?_, ?_⟩
     · rw [getD_append_lt _ _ _ (by omega)]; exact hin j hj
     · rw [show 2 * n + 3 * (i + 1) = s.length + 2 by omega, getD_append_len]
-      refine ⟨by simp, by simp, by simp, fun k hk => ?_⟩
+      refine ⟨by simp, by simp, by simp, by simp, fun k hk => ?_⟩
       rcases Nat.lt_or_ge k i with hk' | hk'
       · rw [getD_append_lt _ _ _ (by simp [msgWire]; omega)]; exact hmsg k hk'
       · rw [show msgWire n k = s.length + 1 by simp [msgWire]; omega, getD_append_len]; rfl
@@ -128,7 +138,9 @@ theorem blocks_check (n : Nat) (neg : Bool) : ∀ i ≤ n, ∃ s,
   | zero =>
     intro _
     refine ⟨(List.range (2 * n)).map (fun _ => ⟨0, 3, 1⟩) ++ [⟨cin neg, cin neg, 0⟩], ?_, ?_⟩
-    · simp [prefixGates, analyze_append, analyze_inputs, analyze, stepAbs, linLo, linHi, linLevel,
+    · have hD : admissible tfhe22 ⟨0, tfhe22.msgMax, 1⟩ = true := by decide
+      simp only [prefixGates, analyze_append, analyze_inputs tfhe22 hD, Option.bind_some]
+      cases neg <;> simp [analyze, checkedStep, stepAbs, admissible, linLo, linHi, linLevel, cin,
         tfhe22]
     · refine ⟨by simp, fun j hj => ?_, ?_⟩
       · rw [getD_append_lt _ _ _ (by simpa using hj)]
@@ -143,7 +155,7 @@ theorem blocks_check (n : Nat) (neg : Bool) : ∀ i ≤ n, ∃ s,
 
 /-- **The checker accepts the adder and the subtracter at every width.** -/
 theorem radix_check (n : Nat) (neg : Bool) : check tfhe22 (radixProg n neg) = true := by
-  obtain ⟨s, hs, hl, -, -, -, -, hmsg⟩ := blocks_check n neg n (Nat.le_refl n)
+  obtain ⟨s, hs, hl, -, -, -, -, -, hmsg⟩ := blocks_check n neg n (Nat.le_refl n)
   simp only [check, radixProg, radixGates, hs, List.all_eq_true, List.mem_map, List.mem_range,
     Bool.and_eq_true, decide_eq_true_eq]
   rintro _ ⟨k, hk, rfl⟩
@@ -304,7 +316,7 @@ under the hypotheses of `Noise.bootstrapped_sound`. -/
 theorem radix_sound (n : Nat) (neg : Bool) (delta fresh : Nat)
     (hdec : 2 * (tfhe22.maxLevel * fresh) < delta)
     (boots : Nat → Boot) (inp : Nat → Ct) (hinp : Fresh tfhe22 fresh inp)
-    (hgood : ∀ i lut hi j, (radixGates n neg)[i]? = some (.pbs lut hi j) → Good tfhe22 fresh (boots i)) :
+    (hgood : CallsGood fresh boots inp [] (radixGates n neg)) :
     val (fun k => decode delta ((evalCt boots inp [] (radixGates n neg)).getD (msgWire n k) zeroCt)) n =
       val (outDigits n (evalV (fun j => (inp j).m) [] (radixGates n neg))) n :=
   val_congr n fun k hk => bootstrapped_sound tfhe22 delta fresh hdec (radixProg n neg)
@@ -345,7 +357,7 @@ def result32 (neg : Bool) (delta : Nat) (boots : Nat → Boot) (inp : Nat → Ct
 /-- **Ripple-carry addition of 16 blocks is `Range.wrapped 32` of `add`.** -/
 theorem add_wrap32 (delta fresh : Nat) (hdec : 2 * (tfhe22.maxLevel * fresh) < delta)
     (boots : Nat → Boot) (inp : Nat → Ct) (hinp : Fresh tfhe22 fresh inp)
-    (hgood : ∀ i lut hi j, (addGates 16)[i]? = some (.pbs lut hi j) → Good tfhe22 fresh (boots i))
+    (hgood : CallsGood fresh boots inp [] (addGates 16))
     (a b : Int) (he : Encodes32 inp a b) :
     result32 false delta boots inp = Range.wrapped 32 ["add", "x", "y"] [a, b] := by
   rw [result32, radix_sound 16 false delta fresh hdec boots inp hinp hgood,
@@ -356,7 +368,7 @@ theorem add_wrap32 (delta fresh : Nat) (hdec : 2 * (tfhe22.maxLevel * fresh) < d
 /-- **Ripple-carry subtraction of 16 blocks is `Range.wrapped 32` of `subtract`.** -/
 theorem sub_wrap32 (delta fresh : Nat) (hdec : 2 * (tfhe22.maxLevel * fresh) < delta)
     (boots : Nat → Boot) (inp : Nat → Ct) (hinp : Fresh tfhe22 fresh inp)
-    (hgood : ∀ i lut hi j, (subGates 16)[i]? = some (.pbs lut hi j) → Good tfhe22 fresh (boots i))
+    (hgood : CallsGood fresh boots inp [] (subGates 16))
     (a b : Int) (he : Encodes32 inp a b) :
     result32 true delta boots inp = Range.wrapped 32 ["subtract", "x", "y"] [a, b] := by
   rw [result32, radix_sound 16 true delta fresh hdec boots inp hinp hgood,

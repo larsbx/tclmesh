@@ -66,24 +66,28 @@ typing rule:
 | | `bounded_import`, `admission_sound` | **an exact `[lo, hi]`: `min (lo + a) hi` lies in `[lo, hi]` and equals `lo + a` for an honest input; the released admission bit is `1` exactly when `x ∈ [lo, hi]`, under any arithmetic reduction (comparisons never wrap), so releasing it reveals only the admission verdict** |
 | | 12 cases checked by `decide` | canonical integer spellings; `maxBid` over whole words is rejected (`a − b` can leave the word), accepted with bids in `[0, 10⁶]`, rejected when a range is narrowed, and accepted guarded with `clamp`; the upstream word-range contract (`fit`, `wordOp`) at the word edge |
 | `Noise` | `decode_correct` | decryption (rounding the phase `Δ·m + e`) returns `m` while `2\|e\| < Δ` |
-| | `lin_bounds`, `lin_noise` | a linear combination `Σ w·cᵢ + k` lies in the interval extension of its operands, with noise at most `Σ \|w\|·levelᵢ · fresh` (TFHE-rs's noise-level accounting) |
-| | `bootstrapped_sound` | **noise-budget soundness of bootstrapped circuits: if the degree and noise-level checker accepts a block-level gate program, inputs are fresh encryptions, `2·maxLevel·fresh < Δ`, and each bootstrap that runs meets its contract, every output decrypts to the cleartext evaluation; no hypothesis bounds depth, and the bootstrap contract (a named hypothesis, failing with probability `≤ 2^-128` per bootstrap for the `2M128` parameters) is needed only of the `pbsCount` bootstraps that run, so the evaluation fails with probability at most `pbsCount · 2^-128`** |
-| | `chain_check`, `leveled_rejected` | under `tfhe22` (`max_degree 15`, `max_noise_level 5`), bootstrapped doubling chains are accepted at every depth; without bootstraps three doublings are rejected |
+| | `lin_bounds`, `lin_noise` | a linear combination `Σ w·cᵢ + k` lies in the interval extension of its operands, with noise at most `Σ \|w\|·levelᵢ · fresh` (the model's conservative absolute-noise accounting) |
+| | `bootstrapped_sound`, `bootstrapped_representable` | **conditional abstract block soundness at any depth: every checked wire has a representable interval; under fresh bounded input noise, `2·maxLevel·fresh < Δ`, and success of the actual PBS calls, outputs decode to cleartext evaluation. Native PBS/noise correspondence remains an assumption.** |
+| | `torus_decode_tfhe22`, `bootstrapped_torus_sound` | exact modular rounding and checked output correctness at Δ = 2^59 and q = 2^64 agrees with the integer lift for cleartexts 0..15 under the explicit absolute-noise bound |
+| `NoiseProbability` | `failureMass_eq`, `conditional_union_bound`, `output_failure_bound` | **finite weighted adaptive execution theorem: `den * outputErrorMass ≤ pbsCount * num * totalMass`, assuming a conditional bound `num/den` on the full actual-call failure event after each successful prefix; no independence or unconditional native 2^-128 claim** |
+| `Noise` | `chain_check`, `leveled_rejected` | under `tfhe22` (`max_degree 15`, `max_noise_level 5`), bootstrapped doubling chains are accepted at every depth; without bootstraps three doublings are rejected |
 | `Radix` | `radix_check` | the base-4 ripple-carry adder over `n` blocks, and the subtracter (the same adder on complemented digits `3 − bᵢ` with carry in `1`), are accepted by the noise checker for every `n` |
 | | `add_digits`, `sub_digits` | their output digits are those of `(A + B) mod 4^n`, respectively `(A − B) mod 4^n` |
-| | `radix_sound`, `add_wrap32`, `sub_wrap32` | **encrypted, they decrypt to those digits under the hypotheses of `bootstrapped_sound`; at 16 blocks, read as a two's-complement word, to `Range.wrapped 32` of `add`, respectively `subtract`: for these programs, the `Range` hypothesis is discharged down to the per-bootstrap contract** |
+| | `radix_sound`, `add_wrap32`, `sub_wrap32` | **encrypted, under the hypotheses of `bootstrapped_sound` (fresh inputs, `2·maxLevel·fresh < Δ`, actual-call PBS contracts), they decrypt to those digits; at 16 blocks, read as a two's-complement word, to `Range.wrapped 32` of `add`, respectively `subtract`. That TFHE-rs's integer `+`/`-` run these gate programs is not proved** |
 | | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
 | | `cmp_ok`, `mem_ok` | a successful comparison had both operands in the canonical numeric domain; a successful membership test had a canonical list |
 | | `and_fault_left`, `and_false_left`, `or_true_left` | fault propagation and short-circuiting, as in the Tcl and Rust evaluators |
 
 `Range` takes TFHE's correctness as a named hypothesis outside the model: each
 homomorphic operation decrypts to the wrapped result of its plaintext
-operation (`wrapped w`), within its noise budget. `Noise` discharges the
-noise-budget part for bootstrapped circuits at the block level, and `Radix`
-proves ripple-carry addition and subtraction of blocks compute `wrapped 32`; that TFHE-rs's
-other integer algorithms (and its parallel carry propagation) are block
-programs computing `wrapped w` remains TFHE-rs's functional correctness. What it proves is that the
-wrapping never happens on an accepted circuit. Its arithmetic is the contract
+operation (`wrapped w`), within its noise budget. `Noise` proves an abstract
+block noise-budget theorem under explicit
+absolute-noise and actual-call hypotheses. Identifying these hypotheses with
+native TFHE-rs behavior and refining its integer algorithms to block programs
+computing `wrapped w` remain unverified obligations; `Radix` proves that
+ripple-carry addition and subtraction gate programs compute `wrapped 32`. See
+[the versioned correspondence audit](noise-correspondence.md). `Range` proves
+that word wrapping never happens on an accepted circuit. Its arithmetic is the contract
 of `finite_exact/word_range.mojo` in `larsbx/finite-math-kernels`, pinned in
 `UPSTREAM.toml`; `spec-eval --word-range` replays the vendored upstream corpus
 against `fit`, `wordOp` and `wrap`, and CI checks the vendored file against

@@ -2,7 +2,7 @@
 # Noise budgets: bootstrapped circuits decrypt at any depth
 
 A TFHE ciphertext encrypts a cleartext `m` as a phase `Δ·m + e`; decryption
-rounds the phase to the nearest multiple of `Δ` and is correct exactly while
+rounds the phase to the nearest multiple of `Δ` and is correct whenever
 `2|e| < Δ`. Linear operations combine phases, so their noises combine too: a
 sum `Σ wᵢ·cᵢ + k` has noise `Σ wᵢ·eᵢ`, bounded by `Σ |wᵢ|·|eᵢ|`. Unchecked,
 noise grows with depth. A programmable bootstrap (PBS: keyswitch, modulus
@@ -10,13 +10,11 @@ switch, blind rotation of a lookup table) reads a ciphertext whose noise and
 cleartext are within bounds and returns `lut[m]` with fresh noise, whatever
 the depth of its input.
 
-TFHE-rs enforces this per shortint block at run time: every block carries a
-noise level (multiples of the fresh bound; `add` sums levels, `scalar_mul` by
-`k` multiplies by `k`, a bootstrap resets it to 1) and a degree (the largest
-cleartext it may hold), and an operation that would exceed `max_noise_level`
-or `max_degree` is refused or preceded by a bootstrap. With the parameters
-of `backends/tfhe` (`PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128`): message
-modulus 4, carry modulus 4, so `max_degree = 15`, `max_noise_level = 5`.
+TFHE-rs's checked shortint operations track a degree and a noise level;
+unchecked APIs can bypass their checks. Its nominal noise metadata supports
+a target PBS error rate, not the absolute phase bound assumed in this model.
+The computation parameters selected by `backends/tfhe` have message modulus
+4, carry modulus 4, `max_degree = 15`, and `max_noise_level = 5`.
 
 This file states that discipline as a static checker over block-level gate
 programs (`check`) and proves it sound (`bootstrapped_sound`): if the checker
@@ -27,23 +25,21 @@ shows that without bootstraps the same discipline stops after two doublings.
 
 Named hypotheses, outside this model:
 
-* `Good`: a bootstrap reading noise at most `maxLevel·fresh` and a cleartext in
-  `[0, maxDeg]` returns `lut[m]` with noise at most `fresh`. For TFHE-rs this
-  holds except with probability `p_fail ≤ 2^-128` per bootstrap (the `2M128`
-  parameters; `log2_p_fail = -129.58`). `bootstrapped_sound` requires it only
-  of the bootstraps that run, one per `pbs` gate, so by the union bound the
-  evaluation is correct except with probability at most `pbsCount · 2^-128`.
-* fresh encryptions have noise at most `fresh` (TUniform noise has bounded
-  support) and cleartexts in `[0, msgMax]`;
-* `2·maxLevel·fresh < Δ`: decryption of any block the discipline admits. The
-  bootstrap's own condition is stronger, so the parameters imply it.
+* `CallsGood`: the result of each actual PBS invocation has the specified
+  cleartext and bounded noise. No claim quantifies over unused arguments.
+* `Fresh`: input encryptions have bounded noise and cleartexts in range.
+* `2·maxLevel·fresh < Δ`: an explicit integer-phase decoding premise.
 
-Phases are modelled over `ℤ` rather than the torus `ℤ/qℤ`: degrees bound every
-cleartext to `[0, maxDeg]`, below the padding bit, so reduction modulo `q`
-never acts on a well-checked program. That integer operations (`FheInt32`, `FheInt64`)
-compile to gate programs computing `wrapped w` is TFHE-rs's functional
-correctness, the hypothesis `TclMesh.Range` names; this file discharges its
-noise-budget part.
+`checkedStep` requires EVERY wire to have a nonnegative interval below
+`maxDeg` and an admitted noise level, including unused intermediates and
+PBS outputs. The integer phase is a lift, not the unsigned torus residue:
+negative noise at cleartext zero can cross the torus boundary. The separate
+modular rounding theorem below states the exact wrap correspondence.
+
+This is a conditional abstract block theorem. It does not verify TFHE-rs's
+native algorithms, nor identify its statistical noise metadata with a hard
+absolute phase bound. See docs/noise-correspondence.md for the versioned audit
+and the additional conditional assumptions needed for a probability claim.
 -/
 
 namespace TclMesh.Noise
@@ -144,15 +140,24 @@ def stepAbs (D : Discipline) (s : List Abs) : Gate → Option Abs
       some ⟨0, hi, 1⟩
     else none
 
+/-- Representable, ordered interval and an admitted noise level. -/
+def admissible (D : Discipline) (a : Abs) : Bool :=
+  decide (0 ≤ a.lo) && decide (a.lo ≤ a.hi) &&
+    decide (a.hi ≤ (D.maxDeg : Int)) && decide (a.level ≤ D.maxLevel)
+
+/-- Validate every result, not just operands of PBS or selected outputs. -/
+def checkedStep (D : Discipline) (s : List Abs) (g : Gate) : Option Abs :=
+  (stepAbs D s g).bind fun a => if admissible D a then some a else none
+
 def analyze (D : Discipline) : List Abs → List Gate → Option (List Abs)
   | s, [] => some s
-  | s, g :: gs => (stepAbs D s g).bind fun a => analyze D (s ++ [a]) gs
+  | s, g :: gs => (checkedStep D s g).bind fun a => analyze D (s ++ [a]) gs
 
 /-- Accept a program when every bootstrap input is within degree and noise
-level, and every output is decryptable. -/
+level, every wire is representable, and every output is decryptable. -/
 def check (D : Discipline) (p : Prog) : Bool :=
   match analyze D [] p.gates with
-  | some s => p.outputs.all fun o => decide (o < s.length) && decide ((s.getD o zeroAbs).level ≤ D.maxLevel)
+  | some s => p.outputs.all fun o => decide (o < s.length) && admissible D (s.getD o zeroAbs)
   | none => false
 
 /-! ## Evaluation: cleartext, and over ciphertext -/
@@ -173,8 +178,7 @@ def evalV (inp : Nat → Int) : List Int → List Gate → List Int
 /-- A bootstrap: keyswitch, modulus switch and blind rotation of a lookup table. -/
 abbrev Boot := List Int → Ct → Ct
 
-/-- The bootstrap a gate at wire `n` performs is `boots n`: each may fail
-independently, so none is assumed to be a function of the others. -/
+/-- The bootstrap at wire `n` is `boots n`. No independence is assumed. -/
 def stepCt (boots : Nat → Boot) (inp : Nat → Ct) (cs : List Ct) : Gate → Ct
   | .input i => inp i
   | .lin ts k => ⟨linV (cs.map Ct.m) ts + k, linV (cs.map Ct.e) ts⟩
@@ -184,11 +188,23 @@ def evalCt (boots : Nat → Boot) (inp : Nat → Ct) : List Ct → List Gate →
   | cs, [] => cs
   | cs, g :: gs => evalCt boots inp (cs ++ [stepCt boots inp cs g]) gs
 
-/-- The bootstrap contract (a named hypothesis; for TFHE-rs it fails with
-probability at most `2^-128`). -/
-def Good (D : Discipline) (fresh : Nat) (b : Boot) : Prop :=
-  ∀ lut c, 0 ≤ c.m → c.m ≤ (D.maxDeg : Int) → c.e.natAbs ≤ D.maxLevel * fresh →
-    (b lut c).m = lut.getD c.m.toNat 0 ∧ (b lut c).e.natAbs ≤ fresh
+/-- Success of ONE invocation at its actual LUT and ciphertext. This is
+an event, not a universal property of the sampled bootstrap function. -/
+def CallGood (fresh : Nat) (b : Boot) (lut : List Int) (c : Ct) : Prop :=
+  (b lut c).m = lut.getD c.m.toNat 0 ∧ (b lut c).e.natAbs ≤ fresh
+
+/-- Actual invocation contract of a single gate. -/
+def StepGood (fresh : Nat) (boots : Nat → Boot) (cs : List Ct) : Gate → Prop
+  | .pbs lut _ j => CallGood fresh (boots cs.length) lut (cs.getD j zeroCt)
+  | _ => True
+
+/-- Success along the actual evolving execution, including prior PBS results.
+There is no quantifier over unused LUTs or counterfactual ciphertexts. -/
+def CallsGood (fresh : Nat) (boots : Nat → Boot) (inp : Nat → Ct) :
+    List Ct → List Gate → Prop
+  | _, [] => True
+  | cs, g :: gs => StepGood fresh boots cs g ∧
+      CallsGood fresh boots inp (cs ++ [stepCt boots inp cs g]) gs
 
 /-- Fresh encryptions: cleartext in `[0, msgMax]`, noise at most `fresh`. -/
 def Fresh (D : Discipline) (fresh : Nat) (inp : Nat → Ct) : Prop :=
@@ -269,7 +285,7 @@ theorem lutIn_getD {lut : List Int} {hi : Nat} (h : lutIn lut hi = true) (n : Na
 theorem step_sound (D : Discipline) (fresh : Nat) (boots : Nat → Boot) (inp : Nat → Ct)
     (hinp : Fresh D fresh inp) (s : List Abs) (cs : List Ct) (g : Gate) (a : Abs)
     (hs : stepAbs D s g = some a) (hI : Inv fresh s cs (cs.map Ct.m))
-    (hg : ∀ lut hi j, g = .pbs lut hi j → Good D fresh (boots cs.length)) :
+    (hg : StepGood fresh boots cs g) :
     Inv fresh (s ++ [a]) (cs ++ [stepCt boots inp cs g])
       (cs.map Ct.m ++ [stepV (fun i => (inp i).m) (cs.map Ct.m) g]) := by
   obtain ⟨-, hlen, hw⟩ := hI
@@ -303,8 +319,7 @@ theorem step_sound (D : Discipline) (fresh : Nat) (boots : Nat → Boot) (inp : 
         obtain ⟨⟨⟨⟨hj, hlo⟩, hhi⟩, hlev⟩, hlut⟩ := hc
         obtain ⟨xl, xh, xe⟩ := hw j (hlen ▸ hj)
         rw [getD_map_m] at xl xh
-        obtain ⟨hm, hn⟩ := hg lut hi j rfl lut (cs.getD j zeroCt) (by omega) (by omega)
-          (Nat.le_trans xe (Nat.mul_le_mul_right _ hlev))
+        obtain ⟨hm, hn⟩ := hg
         have hv : stepV (fun i => (inp i).m) (cs.map Ct.m) (.pbs lut hi j) =
             lut.getD (cs.getD j zeroCt).m.toNat 0 := by simp only [stepV, getD_map_m]
         obtain ⟨l0, l1⟩ := lutIn_getD hlut ((cs.getD j zeroCt).m.toNat)
@@ -330,7 +345,7 @@ theorem analyze_sound (D : Discipline) (fresh : Nat) (boots : Nat → Boot) (inp
     (hinp : Fresh D fresh inp) :
     ∀ (gs : List Gate) (s : List Abs) (cs : List Ct) (s' : List Abs),
       analyze D s gs = some s' → Inv fresh s cs (cs.map Ct.m) →
-      (∀ i lut hi j, gs[i]? = some (.pbs lut hi j) → Good D fresh (boots (cs.length + i))) →
+      (CallsGood fresh boots inp cs gs) →
       Inv fresh s' (evalCt boots inp cs gs) (evalV (fun i => (inp i).m) (cs.map Ct.m) gs) := by
   intro gs
   induction gs with
@@ -339,16 +354,19 @@ theorem analyze_sound (D : Discipline) (fresh : Nat) (boots : Nat → Boot) (inp
     intro s cs s' h hI hgood
     simp only [analyze, Option.bind_eq_some_iff] at h
     obtain ⟨a, ha, hrest⟩ := h
-    have hstep := step_sound D fresh boots inp hinp s cs g a ha hI
-      (fun lut hi j hgj => by simpa using hgood 0 lut hi j (by simp [hgj]))
+    have hraw : stepAbs D s g = some a := by
+      simp only [checkedStep, Option.bind_eq_some_iff] at ha
+      obtain ⟨b, hb, hab⟩ := ha
+      split at hab
+      · simp only [Option.some.injEq] at hab; subst hab; exact hb
+      · contradiction
+    have hstep := step_sound D fresh boots inp hinp s cs g a hraw hI hgood.1
     have hm : (cs ++ [stepCt boots inp cs g]).map Ct.m =
         cs.map Ct.m ++ [stepV (fun i => (inp i).m) (cs.map Ct.m) g] := by
       simp [hstep.1.symm]
     simp only [evalCt, evalV]
     rw [← hm]
-    refine ih _ _ _ hrest (hm ▸ hstep) fun i lut hi j hi' => ?_
-    have := hgood (i + 1) lut hi j (by simpa using hi')
-    simpa [Nat.add_assoc, Nat.add_comm 1 i] using this
+    exact ih _ _ _ hrest (hm ▸ hstep) hgood.2
 
 /-- **Noise-budget soundness of bootstrapped circuits.** If the checker accepts
 a gate program, inputs are fresh encryptions, the parameters decrypt every
@@ -358,7 +376,7 @@ Nothing bounds the program's depth. -/
 theorem bootstrapped_sound (D : Discipline) (delta fresh : Nat)
     (hdec : 2 * (D.maxLevel * fresh) < delta) (p : Prog) (hc : check D p = true)
     (boots : Nat → Boot) (inp : Nat → Ct) (hinp : Fresh D fresh inp)
-    (hgood : ∀ i lut hi j, p.gates[i]? = some (.pbs lut hi j) → Good D fresh (boots i)) :
+    (hgood : CallsGood fresh boots inp [] p.gates) :
     ∀ o ∈ p.outputs, decode delta ((evalCt boots inp [] p.gates).getD o zeroCt) =
       (evalV (fun i => (inp i).m) [] p.gates).getD o 0 := by
   intro o ho
@@ -366,13 +384,108 @@ theorem bootstrapped_sound (D : Discipline) (delta fresh : Nat)
   split at hc
   · rename_i s hs
     simp only [List.all_eq_true, Bool.and_eq_true, decide_eq_true_eq] at hc
-    obtain ⟨hlt, hlev⟩ := hc o ho
+    obtain ⟨hlt, hadm⟩ := hc o ho
+    have hlev : (s.getD o zeroAbs).level ≤ D.maxLevel := by
+      simp only [admissible, Bool.and_eq_true, decide_eq_true_eq] at hadm
+      exact hadm.2
     obtain ⟨hm, hlen, hw⟩ := analyze_sound D fresh boots inp hinp p.gates [] [] s hs
-      ⟨rfl, rfl, by simp⟩ (by simpa using hgood)
+      ⟨rfl, rfl, by simp⟩ hgood
     simp only [List.map_nil] at hm
     have hn := (hw o (hlen ▸ hlt)).2.2
     rw [decode_correct (by have := Nat.mul_le_mul_right fresh hlev; omega), ← hm, getD_map_m]
   · exact absurd hc (by simp)
+
+/-- The checker admits only representable abstract wires, including unused
+intermediates. This property is independent of successful bootstraps. -/
+theorem analyze_admissible (D : Discipline) (gs : List Gate) (s s' : List Abs)
+    (hs : analyze D s gs = some s') (hstart : s.all (admissible D) = true) :
+    s'.all (admissible D) = true := by
+  induction gs generalizing s with
+  | nil =>
+    simp only [analyze, Option.some.injEq] at hs
+    subst s'; exact hstart
+  | cons g gs ih =>
+    simp only [analyze, Option.bind_eq_some_iff] at hs
+    obtain ⟨a, ha, htail⟩ := hs
+    have hadm : admissible D a = true := by
+      simp only [checkedStep, Option.bind_eq_some_iff] at ha
+      obtain ⟨b, _, hb⟩ := ha
+      split at hb
+      · rename_i h
+        simp only [Option.some.injEq] at hb; subst hb; exact h
+      · contradiction
+    exact ih _ htail (by simp [List.all_append, hstart, hadm])
+
+/-- Every actual wire is representable on a successful checked execution. -/
+theorem bootstrapped_representable (D : Discipline) (fresh : Nat) (p : Prog)
+    (hc : check D p = true) (boots : Nat → Boot) (inp : Nat → Ct)
+    (hinp : Fresh D fresh inp) (hg : CallsGood fresh boots inp [] p.gates) :
+    ∀ j < (evalCt boots inp [] p.gates).length,
+      0 ≤ ((evalCt boots inp [] p.gates).getD j zeroCt).m ∧
+      ((evalCt boots inp [] p.gates).getD j zeroCt).m ≤ (D.maxDeg : Int) := by
+  unfold check at hc
+  split at hc
+  · rename_i s hs
+    have ha := analyze_admissible D p.gates [] s hs (by simp)
+    have hI := analyze_sound D fresh boots inp hinp p.gates [] [] s hs
+      ⟨rfl, rfl, by simp⟩ hg
+    obtain ⟨hm, hlen, hw⟩ := hI
+    intro j hj
+    have habs := (List.all_eq_true.mp ha) (s.getD j zeroAbs)
+      (by rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (hlen ▸ hj)]; simp)
+    simp only [admissible, Bool.and_eq_true, decide_eq_true_eq] at habs
+    have hb := hw j hj
+    rw [← hm, getD_map_m] at hb
+    exact ⟨by omega, by omega⟩
+  · contradiction
+
+/-- Rounded torus decoding, with a cleartext space including the padding bit. -/
+def torusDecode (delta modulus : Int) (c : Ct) : Int :=
+  (((delta * c.m + c.e) % (delta * modulus) + delta / 2) / delta) % modulus
+
+/-- Exact native-u64 encoding correspondence at the audited 2+2 parameters:
+Δ = 2^59 and q = 32Δ = 2^64. Reduction of a negative phase at zero is allowed.
+This models rounding arithmetic, not native LWE/PBS correctness. -/
+theorem torus_decode_tfhe22 (c : Ct) (hm : 0 ≤ c.m ∧ c.m ≤ 15)
+    (he : 2 * c.e.natAbs < 2^59) : torusDecode (2^59) 32 c = c.m := by
+  have hd := decode_correct he
+  simp only [decode] at hd
+  unfold torusDecode
+  change (((576460752303423488 * c.m + c.e) % 18446744073709551616 +
+    288230376151711744) / 576460752303423488) % 32 = c.m
+  change (576460752303423488 * c.m + c.e + 288230376151711744) / 576460752303423488 = c.m at hd
+  omega
+
+/-- Checked output correctness for the audited rounded torus encoding.
+This still assumes the modeled phase/actual-call contracts; it is not a
+refinement proof for the native cryptographic implementation. -/
+theorem bootstrapped_torus_sound (fresh : Nat)
+    (hdec : 2 * (tfhe22.maxLevel * fresh) < 2^59)
+    (p : Prog) (hc : check tfhe22 p = true) (boots : Nat → Boot) (inp : Nat → Ct)
+    (hinp : Fresh tfhe22 fresh inp) (hg : CallsGood fresh boots inp [] p.gates) :
+    ∀ o ∈ p.outputs, torusDecode (2^59) 32 ((evalCt boots inp [] p.gates).getD o zeroCt) =
+      (evalV (fun i => (inp i).m) [] p.gates).getD o 0 := by
+  intro o ho
+  unfold check at hc
+  split at hc
+  · rename_i s hs
+    simp only [List.all_eq_true, Bool.and_eq_true, decide_eq_true_eq] at hc
+    obtain ⟨hlt, hadm⟩ := hc o ho
+    simp only [admissible, Bool.and_eq_true, decide_eq_true_eq] at hadm
+    obtain ⟨hm, hlen, hw⟩ := analyze_sound tfhe22 fresh boots inp hinp p.gates [] [] s hs
+      ⟨rfl, rfl, by simp⟩ hg
+    have hb := hw o (hlen ▸ hlt)
+    simp only [List.map_nil] at hm hb
+    rw [← hm, getD_map_m] at hb
+    have hmrange : 0 ≤ ((evalCt boots inp [] p.gates).getD o zeroCt).m ∧
+        ((evalCt boots inp [] p.gates).getD o zeroCt).m ≤ 15 := by
+      simp only [tfhe22] at hadm
+      omega
+    have he : 2 * ((evalCt boots inp [] p.gates).getD o zeroCt).e.natAbs < 2^59 := by
+      have := Nat.mul_le_mul_right fresh hadm.2
+      omega
+    rw [torus_decode_tfhe22 _ hmrange he, ← hm, getD_map_m]
+  · contradiction
 
 /-! ## Depth -/
 
@@ -390,7 +503,7 @@ theorem analyze_append (D : Discipline) :
   intro s a
   induction a generalizing s with
   | nil => intro b; simp [analyze]
-  | cons g gs ih => intro b; simp only [List.cons_append, analyze, ih]; cases stepAbs D s g <;> simp
+  | cons g gs ih => intro b; simp only [List.cons_append, analyze, ih]; cases checkedStep D s g <;> simp
 
 theorem evalV_append (inp : Nat → Int) :
     ∀ (xs : List Int) (a b : List Gate), evalV inp xs (a ++ b) = evalV inp (evalV inp xs a) b := by
@@ -399,12 +512,13 @@ theorem evalV_append (inp : Nat → Int) :
   | nil => intro b; rfl
   | cons g gs ih => intro b; exact ih _ b
 
-theorem analyze_inputs (D : Discipline) :
+/-- Fresh inputs are checked once their block is admissible. -/
+theorem analyze_inputs (D : Discipline) (hD : admissible D ⟨0, D.msgMax, 1⟩ = true) :
     ∀ (s : List Abs) (l : List Nat), analyze D s (l.map .input) = some (s ++ l.map fun _ => ⟨0, D.msgMax, 1⟩) := by
   intro s l
   induction l generalizing s with
   | nil => simp [analyze]
-  | cons x xs ih => simp [analyze, stepAbs, ih]
+  | cons x xs ih => simp [analyze, checkedStep, stepAbs, hD, ih]
 
 theorem evalV_inputs (inp : Nat → Int) :
     ∀ (xs : List Int) (l : List Nat), evalV inp xs (l.map .input) = xs ++ l.map inp := by
@@ -422,7 +536,7 @@ theorem stage_step (s : List Abs) (k : Nat) (hl : s.length = 2 * k + 1)
     analyze tfhe22 s (stage k) = some (s ++ [⟨0, 6, 2⟩] ++ [⟨0, 3, 1⟩]) := by
   have h0 := getD_getElem (by omega) hlast
   have hd : lutIn double 3 = true := by decide
-  simp [stage, analyze, stepAbs, linLo, linHi, linLevel, hl, h0, hd, tfhe22,
+  simp [stage, analyze, checkedStep, admissible, stepAbs, linLo, linHi, linLevel, hl, h0, hd, tfhe22,
     List.getD_eq_getElem?_getD]
 
 /-- **Every depth is accepted**: the checker admits `chain n` for all `n`. -/
@@ -432,10 +546,10 @@ theorem chain_check (n : Nat) : check tfhe22 (chain n) = true := by
     obtain ⟨s, hs, hl, hlast⟩ := h n
     simp only [check, chain]
     rw [hs]
-    simp [hl, getD_getElem (by omega) hlast, tfhe22]
+    simp [admissible, hl, getD_getElem (by omega) hlast, tfhe22]
   intro n
   induction n with
-  | zero => exact ⟨[⟨0, 3, 1⟩], by simp [analyze, stepAbs, tfhe22], rfl, rfl⟩
+  | zero => exact ⟨[⟨0, 3, 1⟩], by simp [analyze, checkedStep, admissible, stepAbs, tfhe22], rfl, rfl⟩
   | succ n ih =>
     obtain ⟨s, hs, hl, hlast⟩ := ih
     refine ⟨s ++ [⟨0, 6, 2⟩] ++ [⟨0, 3, 1⟩], ?_, by simp [hl]; omega, ?_⟩

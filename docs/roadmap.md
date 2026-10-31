@@ -205,7 +205,10 @@ Proof obligations:
   range proofs: the range consequence is proved in `Range.inputs_of_proofs`,
   with proof-system soundness a named hypothesis);
 - [x] noise-budget soundness for bootstrapped circuits (`Noise.bootstrapped_sound`:
-  any depth, under the per-bootstrap contract and a union bound);
+  any depth, under bounded phase noise and actual-call contracts; finite weighted
+  conditional union bound in `NoiseProbability.output_failure_bound`);
+- [ ] independently justify the native TFHE-rs absolute-noise and adaptive
+  conditional probability premises ([audit](noise-correspondence.md));
 - [ ] noise-budget soundness for leveled circuits, and the refinement of
   TFHE-rs integer operations to block gate programs (done for ripple-carry
   addition and subtraction: `Radix.add_wrap32`, `Radix.sub_wrap32`; open for
