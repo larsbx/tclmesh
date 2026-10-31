@@ -1,0 +1,76 @@
+name: kms-source-preflight
+
+# Source/version diagnostics only. This does NOT execute KMS, validate
+# cryptographic shares, or establish a threshold confidentiality claim.
+on:
+  pull_request:
+    paths:
+      - 'tools/threshold_kms_preflight.py'
+      - 'tests/test_threshold_kms_preflight.py'
+      - 'docs/threshold-kms-preflight.md'
+      - '.github/workflows/kms-source-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-only:
+    name: KMS source diagnostic (NOT cryptographic acceptance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Fetch exact KMS source pin outside TclMesh checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir="$RUNNER_TEMP/kms-source"
+          git init -q "$source_dir"
+          git -C "$source_dir" remote add origin https://github.com/zama-ai/kms.git
+          git -C "$source_dir" -c protocol.version=2 fetch -q --depth=1 --filter=blob:none origin afcc7e5a48c31f7c3772b1799c8e856c8e3166f1
+          git -C "$source_dir" checkout --detach -q FETCH_HEAD
+          test "$(git -C "$source_dir" rev-parse HEAD)" = "afcc7e5a48c31f7c3772b1799c8e856c8e3166f1"
+          test -f "$source_dir/Cargo.lock"
+          test -f "$source_dir/core-client/config/client_local_threshold.toml"
+
+      - name: Run preflight and require authentic machine-readable diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/kms-source-preflight.json"
+          set +e
+          python3 tools/threshold_kms_preflight.py --kms-source "$RUNNER_TEMP/kms-source" > "$report"
+          rc=$?
+          set -e
+          # Exit 2 means a confirmed compatibility/security blocker, not a
+          # cryptographic pass. An unrecognized exit code is infrastructure failure.
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then exit "$rc"; fi
+          python3 - "$report" <<'PY'
+          import json
+          import sys
+
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert report["status"] in {"BLOCKED", "SOURCE_PREFLIGHT_ONLY"}
+          assert "source_or_lockfile_unverifiable" not in report["blockers"], "source lockfile could not be inspected"
+          assert report["kms"]["head"] == report["expected_kms_commit"], "wrong KMS revision"
+          assert not report["kms"]["tracked_dirty"], "KMS checkout modified"
+          assert not report["tclmesh"]["tracked_dirty"], "TclMesh checkout modified"
+          assert report["kms"]["crates"]["tfhe"], "KMS TFHE version unreported"
+          assert report["tclmesh"]["crates"]["tfhe"], "TclMesh TFHE version unreported"
+          assert report["kms_config"] is not None, "KMS sample missing"
+          print("Read-only KMS source evidence:", report["status"])
+          print("Detected blockers:", ", ".join(report["blockers"]) or "none")
+          print("NOT an acceptance test for threshold decryption or collusion security")
+          PY
+
+      - name: Attach non-secret source/version diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kms-source-preflight-only
+          path: ${{ runner.temp }}/kms-source-preflight.json
+          if-no-files-found: ignore
