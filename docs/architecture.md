@@ -266,7 +266,7 @@ circuit/output identity without asserting a manifest pin; encrypted input handle
 have an empty binding.
 
 A release copies the handle's binding and rechecks it before combination or retry.
-The backend receives it as `combine-release` context field `binding`, alongside
+The backend receives it as `combine-authorization-quorum` context field `binding`, alongside
 purpose, release ID, and application context. Persistence carries the binding with
 the handle and request; PB-008 verifies the backend receives the original manifest
 pin after a fresh process. Older requests/handles with no binding retain an empty
@@ -284,13 +284,17 @@ the sole runtime implementation; `tests/` supplies conformance evidence and
 and this change introduces no new layout or authority migration.
 
 
-### Governed threshold-release policy
+### Governed authorization quorum and reserved threshold policy
 
-Declare a ceremony with `kind threshold-release`, then set the producing circuit's
+For the reference/single-key authorization flow, declare `kind authorization-quorum`,
+then set the producing circuit's
 `metadata release_policy` to its ceremony ID and `metadata profile` to its profile.
 Installation validates the complete policy; unknown fields, duplicate/empty
 members, invalid quorum, missing circuit/output, or a mismatched circuit link fail
-closed. The only accepted policy fields are:
+closed. `kind threshold-release` remains valid schema but cannot execute: genuine
+cryptographic threshold integration is still blocked by issue #36. All existing
+mode-less requests fail closed and require a new explicit request; no automatic
+mode downgrade occurs. The only accepted policy fields are:
 
 | Fields | Meaning |
 | --- | --- |
@@ -317,8 +321,8 @@ it supplied an actor ID.
 set request [tclmesh release request-authorized $operatorLanguage $outputHandle \
     operator [dict create tenant example]]
 set id [dict get $request id]
-tclmesh release contribute-authorized $holderALanguage $id a $shareA
-tclmesh release contribute-authorized $holderBLanguage $id b $shareB
+tclmesh release contribute-authorized $holderALanguage $id a $approvalA
+tclmesh release contribute-authorized $holderBLanguage $id b $approvalB
 tclmesh release combine-authorized $operatorLanguage $id operator
 ```
 
@@ -349,3 +353,22 @@ fresh-process quorum/retry and contributor revocation. Cryptographic share scope
 keyset/context verification, cross-request replay protection, deadlines/one-shot
 language consumption, and distributed authority remain open. Policy checks run in
 the existing trusted single-process reference runtime, not a distributed transaction.
+
+
+### Release mode boundary
+
+`release request` is retained only for `reference-release` test backends.
+`release request-authorization` explicitly selects `authorization-quorum` for an
+ungoverned single-key/reference handle. A governed handle always obtains its mode
+from its pinned manifest through `request-authorized`; callers cannot downgrade
+`threshold-release` via the raw authorization API. Reference and authorization
+contributions are opaque approvals, with no signature or proof validity claim.
+Descriptors persist `release_mode`. Combination dispatches only to the distinctly
+named `combine-authorization-quorum`; the old TFHE `combine-release` refuses.
+The mode/capability/policy gate runs before contribution, combine or recovery,
+including a trusted operator's `released` reconciliation. A plugin advertising
+`cryptographic-threshold-decryption` cannot enable the reserved implementation.
+
+The [threshold contract and KMS spike](threshold-release-boundary.md) define the
+future verified-contribution and recipient-bound output interfaces. Neither those
+interfaces nor Lean verifier hypotheses establish cryptographic implementation.

@@ -34,6 +34,8 @@ jobs:
           rm -f tests/zz_exit_status_probe.test
       - name: Run conformance smoke tests
         run: tclsh tests/all.tcl
+      - name: Threshold boundary mutants must be rejected
+        run: python3 tools/check_threshold_boundary_mutants.py
       - name: Run release self-check
         run: tclsh tools/release_check.tcl
 

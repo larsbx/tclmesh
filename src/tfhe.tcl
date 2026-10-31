@@ -122,11 +122,17 @@ proc ::tclmesh::tfhe::_backend {operation args} {
             return [dict get [_call [json::write object \
                 op [_s decrypt] token [lindex $token 1]]] value]
         }
-        combine-release {
+        combine-release -
+        verify-contribution -
+        combine-verified-release {
+            return -code error -errorcode {TCLMESH TFHE RELEASE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} \
+                "single-key TFHE does not implement cryptographic threshold decryption"
+        }
+        combine-authorization-quorum {
             lassign $args profile type token contributions context
             if {[dict size $contributions] == 0} {
                 return -code error -errorcode {TCLMESH TFHE RELEASE EMPTY_CONTRIBUTIONS} \
-                    "release requires contributions"
+                    "authorization-only release requires approvals"
             }
             return [dict get [_call [json::write object \
                 op [_s decrypt] token [lindex $token 1]]] value]
@@ -175,10 +181,12 @@ set ::tclmesh::tfhe::binary [::tclmesh::tfhe::_locate [file dirname $::tclmesh::
 # Handles persist only with persistent keys: $TCLMESH_TFHE_KEYS names the
 # directory that holds them (and an adopted CRS). Recovery material is a
 # ciphertext bound to its keyset, refused under any other.
-if {$::tclmesh::tfhe::binary ne ""} {
-    ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend [concat \
-        {decrypt destroy threshold-release homomorphic proven-inputs} \
+proc ::tclmesh::tfhe::capabilities {} {
+    return [concat {decrypt destroy authorization-quorum homomorphic proven-inputs} \
         [expr {[info exists ::env(TCLMESH_TFHE_KEYS)] ? "persistent-handles" : ""}]]
+}
+if {$::tclmesh::tfhe::binary ne ""} {
+    ::tclmesh::private::backend::register tfhe ::tclmesh::tfhe::_backend [::tclmesh::tfhe::capabilities]
 }
 
 # The encrypting party's tool (`tclmesh-tfhe-prove`), built beside the

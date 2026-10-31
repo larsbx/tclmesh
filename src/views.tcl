@@ -198,7 +198,7 @@ proc ::tclmesh::views::_backend {mode operation args} {
             lassign $args profile type token
             return $token
         }
-        combine-release {
+        combine-authorization-quorum {
             lassign $args profile type token contributions context
             if {[dict size $contributions] == 0} {
                 return -code error \
@@ -227,7 +227,7 @@ proc ::tclmesh::views::_token {mode value} {
 
 foreach mode {transparent lazy sized} {
     ::tclmesh::private::backend::register views-$mode \
-        [::list ::tclmesh::views::_backend $mode] {decrypt destroy reference threshold-release persistent-handles}
+        [::list ::tclmesh::views::_backend $mode] {decrypt destroy reference reference-release authorization-quorum persistent-handles}
 }
 unset mode
 
