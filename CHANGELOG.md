@@ -2,12 +2,12 @@
 
 ## Unreleased — v0.3 reference runtime
 
-- noise-budget soundness for bootstrapped circuits (`spec/TclMesh/Noise.lean`):
-  TFHE-rs's per-block degree and noise-level discipline as a static checker,
-  proved sound at any depth (`Noise.bootstrapped_sound`) under the bootstrap
-  contract, required only of the bootstraps that run, so failure is at most
-  `pbsCount · 2^-128`; `chain_check` accepts every depth, `leveled_rejected`
-  shows the bound without bootstraps;
+- repair the noise-budget model: validate degree and noise for every wire,
+  replace universal bootstrap success with actual-call contracts, and prove
+  a finite weighted conditional failure bound. Exact regressions and native
+  TFHE-rs 1.8.2 correspondence checks cover the original wrap counterexample.
+  Native noise and adaptive probability assumptions remain explicit; there
+  is no unconditional `pbsCount · 2^-128` library guarantee from this model.
 - persistent TFHE deployments: `TCLMESH_TFHE_KEYS=DIR` keeps the backend's
   keys (client key mode 0600) and adopted CRS across restarts and enables
   `persistent-handles`: handles export as ciphertexts bound to their keyset
