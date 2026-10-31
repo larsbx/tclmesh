@@ -88,13 +88,46 @@ class SourcePreflightTests(unittest.TestCase):
 
     def test_reject_modified_source(self):
         (self.kms / "Cargo.lock").write_text(LOCK.format(version="1.6.2"))
-        data = self._report()
-        self.assertIn("kms_tracked_tree_modified", data["blockers"])
+        with self.assertRaisesRegex(ValueError, "does not match HEAD"):
+            self._report()
 
     def test_reject_missing_lockfile(self):
         (self.kms / "Cargo.lock").unlink()
         with self.assertRaises(OSError):
             self._report()
+
+    def test_reject_nested_directory_as_pretend_checkout(self):
+        nested = self.kms / "nested"
+        nested.mkdir()
+        (nested / "Cargo.lock").write_text(LOCK.format(version="1.8.2"))
+        with self.assertRaisesRegex(ValueError, "not Git checkout root"):
+            MODULE.inspect_checkout(nested, Path("Cargo.lock"))
+
+    def test_reject_ignored_untracked_lockfile(self):
+        run("git", "-C", str(self.kms), "rm", "-q", "--cached", "Cargo.lock")
+        (self.kms / ".gitignore").write_text("/Cargo.lock\\n")
+        run("git", "-C", str(self.kms), "add", ".gitignore")
+        self._commit(self.kms)
+        with self.assertRaises(subprocess.CalledProcessError):
+            self._report()
+
+    def test_reject_forged_configuration_even_when_ignored(self):
+        path = self.kms / "core-client" / "config" / "client_local_threshold.toml"
+        run("git", "-C", str(self.kms), "rm", "-q", "--cached",
+            "core-client/config/client_local_threshold.toml")
+        (self.kms / ".gitignore").write_text("/core-client/config/client_local_threshold.toml\\n")
+        run("git", "-C", str(self.kms), "add", ".gitignore")
+        self._commit(self.kms)
+        self.assertTrue(path.is_file())
+        with self.assertRaises(subprocess.CalledProcessError):
+            self._report()
+
+    def test_report_includes_committed_file_digests(self):
+        data = self._report()
+        self.assertIn("backends/tfhe/Cargo.lock",
+                      data["tclmesh"]["verified_source_digests"])
+        self.assertIn("core-client/config/client_local_threshold.toml",
+                      data["kms"]["verified_source_digests"])
 
     def test_reject_fake_quorum(self):
         self._write_config("Default")
