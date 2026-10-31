@@ -93,7 +93,7 @@ class SourcePreflightTests(unittest.TestCase):
 
     def test_reject_missing_lockfile(self):
         (self.kms / "Cargo.lock").unlink()
-        with self.assertRaises(OSError):
+        with self.assertRaisesRegex(ValueError, "missing source"):
             self._report()
 
     def test_reject_nested_directory_as_pretend_checkout(self):
