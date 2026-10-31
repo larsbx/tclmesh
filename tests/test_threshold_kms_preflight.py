@@ -40,8 +40,10 @@ class SourcePreflightTests(unittest.TestCase):
         for path in (self.tclmesh, self.kms):
             path.mkdir()
             run("git", "-C", str(path), "init", "-q")
-            (path / "Cargo.lock").write_text(LOCK.format(version="1.8.2"))
-            run("git", "-C", str(path), "add", "Cargo.lock")
+            lock = path / ("backends/tfhe/Cargo.lock" if path == self.tclmesh else "Cargo.lock")
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            lock.write_text(LOCK.format(version="1.8.2"))
+            run("git", "-C", str(path), "add", ".")
         self._write_config("Default")
         self._commit(self.tclmesh)
         self._commit(self.kms)
