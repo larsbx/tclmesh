@@ -2,7 +2,7 @@ import TclMesh.Noise
 import TclMesh.Range
 
 /-!
-# Radix integers as block gate programs: addition and subtraction
+# Radix integers as block gate programs: addition, subtraction, select
 
 TFHE-rs represents an integer of `2n` bits as `n` shortint blocks of 2-bit
 messages, least significant first (`FheInt32`: 16 blocks). Addition adds the
@@ -20,7 +20,13 @@ This file writes that sequential ripple-carry adder as a gate program
 * `add_digits`, `sub_digits`: its output digits are those of `(A + B) mod 4^n`,
   respectively `(A - B) mod 4^n`;
 * `add_wrap32`, `sub_wrap32`: at `n = 16`, read as a two's-complement word, the
-  result is `Range.wrapped 32` of `add`, respectively `subtract`.
+  result is `Range.wrapped 32` of `add`, respectively `subtract`;
+* `sel_check`, `sel_digits`, `sel_wrap32`: oblivious `select c a b` on a
+  condition bit, two bootstraps per block, accepted at every width and equal
+  to `Range.wrapped 32` of `select` at 16 blocks.
+
+Each program's inputs are fresh blocks; composing programs (a comparison's
+bit feeding `select`, say) means checking the composed gate program.
 
 So for these programs the hypothesis `Range` names, that TFHE computes
 `wrapped 32`, reduces to the hypotheses of `Noise.bootstrapped_sound`: fresh
@@ -378,5 +384,183 @@ theorem sub_wrap32 (delta fresh : Nat) (hdec : 2 * (tfhe22.maxLevel * fresh) < d
 
 example : check tfhe22 (radixProg 16 false) = true := radix_check 16 false
 example : pbsCount (radixProg 16 true) = 32 := by decide
+
+/-! ## Oblivious select
+
+`select c a b` on words, with `c` a block holding a bit: block `i` bootstraps
+`4c + aᵢ` through `lutA` (`aᵢ` when `c = 1`, else `0`) and `4c + bᵢ` through
+`lutB` (`bᵢ` when `c = 0`, else `0`), and adds the two. Each block costs two
+bootstraps, and `4c + aᵢ` reaches exactly the limits: cleartext 15, level 5.
+Wires: `0` is `c`, `1 … n` `a`'s blocks, `n+1 … 2n` `b`'s, and block `i` adds
+five wires from `2n + 1 + 5i`. -/
+
+def lutA : List Int := (List.range 16).map fun x => if 4 ≤ x then (((x - 4) % 4 : Nat) : Int) else 0
+def lutB : List Int := (List.range 16).map fun (x : Nat) => if x < 4 then (x : Int) else 0
+
+def selBase (n i : Nat) : Nat := 2 * n + 1 + 5 * i
+def outWire (n k : Nat) : Nat := selBase n k + 4
+
+def selBlock (n i : Nat) : List Gate :=
+  [.lin [(4, 0), (1, 1 + i)] 0, .pbs lutA 3 (selBase n i),
+    .lin [(4, 0), (1, n + 1 + i)] 0, .pbs lutB 3 (selBase n i + 2),
+    .lin [(1, selBase n i + 1), (1, selBase n i + 3)] 0]
+
+def selInputs (n : Nat) : List Gate := (List.range (2 * n + 1)).map Gate.input
+
+def selGates (n : Nat) : List Gate := selInputs n ++ (List.range n).flatMap (selBlock n)
+
+def selProg (n : Nat) : Prog := ⟨selGates n, (List.range n).map (outWire n)⟩
+
+def SAInv (n i : Nat) (s : List Abs) : Prop :=
+  s.length = 2 * n + 1 + 5 * i ∧ (∀ j < 2 * n + 1, s.getD j zeroAbs = ⟨0, 3, 1⟩) ∧
+    ∀ k < i, s.getD (outWire n k) zeroAbs = ⟨0, 6, 2⟩
+
+theorem selBlock_check (n i : Nat) (hi : i < n) (s : List Abs) (h : SAInv n i s) :
+    ∃ s', analyze tfhe22 s (selBlock n i) = some s' ∧ SAInv n (i + 1) s' := by
+  obtain ⟨hl, hin, hout⟩ := h
+  have pre : ∀ j < 2 * n + 1, ∀ l', (s ++ l').getD j zeroAbs = ⟨0, 3, 1⟩ := fun j hj l' => by
+    rw [getD_append_lt _ _ _ (by omega)]; exact hin j hj
+  have hA : lutIn lutA 3 = true := by decide
+  have hB : lutIn lutB 3 = true := by decide
+  refine ⟨s ++ [⟨0, 15, 5⟩, ⟨0, 3, 1⟩, ⟨0, 15, 5⟩, ⟨0, 3, 1⟩, ⟨0, 6, 2⟩], ?_, ?_⟩
+  · simp only [selBlock, selBase, analyze, checkedStep, stepAbs, linLo, linHi, linLevel,
+      hin 0 (by omega), hin (1 + i) (by omega), List.all_cons, List.all_nil]
+    rw [show 2 * n + 1 + 5 * i = s.length by omega]
+    simp only [List.append_assoc, List.cons_append, List.nil_append, getD_append_len0,
+      getD_append_len, List.getD_cons_zero, List.getD_cons_succ, pre 0 (by omega),
+      pre (n + 1 + i) (by omega)]
+    simp [admissible, tfhe22, hA, hB, show 0 < s.length by omega, show 1 + i < s.length by omega,
+      show n + 1 + i < s.length + 2 by omega]
+  · refine ⟨by simp [hl]; omega, fun j hj => pre j hj _, fun k hk => ?_⟩
+    rcases Nat.lt_or_ge k i with hk' | hk'
+    · rw [getD_append_lt _ _ _ (by simp [outWire, selBase]; omega)]; exact hout k hk'
+    · rw [show outWire n k = s.length + 4 by simp [outWire, selBase]; omega, getD_append_len]; rfl
+
+theorem selBlocks_check (n : Nat) : ∀ i ≤ n, ∃ s,
+    analyze tfhe22 [] (selInputs n ++ (List.range i).flatMap (selBlock n)) = some s ∧ SAInv n i s := by
+  intro i
+  induction i with
+  | zero =>
+    intro _
+    have hD : admissible tfhe22 ⟨0, tfhe22.msgMax, 1⟩ = true := by decide
+    refine ⟨(List.range (2 * n + 1)).map fun _ => ⟨0, 3, 1⟩, ?_, by simp, fun j hj => ?_,
+      fun k hk => absurd hk (by omega)⟩
+    · simpa [selInputs, tfhe22] using analyze_inputs tfhe22 hD [] (List.range (2 * n + 1))
+    · simp [List.getD_eq_getElem?_getD, hj]
+  | succ i ih =>
+    intro hi
+    obtain ⟨s, hs, hI⟩ := ih (by omega)
+    obtain ⟨s', hs', hI'⟩ := selBlock_check n i (by omega) s hI
+    exact ⟨s', by rw [List.range_succ, List.flatMap_append, ← List.append_assoc, analyze_append, hs,
+      List.flatMap_singleton]; exact hs', hI'⟩
+
+/-- **The checker accepts `select` at every width.** -/
+theorem sel_check (n : Nat) : check tfhe22 (selProg n) = true := by
+  obtain ⟨s, hs, hl, -, hout⟩ := selBlocks_check n n (Nat.le_refl n)
+  simp only [check, selProg, selGates, hs, List.all_eq_true, List.mem_map, List.mem_range,
+    Bool.and_eq_true, decide_eq_true_eq]
+  rintro _ ⟨k, hk, rfl⟩
+  exact ⟨by simp [outWire, selBase]; omega, by rw [hout k hk]; decide⟩
+
+theorem lut_sel {c x : Int} (hc : c = 0 ∨ c = 1) (h0 : 0 ≤ x) (h1 : x ≤ 3) :
+    lutA.getD (4 * c + x).toNat 0 = (if c = 1 then x else 0) ∧
+      lutB.getD (4 * c + x).toNat 0 = (if c = 1 then 0 else x) := by
+  have h : ∀ m < 4, lutA.getD m 0 = 0 ∧ lutB.getD m 0 = (m : Int) ∧
+      lutA.getD (4 + m) 0 = (m : Int) ∧ lutB.getD (4 + m) 0 = 0 := by decide
+  obtain ⟨m, rfl⟩ := Int.eq_ofNat_of_zero_le h0
+  obtain ⟨e0, e1, e2, e3⟩ := h m (by omega)
+  rcases hc with rfl | rfl
+  · rw [show (4 * (0 : Int) + m).toNat = m by omega, e0, e1]; simp
+  · rw [show (4 * (1 : Int) + m).toNat = 4 + m by omega, e2, e3]; simp
+
+def SVInv (n i : Nat) (v : Nat → Int) (xs : List Int) : Prop :=
+  xs.length = 2 * n + 1 + 5 * i ∧ (∀ j < 2 * n + 1, xs.getD j 0 = v j) ∧
+    ∀ k < i, xs.getD (outWire n k) 0 = if v 0 = 1 then v (1 + k) else v (n + 1 + k)
+
+theorem selBlock_eval (n i : Nat) (hi : i < n) (v : Nat → Int) (hc : v 0 = 0 ∨ v 0 = 1)
+    (hv : ∀ j < 2 * n + 1, 0 ≤ v j ∧ v j ≤ 3) (xs : List Int) (h : SVInv n i v xs) :
+    SVInv n (i + 1) v (evalV v xs (selBlock n i)) := by
+  obtain ⟨hl, hin, hout⟩ := h
+  have pre : ∀ j < 2 * n + 1, ∀ l', (xs ++ l').getD j 0 = v j := fun j hj l' => by
+    rw [getD_append_lt _ _ _ (by omega)]; exact hin j hj
+  obtain ⟨a0, a1⟩ := hv (1 + i) (by omega)
+  obtain ⟨b0, b1⟩ := hv (n + 1 + i) (by omega)
+  obtain ⟨sa, -⟩ := lut_sel hc a0 a1
+  obtain ⟨-, sb⟩ := lut_sel hc b0 b1
+  let A := if v 0 = 1 then v (1 + i) else 0
+  let B := if v 0 = 1 then 0 else v (n + 1 + i)
+  have e : evalV v xs (selBlock n i) =
+      xs ++ [4 * v 0 + v (1 + i), A, 4 * v 0 + v (n + 1 + i), B, A + B] := by
+    simp only [selBlock, selBase, evalV, stepV, linV, hin 0 (by omega), hin (1 + i) (by omega)]
+    rw [show 2 * n + 1 + 5 * i = xs.length by omega]
+    simp only [List.append_assoc, List.cons_append, List.nil_append, getD_append_len0,
+      getD_append_len, List.getD_cons_zero, List.getD_cons_succ, pre 0 (by omega),
+      pre (n + 1 + i) (by omega), Int.one_mul, Int.add_zero]
+    rw [sa, sb]
+  rw [e]
+  refine ⟨by simp [hl]; omega, fun j hj => pre j hj _, fun k hk => ?_⟩
+  rcases Nat.lt_or_ge k i with hk' | hk'
+  · rw [getD_append_lt _ _ _ (by simp [outWire, selBase]; omega)]; exact hout k hk'
+  · rw [show outWire n k = xs.length + 4 by simp [outWire, selBase]; omega, getD_append_len,
+      show k = i by omega]
+    simp only [A, B, List.getD_cons_succ, List.getD_cons_zero]
+    split <;> omega
+
+theorem selBlocks_eval (n : Nat) (v : Nat → Int) (hc : v 0 = 0 ∨ v 0 = 1)
+    (hv : ∀ j < 2 * n + 1, 0 ≤ v j ∧ v j ≤ 3) :
+    ∀ i ≤ n, SVInv n i v (evalV v [] (selInputs n ++ (List.range i).flatMap (selBlock n))) := by
+  intro i
+  induction i with
+  | zero =>
+    intro _
+    simp only [List.range_zero, List.flatMap_nil, List.append_nil, selInputs, evalV_inputs,
+      List.nil_append]
+    exact ⟨by simp, fun j hj => by simp [List.getD_eq_getElem?_getD, hj],
+      fun k hk => absurd hk (by omega)⟩
+  | succ i ih =>
+    intro hi
+    rw [List.range_succ, List.flatMap_append, ← List.append_assoc, evalV_append,
+      List.flatMap_singleton]
+    exact selBlock_eval n i (by omega) v hc hv _ (by simpa [evalV_append] using ih (by omega))
+
+/-- **`select` picks `A` when `c = 1` and `B` when `c = 0`**, digit by digit. -/
+theorem sel_digits (n : Nat) (v : Nat → Int) (hc : v 0 = 0 ∨ v 0 = 1)
+    (hv : ∀ j < 2 * n + 1, 0 ≤ v j ∧ v j ≤ 3) :
+    val (fun k => (evalV v [] (selGates n)).getD (outWire n k) 0) n =
+      if v 0 = 1 then val (fun k => v (1 + k)) n else val (fun k => v (n + 1 + k)) n := by
+  obtain ⟨-, -, hout⟩ := selBlocks_eval n v hc hv n (Nat.le_refl n)
+  unfold selGates
+  rw [val_congr n fun k hk => hout k hk]
+  split <;> exact val_congr n fun k _ => by simp [*]
+
+theorem signed32_mod {a : Int} (lo : Range.wordMin 32 ≤ a) (hi : a ≤ Range.wordMax 32) :
+    signed32 (a % 2 ^ 32) = a := by
+  simp only [Range.wordMin, Range.wordMax, half32] at lo hi
+  simp only [signed32]; split <;> omega
+
+/-- **Encrypted `select` on 16 blocks is `Range.wrapped 32` of `select`**, for a
+condition bit `c` and words `a`, `b`, under the hypotheses of
+`Noise.bootstrapped_sound`. -/
+theorem sel_wrap32 (delta fresh : Nat) (hdec : 2 * (tfhe22.maxLevel * fresh) < delta)
+    (boots : Nat → Boot) (inp : Nat → Ct) (hinp : Fresh tfhe22 fresh inp)
+    (hgood : CallsGood fresh boots inp [] (selGates 16))
+    (c a b : Int) (hc : (inp 0).m = c) (hbit : c = 0 ∨ c = 1)
+    (ha : val (fun k => (inp (1 + k)).m) 16 = a % 2 ^ 32)
+    (hb : val (fun k => (inp (17 + k)).m) 16 = b % 2 ^ 32)
+    (wa : Range.wordMin 32 ≤ a ∧ a ≤ Range.wordMax 32) (wb : Range.wordMin 32 ≤ b ∧ b ≤ Range.wordMax 32) :
+    signed32 (val (fun k => decode delta ((evalCt boots inp [] (selGates 16)).getD (outWire 16 k) zeroCt)) 16) =
+      Range.wrapped 32 ["select", "c", "x", "y"] [c, a, b] := by
+  have hv : ∀ j < 2 * 16 + 1, 0 ≤ (inp j).m ∧ (inp j).m ≤ 3 := fun j _ => ⟨(hinp j).1, (hinp j).2.1⟩
+  have key : ∀ k < 16, decode delta ((evalCt boots inp [] (selGates 16)).getD (outWire 16 k) zeroCt) =
+      (evalV (fun j => (inp j).m) [] (selGates 16)).getD (outWire 16 k) 0 := fun k hk =>
+    bootstrapped_sound tfhe22 delta fresh hdec (selProg 16) (sel_check 16)
+      boots inp hinp hgood _ (List.mem_map.mpr ⟨k, List.mem_range.mpr hk, rfl⟩)
+  rw [val_congr 16 key, sel_digits 16 _ (hc ▸ hbit) hv, hc]
+  simp only [Range.wrapped, Range.semWith]
+  rcases hbit with rfl | rfl
+  · simp only [show (17 : Nat) = 16 + 1 by rfl] at hb; simp [hb]; exact signed32_mod wb.1 wb.2
+  · simp [ha]; exact signed32_mod wa.1 wa.2
+
+example : pbsCount (selProg 16) = 32 := by decide
 
 end TclMesh.Radix

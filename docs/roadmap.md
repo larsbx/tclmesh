@@ -211,8 +211,9 @@ Proof obligations:
   conditional probability premises ([audit](noise-correspondence.md));
 - [ ] noise-budget soundness for leveled circuits, and the refinement of
   TFHE-rs integer operations to block gate programs (done for ripple-carry
-  addition and subtraction: `Radix.add_wrap32`, `Radix.sub_wrap32`; open for
-  negation, multiplication, comparison, select and TFHE-rs's parallel carry
+  addition, subtraction and oblivious select: `Radix.add_wrap32`,
+  `Radix.sub_wrap32`, `Radix.sel_wrap32`; open for negation, multiplication,
+  comparison, composition of these programs, and TFHE-rs's parallel carry
   propagation);
 - [ ] leakage budgets in bits and in differential-privacy epsilon across runs.
 

@@ -74,6 +74,7 @@ typing rule:
 | `Radix` | `radix_check` | the base-4 ripple-carry adder over `n` blocks, and the subtracter (the same adder on complemented digits `3 − bᵢ` with carry in `1`), are accepted by the noise checker for every `n` |
 | | `add_digits`, `sub_digits` | their output digits are those of `(A + B) mod 4^n`, respectively `(A − B) mod 4^n` |
 | | `radix_sound`, `add_wrap32`, `sub_wrap32` | **encrypted, under the hypotheses of `bootstrapped_sound` (fresh inputs, `2·maxLevel·fresh < Δ`, actual-call PBS contracts), they decrypt to those digits; at 16 blocks, read as a two's-complement word, to `Range.wrapped 32` of `add`, respectively `subtract`. That TFHE-rs's integer `+`/`-` run these gate programs is not proved** |
+| | `sel_check`, `sel_digits`, `sel_wrap32` | **oblivious `select c a b` (CMUX) on a condition bit: block `i` adds `pbs(4c + aᵢ)` (`aᵢ` if `c = 1`, else `0`) and `pbs(4c + bᵢ)` (`bᵢ` if `c = 0`), at exactly the checker's limits (cleartext 15, level 5); accepted at every width, it picks `A` or `B` digit by digit, and encrypted at 16 blocks decrypts to `Range.wrapped 32` of `select` under the hypotheses of `bootstrapped_sound`** |
 | | `permits_not` | `not p` permits only when `p` evaluated to `false`, never from a fault |
 | | `cmp_ok`, `mem_ok` | a successful comparison had both operands in the canonical numeric domain; a successful membership test had a canonical list |
 | | `and_fault_left`, `and_false_left`, `or_true_left` | fault propagation and short-circuiting, as in the Tcl and Rust evaluators |
@@ -85,7 +86,8 @@ block noise-budget theorem under explicit
 absolute-noise and actual-call hypotheses. Identifying these hypotheses with
 native TFHE-rs behavior and refining its integer algorithms to block programs
 computing `wrapped w` remain unverified obligations; `Radix` proves that
-ripple-carry addition and subtraction gate programs compute `wrapped 32`. See
+ripple-carry addition and subtraction and a block-wise oblivious select
+compute `wrapped 32`. See
 [the versioned correspondence audit](noise-correspondence.md). `Range` proves
 that word wrapping never happens on an accepted circuit. Its arithmetic is the contract
 of `finite_exact/word_range.mojo` in `larsbx/finite-math-kernels`, pinned in
@@ -179,7 +181,8 @@ These are listed in the [roadmap](roadmap.md#formal-methods-first):
 - per-mechanism lemmas under cryptographic assumptions;
 - noise-budget soundness for leveled (bootstrap-free) evaluation beyond the
   block discipline, and the refinement of TFHE-rs integer operations to
-  block gate programs beyond ripple-carry addition and subtraction (`Radix`);
+  block gate programs beyond ripple-carry addition, subtraction and select
+  (`Radix`);
 - differential-privacy budgets.
 
 ## Checked handle and clamp admission
