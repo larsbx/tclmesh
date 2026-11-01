@@ -82,6 +82,38 @@ Proceed with an authenticated local exact checkout if the upstream repository
 can be accessed. Until then the failure is a **reproducible retrieval blocker**,
 not evidence supporting crypto acceptance.
 
+## Decision gate: response count is not a cryptographic secrecy threshold
+
+The public, unpinned KMS documentation for the four-core example describes
+`n=4`, corruption/offline tolerance `f=1` (subject to `f<n/3`) and client
+`num_reconstruct=3`. This is **not** a 3-of-4 collusion-resistance
+certificate. To claim actual `q_release=3` secrecy, an implementation must
+preserve confidentiality against `q_release-1=2` collaborating holders,
+and support output reconstruction by *every* allowed three-party subset.
+The candidate's documented `f_priv=1` guarantee does not cover two
+corrupt parties. In particular, `f_byz<n/3` cannot certify `f_byz>=2` at
+`n=4`. This is a no-go for **claiming** 3-of-4 secrecy under those
+published guarantees, not an exploit proof or universal impossibility result.
+
+Keep `q_release` (cryptographic access threshold), `f_priv` (privacy
+corruption bound), `f_byz` (robust-MPC fault tolerance) and `r_output`
+(client response reconstruction count) separate. Do not promote
+`r_output=3` to `q_release=3` without an authenticated protocol proof,
+even if three valid client responses produce a correct value. Verify
+precisely which subsets, corruption patterns, recipient protections
+and failure modes the pinned scheme guarantees.
+
+The necessary secrecy-acceptance condition for policy `q_release`
+is at least `f_priv >= q_release-1`; a scheme can impose additional
+constraints, including a different response/reconstruction quorum.
+The initial four-party target remains an example only. If a scheme
+cannot satisfy the policy, reject it instead of silently downgrading.
+
+References (directional, unpinned):
+- https://github.com/zama-ai/kms/blob/main/docs/getting-started/concepts.md
+- https://github.com/zama-ai/kms/blob/main/core-client/config/client_local_threshold.toml
+- https://github.com/zama-ai/kms/blob/main/docs/guides/core_client.md
+
 ## Next real cryptographic validation (not performed by this script)
 
 1. Build the exact pinned source and confirm the protocol security parameters,
