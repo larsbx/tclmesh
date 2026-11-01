@@ -2,13 +2,10 @@ name: kms-source-preflight
 
 # Source/version diagnostics only. This does NOT execute KMS, validate
 # cryptographic shares, or establish a threshold confidentiality claim.
+# Run upstream retrieval as an explicit external-availability experiment.
+# Do not couple it to PR acceptance: source access can be externally blocked.
+# The ordinary PR test workflow runs all local fail-closed negative controls.
 on:
-  pull_request:
-    paths:
-      - 'tools/threshold_kms_preflight.py'
-      - 'tests/test_threshold_kms_preflight.py'
-      - 'docs/threshold-kms-preflight.md'
-      - '.github/workflows/kms-source-preflight.yml'
   workflow_dispatch:
 
 permissions:
@@ -23,14 +20,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          # GitHub's default PR checkout is a synthetic merge commit, not the
-          # original source revision whose evidence we intend to attribute.
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Pin to the selected workflow-dispatch commit, not a moving branch.
+          ref: ${{ github.sha }}
 
       - name: Confirm exact TclMesh checkout provenance
         shell: bash
         env:
-          EXPECTED_TCLMESH_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_TCLMESH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_TCLMESH_SHA"
