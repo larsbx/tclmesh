@@ -23,7 +23,10 @@ python3 tools/threshold_kms_preflight.py --kms-source /absolute/path/to/kms-sour
 
 The script **does not fetch arbitrary remote code or execute KMS**. It rejects
 nested/subdirectory checkouts and untracked, ignored, symlinked or modified
-evidence files. It verifies lockfiles and sample configuration against the
+evidence files. All provenance Git calls disable replacement-object resolution
+(`git --no-replace-objects`), so local `git replace` refs cannot substitute a
+different commit body while keeping the expected HEAD identifier.
+It verifies lockfiles and sample configuration against the
 actual HEAD Git objects rather than trusting bytes from the working tree.
 It checks both checkouts' HEAD and cleanliness, hashes their Cargo.lock files, compares the
 locked `tfhe` and `tfhe-zk-pok` package versions when present, and inspects the
@@ -65,7 +68,9 @@ result is established.
 
 The workflow intentionally stays red when source retrieval fails and writes a
 nonsecret JSON report labeled `kms_source_unavailable` to preserve the exact
-blocker. Never fall back to another tag, commit, mirror, unchecked archive or
+blocker. A preceding anonymous HTTP probe records status codes for Git smart-HTTP,
+the repository metadata API and the pinned commit API as **diagnostics only**;
+HTTP status by itself is not evidence of source authenticity. Never fall back to another tag, commit, mirror, unchecked archive or
 centralized key without an explicit independently verified new pin.
 
 Hosted `pull_request` evidence is tied to the exact PR head (rather than
