@@ -75,7 +75,7 @@ Implemented on main through PR #15:
 - [x] immutable parameter-profile registry;
 - [x] opaque ciphertext-handle lifecycle;
 - [x] plaintext/private differential execution;
-- [x] backend-driven threshold-release state machine;
+- [x] reference/authorization-only release state machine (no threshold cryptography);
 - [x] backend-controlled durable handles and fresh-process quorum/combination recovery.
 
 Circuit/output provenance (merged PR #15):
@@ -88,7 +88,7 @@ Circuit/output provenance (merged PR #15):
 
 Release-policy milestone (this branch):
 
-- [x] canonical manifest-owned threshold-release policy validation;
+- [x] canonical manifest-owned release policy validation;
 - [x] role-separated request/contribution/combination/recovery capabilities;
 - [x] actor-holder, policy membership, context, and active ancestor checks;
 - [x] governed output/API bypass rejection and current-authority revalidation;
@@ -239,3 +239,25 @@ Engineering sequence, after the proofs above:
 ## v1.0
 
 v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable workflows, ceremonies, private release, supervision, and the full integrated acceptance scenario.
+
+
+## Issue #36: cryptographic threshold milestone (separate acceptance gate)
+
+- [x] Fail closed for governed `threshold-release`; remove TFHE threshold claims.
+- [x] Explicit reference/authorization-only modes and legacy-request refusal.
+- [x] Lean verified-share, distinct-holder, epoch/keyset binding, threshold-before-
+  combine and recipient obligations, conditional on named cryptographic soundness.
+- [x] Negative boundary tests and controls that deliberately disable the gates.
+- [x] Version-targeted KMS compatibility investigation; source retrieval limits and
+  TFHE-rs version mismatch recorded in `threshold-release-boundary.md`.
+- [ ] Authenticate and archive the pinned KMS source/image/lockfile and crypto profile.
+- [ ] Establish actual cryptographic coalition and availability constraints for
+  each accepted reconstruction quorum; no inference from fault parameter alone.
+- [ ] DKG/share custody with no complete secret key at any evaluator/kernel.
+- [ ] Real signature AND share-proof or malicious-secure MPC verification.
+- [ ] Recipient-bound output verification, durable consumption and leakage receipts.
+- [ ] Native integration: every allowed 3-of-4 subset succeeds, 2-of-4 fails,
+  invalid-but-signed partials, false proofs, duplicate/mixed bindings, revocation,
+  outages and crash/retry fail safely. 3-of-4 remains an example target only.
+
+Do not close issue #36 based on the fail-closed correction or the abstract proofs.

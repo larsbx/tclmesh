@@ -112,8 +112,18 @@ untrusted import format. Legacy release-only stores fail closed and need explici
 migration while the original backend state remains available.
 
 `private evaluate-bound` resolves an installed circuit from the active manifest;
-it does not authorize its caller. Outputs linked to a `threshold-release`
-ceremony require the authorized release APIs and reject direct decryption. Outputs
+it does not authorize its caller. Outputs linked to any release ceremony reject
+direct decryption. `threshold-release` is reserved for genuine cryptographic
+threshold decryption and currently fails closed at request, contribution,
+combination and recovery, including legacy requests without `release_mode`.
+An explicit `authorization-quorum` ceremony uses the trusted adapter's actor
+checks and opaque approval values; it provides no cryptographic share verification.
+The TFHE process holds the complete `ClientKey`, so its single-key decrypt cannot
+provide threshold key custody or recipient-only confidentiality. Its legacy
+`combine-release` and reserved crypto operations refuse all input.
+Do not reinterpret an existing threshold policy as authorization-only: install
+and activate a deliberately changed manifest and create a new request.
+See [the boundary contract](docs/threshold-release-boundary.md). Outputs
 without that link retain the legacy trusted-adapter path and make no governed
 release claim. Low-level private/release APIs are trusted
 adapter entry points and must not be exposed directly to ordinary untrusted

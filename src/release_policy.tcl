@@ -1,4 +1,4 @@
-# Manifest-owned threshold release authorization. Caller identities must be
+# Manifest-owned authorization-only or reserved cryptographic release policy. Caller identities must be
 # authenticated by the trusted adapter, as for the action/workflow APIs.
 namespace eval ::tclmesh::release {
     namespace export request-authorized contribute-authorized combine-authorized \
@@ -21,7 +21,7 @@ proc ::tclmesh::release::_validate_policy {manifest id policy} {
             _policy_error MISSING_FIELD
         }
     }
-    if {[dict get $policy kind] ne "threshold-release"} {_policy_error INVALID_KIND}
+    if {[dict get $policy kind] ni {threshold-release authorization-quorum}} {_policy_error INVALID_KIND}
     foreach key {holders requesters combiners recoverers} {
         set members [dict get $policy $key]
         if {[llength $members] != [llength [lsort -unique $members]] || "" in $members} {
@@ -52,7 +52,7 @@ proc ::tclmesh::release::_validate_policy {manifest id policy} {
 
 proc ::tclmesh::release::bind_manifest {manifest} {
     dict for {id policy} [dict get $manifest ceremonies] {
-        if {[dict exists $policy kind] && [dict get $policy kind] eq "threshold-release"} {
+        if {[dict exists $policy kind] && [dict get $policy kind] in {threshold-release authorization-quorum}} {
             _validate_policy $manifest $id $policy
         }
     }
@@ -169,9 +169,13 @@ proc ::tclmesh::release::request-authorized {language_id handle_id actor context
     if {[dict get $binding circuit_id] ne [dict get $policy circuit] ||
         [dict get $binding output_name] ne [dict get $policy output] ||
         [dict get $handle profile] ne [dict get $policy profile]} {_policy_error OUTPUT_BINDING}
+    if {[dict get $policy kind] eq "threshold-release"} {
+        return -code error -errorcode {TCLMESH RELEASE SECURITY CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} \
+            "governed cryptographic threshold decryption is unavailable (issue #36)"
+    }
     set requester [_authorize $language_id $actor $policy_id $policy request $context]
     return [_request $handle_id [dict get $policy purpose] [dict get $policy quorum] \
-        [dict get $policy holders] $context [dict create policy_id $policy_id requester $requester]]
+        [dict get $policy holders] $context [dict create policy_id $policy_id requester $requester] authorization-quorum]
 }
 
 proc ::tclmesh::release::_transition_authority {language_id id actor role} {

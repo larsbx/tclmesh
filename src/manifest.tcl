@@ -163,7 +163,7 @@ proc ::tclmesh::manifest::_canonical_node {node} {
     foreach key [lsort -dictionary [dict keys $node]] {
         set value [dict get $node $key]
 
-        if {[dict exists $node kind] && [dict get $node kind] eq "threshold-release" &&
+        if {[dict exists $node kind] && [dict get $node kind] in {threshold-release authorization-quorum} &&
             $key in {holders requesters combiners recoverers}} {
             # Membership sets in the new release-policy schema. Existing node
             # schemas and their manifest identities keep their prior rules.

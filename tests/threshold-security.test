@@ -1,0 +1,141 @@
+package require Tcl 8.6
+package require tcltest 2
+namespace import ::tcltest::*
+package require tclmesh 0.2.0
+source [file join [file dirname [info script]] release-policy-support.tcl]
+
+proc threshold_code {script} {
+    set code [catch {uplevel 1 $script} result options]
+    if {!$code} {return ACCEPTED}
+    return [lrange [dict get $options -errorcode] 0 3]
+}
+
+# All tests are boundary tests. No mock signature/proof is accepted as crypto.
+test TS-001-capabilities {TFHE and reference backends make no threshold claim} -body {
+    set result {}
+    foreach caps [list [::tclmesh::tfhe::capabilities] \
+        [dict get [tclmesh private backend describe plaintext] capabilities]] {
+        lappend result [expr {"threshold-release" in $caps ||
+            "cryptographic-threshold-decryption" in $caps}] \
+            [expr {"authorization-quorum" in $caps}]
+    }
+    return $result
+} -result {0 1 0 1}
+
+# Count backend calls, so refusal cannot silently decrypt and then throw.
+proc threshold_spy {op args} {
+    if {$op in {combine-release combine-authorization-quorum decrypt verify-contribution combine-verified-release}} {
+        incr ::threshold_calls
+    }
+    ::tclmesh::private::_plaintext_backend $op {*}$args
+}
+
+test TS-002-policy-fail-closed {even a plugin advertising threshold cannot enable governed crypto} -body {
+    tclmesh release use-store {}
+    tclmesh private backend register threshold-spy threshold_spy {
+        decrypt reference-release authorization-quorum threshold-release cryptographic-threshold-decryption
+    }
+    tclmesh private profile define threshold-spy [dict create backend threshold-spy semantics exact-integer allow_decrypt true]
+    set m [policytest_manifest threshold-blocked 1]
+    dict set m ceremonies report kind threshold-release
+    dict set m ceremonies report profile threshold-spy
+    dict set m circuits aggregate metadata profile threshold-spy
+    set installed [tclmesh manifest install $m]
+    tclmesh manifest activate threshold-blocked 1 [dict get $installed manifest_hash]
+    set op [tclmesh language instantiate operator operator {release:report} {release:request} [dict create tenant example]]
+    set h [dict get [tclmesh private evaluate-bound threshold-spy threshold-blocked aggregate {}] total]
+    set before [tclmesh release list]
+    set ::threshold_calls 0
+    list [threshold_code {tclmesh release request-authorized $op $h operator [dict create tenant example]}] \
+        [threshold_code {tclmesh release request-authorization $h purpose 1 {a}}] \
+        [threshold_code {tclmesh private decrypt $h}] \
+        [expr {$before eq [tclmesh release list]}] $::threshold_calls
+} -result {{TCLMESH RELEASE SECURITY CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} {TCLMESH RELEASE POLICY AUTHORIZATION_REQUIRED} {TCLMESH PRIVATE DECRYPT RELEASE_REQUIRED} 1 0}
+
+test TS-003-invalid-contributions {arbitrary tokens signatures proofs duplicates and mixed epochs never count as crypto} -body {
+    set setup [policytest_setup threshold-invalid]
+    set id [dict get [policytest_request $setup] id]
+    # Simulate a stored/future cryptographic request, bypassing the request gate.
+    dict set ::tclmesh::release::requests $id release_mode cryptographic-threshold-decryption
+    set before [tclmesh release get $id]
+    set codes {}
+    foreach {holder contribution} [list \
+        a arbitrary-nonempty \
+        a [dict create signature invalid proof forged] \
+        b [dict create signature purported-valid proof invalid] \
+        a [dict create keyset k epoch 1 payload x] \
+        b [dict create keyset k epoch 2 payload y] \
+        b [dict create keyset other epoch 1 payload z]] {
+        lappend codes [lindex [threshold_code {tclmesh release contribute-authorized \
+            [dict get $setup $holder] $id $holder $contribution}] end]
+    }
+    list $codes [expr {$before eq [tclmesh release get $id]}]
+} -result {{CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} 1}
+
+test TS-004-legacy-recovery {old persisted quorum cannot combine retry or assert released} -body {
+    set setup [policytest_setup threshold-legacy]
+    set id [dict get [policytest_request $setup] id]
+    policytest_quorum $setup $id
+    dict unset ::tclmesh::release::requests $id release_mode
+    set op [dict get $setup operator]
+    set codes [list [lindex [threshold_code {tclmesh release combine-authorized $op $id operator}] end]]
+    dict set ::tclmesh::release::requests $id status combining
+    foreach disposition {retry released} {
+        lappend codes [lindex [threshold_code {tclmesh release recover-authorized $op $id operator $disposition forged}] end]
+    }
+    list $codes [dict get [tclmesh release get $id] status] [dict get [tclmesh release get $id] attempts]
+} -result {{LEGACY_MODE_REQUIRED LEGACY_MODE_REQUIRED LEGACY_MODE_REQUIRED} combining 0}
+
+test TS-005-tfhe-direct-crypto {TFHE crypto operations refuse without even opening a backend process} -body {
+    rename ::tclmesh::tfhe::_call ::tclmesh::tfhe::_saved_call
+    proc ::tclmesh::tfhe::_call {args} {incr ::threshold_calls; error unexpected-decrypt}
+    set ::threshold_calls 0
+    try {
+        set codes {}
+        foreach op {combine-release verify-contribution combine-verified-release} {
+            lappend codes [lindex [threshold_code {::tclmesh::tfhe::_backend $op {} int {tfhe 1} {a garbage b garbage} {}}] end]
+        }
+        list $codes $::threshold_calls
+    } finally {
+        rename ::tclmesh::tfhe::_call {}
+        rename ::tclmesh::tfhe::_saved_call ::tclmesh::tfhe::_call
+    }
+} -result {{CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} 0}
+
+test TS-006-explicit-authorization {non-reference backends require the named authorization-only API} -body {
+    tclmesh private backend register authorization-spy threshold_spy {decrypt authorization-quorum}
+    tclmesh private profile define authorization-spy [dict create backend authorization-spy semantics exact-integer allow_decrypt false]
+    set h [tclmesh private encrypt authorization-spy int 17]
+    set implicit [lindex [threshold_code {tclmesh release request $h purpose 2 {a b c}}] end]
+    set request [tclmesh release request-authorization $h purpose 2 {a b c}]
+    set id [dict get $request id]
+    tclmesh release contribute $id a approval-a
+    set duplicate [lindex [threshold_code {tclmesh release contribute $id a approval-again}] 2]
+    set early [lindex [threshold_code {tclmesh release combine $id}] 2]
+    tclmesh release contribute $id c approval-c
+    list $implicit [dict get $request release_mode] $duplicate $early \
+        [dict get [tclmesh release combine $id] result]
+} -result {authorization-spy authorization-quorum DUPLICATE_CONTRIBUTION INVALID_STATE 17}
+
+test TS-007-process-legacy {a mode-less stored quorum is refused after a real process restart} -body {
+    set path [file join [temporaryDirectory] "threshold-legacy-[pid]-[clock clicks].dict"]
+    set fixture [file join $::tcltest::testsDirectory release-policy-process.tcl]
+    try {
+        exec [info nameofexecutable] $fixture produce $path
+        exec [info nameofexecutable] $fixture legacy-mode $path
+    } finally {file delete -force $path}
+} -result {{TCLMESH RELEASE SECURITY LEGACY_MODE_REQUIRED} quorum-reached 0}
+
+test TS-008-no-crypto-combine-or-recovery {a claimed quorum of opaque values cannot decrypt or be marked released} -body {
+    set setup [policytest_setup threshold-no-combine]
+    set id [dict get [policytest_request $setup] id]
+    policytest_quorum $setup $id
+    dict set ::tclmesh::release::requests $id release_mode cryptographic-threshold-decryption
+    set op [dict get $setup operator]
+    set first [threshold_code {tclmesh release combine-authorized $op $id operator}]
+    dict set ::tclmesh::release::requests $id status combining
+    set second [threshold_code {tclmesh release recover-authorized $op $id operator released forged}]
+    list $first $second [dict get [tclmesh release get $id] attempts]
+} -result {{TCLMESH RELEASE SECURITY CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} {TCLMESH RELEASE SECURITY CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} 0}
+
+cleanupTests

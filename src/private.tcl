@@ -1010,10 +1010,10 @@ proc ::tclmesh::private::_plaintext_backend {operation args} {
             lassign $args profile type token
             return [dict get $token value]
         }
-        combine-release {
+        combine-authorization-quorum {
             lassign $args profile type token contributions context
             if {[dict size $contributions] == 0} {
-                return -code error                     -errorcode {TCLMESH PRIVATE PLAINTEXT RELEASE EMPTY_CONTRIBUTIONS}                     "reference threshold release requires contributions"
+                return -code error                     -errorcode {TCLMESH PRIVATE PLAINTEXT RELEASE EMPTY_CONTRIBUTIONS}                     "reference authorization quorum requires contributions"
             }
             return [dict get $token value]
         }
@@ -1107,4 +1107,4 @@ namespace eval ::tclmesh::private {
     }
 }
 
-::tclmesh::private::backend::register     plaintext     ::tclmesh::private::_plaintext_backend     {decrypt destroy reference threshold-release idempotent-release persistent-handles}
+::tclmesh::private::backend::register     plaintext     ::tclmesh::private::_plaintext_backend     {decrypt destroy reference reference-release authorization-quorum idempotent-release persistent-handles}

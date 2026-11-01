@@ -3,7 +3,7 @@ namespace eval ::tclmesh::release {
     variable next_id 0
     variable store {}
 
-    namespace export         use-store request contribute reject expire combine recover get list
+    namespace export         use-store request request-authorization contribute reject expire combine recover get list
     namespace ensemble create
 }
 
@@ -106,7 +106,43 @@ proc ::tclmesh::release::request {handle_id purpose threshold holders {context {
     return [_request $handle_id $purpose $threshold $holders $context {}]
 }
 
-proc ::tclmesh::release::_request {handle_id purpose threshold holders context authorization} {
+# Explicit single-key/reference authorization flow; tokens are approvals, not shares.
+proc ::tclmesh::release::request-authorization {handle_id purpose threshold holders {context {}}} {
+    set handle [::tclmesh::private::_require_handle $handle_id]
+    if {[_handle_policy $handle] ne ""} {_policy_error AUTHORIZATION_REQUIRED}
+    return [_request $handle_id $purpose $threshold $holders $context {} authorization-quorum]
+}
+
+# No cryptographic backend is integrated. Capabilities supplied by plugins are
+# not sufficient evidence to enable it. Recheck at every execution/recovery edge,
+# including persisted records created before modes were introduced.
+proc ::tclmesh::release::_assert_mode {descriptor} {
+    if {![dict exists $descriptor release_mode]} {
+        return -code error -errorcode {TCLMESH RELEASE SECURITY LEGACY_MODE_REQUIRED} \
+            "legacy release requires an explicit new authorization-only request"
+    }
+    set mode [dict get $descriptor release_mode]
+    if {$mode ni {reference-release authorization-quorum}} {
+        return -code error -errorcode {TCLMESH RELEASE SECURITY CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} \
+            "cryptographic threshold decryption is unavailable (issue #36)"
+    }
+    set handle [::tclmesh::private::_require_handle [dict get $descriptor handle]]
+    if {[_handle_policy $handle] ne "" ||
+        ([dict exists $descriptor authorization] && [dict get $descriptor authorization] ne "")} {
+        lassign [_request_policy $descriptor] policy_id policy
+        if {[dict get $policy kind] ne "authorization-quorum" || $mode ne "authorization-quorum"} {
+            return -code error -errorcode {TCLMESH RELEASE SECURITY CRYPTOGRAPHIC_THRESHOLD_UNAVAILABLE} \
+                "governed threshold decryption is unavailable (issue #36)"
+        }
+    }
+    set backend [::tclmesh::private::backend::describe [dict get $descriptor backend]]
+    if {$mode ni [dict get $backend capabilities]} {
+        return -code error -errorcode {TCLMESH RELEASE SECURITY MODE_UNSUPPORTED} \
+            "backend does not support the declared release mode"
+    }
+}
+
+proc ::tclmesh::release::_request {handle_id purpose threshold holders context authorization {mode reference-release}} {
     variable requests
     variable next_id
 
@@ -135,8 +171,9 @@ proc ::tclmesh::release::_request {handle_id purpose threshold holders context a
     set type [dict get $handle type]
 
     set backend_descriptor [::tclmesh::private::backend::describe $backend]
-    if {"threshold-release" ni [dict get $backend_descriptor capabilities]} {
-        return -code error             -errorcode [::list TCLMESH RELEASE BACKEND_UNSUPPORTED $backend]             "backend '$backend' does not support threshold release"
+    if {$mode ni {reference-release authorization-quorum} ||
+        $mode ni [dict get $backend_descriptor capabilities]} {
+        return -code error             -errorcode [::list TCLMESH RELEASE BACKEND_UNSUPPORTED $backend]             "backend '$backend' does not support release mode '$mode'"
     }
 
     set candidate_next_id [expr {$next_id + 1}]
@@ -144,7 +181,9 @@ proc ::tclmesh::release::_request {handle_id purpose threshold holders context a
 
     set descriptor [dict create         id $id         status collecting         handle $handle_id         profile $profile         backend $backend         type $type         purpose $purpose         threshold $threshold         holders $unique_holders         contributions {}         context $context         binding [_binding $handle]         attempts 0         recoveries 0         result {}]
 
+    dict set descriptor release_mode $mode
     dict set descriptor authorization $authorization
+    _assert_mode $descriptor
     dict set descriptor contribution_authority {}
     set candidate_requests $requests
     dict set candidate_requests $id $descriptor
@@ -162,6 +201,7 @@ proc ::tclmesh::release::_contribute {id holder share authority} {
     variable next_id
 
     set descriptor [_require $id]
+    _assert_mode $descriptor
     if {[dict get $descriptor status] ne "collecting"} {
         return -code error             -errorcode [::list TCLMESH RELEASE INVALID_STATE $id]             "release request '$id' is not collecting contributions"
     }
@@ -232,6 +272,7 @@ proc ::tclmesh::release::_combine {id} {
     variable next_id
 
     set descriptor [_require $id]
+    _assert_mode $descriptor
     if {[dict get $descriptor status] ne "quorum-reached"} {
         return -code error             -errorcode [::list TCLMESH RELEASE INVALID_STATE $id]             "release request '$id' has not reached quorum"
     }
@@ -252,7 +293,7 @@ proc ::tclmesh::release::_combine {id} {
     _commit $candidate_requests $next_id
 
     set code [catch {
-        {*}$command combine-release             $profile             [dict get $descriptor type]             [dict get $handle token]             [dict get $descriptor contributions]             [dict create                 purpose [dict get $descriptor purpose]                 context [dict get $descriptor context]                 release_id $id binding [_binding $descriptor] authorization [dict get $descriptor authorization] contribution_authority [dict get $descriptor contribution_authority]]
+        {*}$command combine-authorization-quorum             $profile             [dict get $descriptor type]             [dict get $handle token]             [dict get $descriptor contributions]             [dict create                 purpose [dict get $descriptor purpose]                 context [dict get $descriptor context]                 release_id $id binding [_binding $descriptor] authorization [dict get $descriptor authorization] contribution_authority [dict get $descriptor contribution_authority]]
     } result options]
 
     if {$code} {
@@ -287,6 +328,7 @@ proc ::tclmesh::release::_recover {id disposition {result {}}} {
     variable next_id
 
     set descriptor [_require $id]
+    _assert_mode $descriptor
     if {[dict get $descriptor status] ni {combining failed}} {
         return -code error             -errorcode [::list TCLMESH RELEASE RECOVERY INVALID_STATE $id]             "release request '$id' is not in a recoverable state"
     }
