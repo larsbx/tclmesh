@@ -5,7 +5,7 @@ The implementation in `src/release.tcl` remains fail-closed for
 Lean model prevent confusing **client response counts** with **cryptographic
 secrecy thresholds** before a backend is chosen.
 
-## Four distinct parameters
+## Separate parameters
 
 - `n` = distinct independently held participant key shares;
 - `q` = claimed *cryptographic* reconstruction threshold for a policy;
@@ -70,6 +70,24 @@ as a runtime authorization oracle. These inputs can be forged and do not
 bind an implementation to any audited primitive. The Lean definitions and
 small proofs in `TclMesh.ThresholdSecurity` are similarly about finite
 natural-number implications only.
+
+## Local proof validation — 2026-11-01
+
+The original head `bc5e031cc158d5354c6649f23bdd17472c134424` failed to
+build: the two closed example proofs could not synthesize `Decidable` through
+the named predicates. Explicitly unfolding those definitions before `decide`
+repairs the proof scripts without changing the definitions or theorem statements.
+With that correction, `lake build` passes and `lake env lean Audit.lean` reports
+**1,834 declarations / 631 theorems, standard axioms only**. All **11** synthetic
+Python controls also pass. These are formal-model checks, not cryptographic tests.
+
+The run used the official Lean 4.35.0 Linux release, archive SHA-256
+`7289597a44543246c9227b8cae501767e095ce17f6d448b95fc4a8dc97268f6d`,
+matched to GitHub release metadata. This environment required an `LD_PRELOAD`
+compatibility shim mapping only the process's own `/proc/<pid>/exe` lookup to
+`/proc/self/exe`; no Lean binary, proof or decision result was substituted.
+This local run is not hermetic or an independent compiler attestation. Hosted
+exact-head CI and review remain separate acceptance requirements.
 
 ## Actual acceptance remains pending
 

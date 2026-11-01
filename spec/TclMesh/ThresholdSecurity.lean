@@ -59,7 +59,9 @@ def kmsFourPartyExample : Claim :=
   ⟨4, 3, 1, 1, 3⟩
 
 theorem kms_four_party_not_three_of_four_secrecy :
-    ¬ numericallyConsistent kmsFourPartyExample := by decide
+    ¬ numericallyConsistent kmsFourPartyExample := by
+  unfold numericallyConsistent privacyNecessary responseNecessary kmsFourPartyExample
+  decide
 
 /-- Passing numerical checks is a *hypothetical* profile, not a
 cryptographic proof of key custody, ZK verification or reconstruction. -/
@@ -67,7 +69,9 @@ def numericallyPossibleExample : Claim :=
   ⟨4, 3, 2, 0, 3⟩
 
 theorem possible_example_only_meets_necessary_conditions :
-    numericallyConsistent numericallyPossibleExample := by decide
+    numericallyConsistent numericallyPossibleExample := by
+  unfold numericallyConsistent privacyNecessary responseNecessary numericallyPossibleExample
+  decide
 
 /-- Keep the provider's fault tolerance out of the secrecy implication.
 The privacy and response conditions make no use of byzantineFaults. -/
