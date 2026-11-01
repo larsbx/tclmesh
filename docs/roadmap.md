@@ -250,6 +250,13 @@ v1.0 targets all normative profiles in `docs/spec-v1.md`, including durable work
 - [x] Negative boundary tests and controls that deliberately disable the gates.
 - [x] Version-targeted KMS compatibility investigation; source retrieval limits and
   TFHE-rs version mismatch recorded in `threshold-release-boundary.md`.
+- [x] Compare threshold alternatives and reproduce bounded native primitive
+  observations, without claiming multiparty FHE decryption.
+- [x] Complete the pinned Fhenix preprocessing/MAC/subset source audit; record
+  [no-go decision and dependency acceptance](threshold-alternatives-followup.md#final-source-decision-integration-blocked).
+- [ ] Obtain a reviewed malicious-secure backend with distributed custody,
+  authenticated output and an immutable-keyset any-t-of-n protocol. Adapter work
+  is blocked here; no inspected implementation establishes the full contract.
 - [ ] Authenticate and archive the pinned KMS source/image/lockfile and crypto profile.
 - [ ] Establish actual cryptographic coalition and availability constraints for
   each accepted reconstruction quorum; no inference from fault parameter alone.
