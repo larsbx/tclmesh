@@ -66,7 +66,17 @@ A second source check through the configured GitHub connector was also not
 accessible. No downloaded revision, lockfile hash, KMS build or interoperability
 result is established.
 
-The workflow intentionally stays red when source retrieval fails and writes a
+The upstream retrieval workflow is now **explicitly dispatch-only** rather
+than a required `pull_request` check: the GitHub-hosted runner cannot fetch
+this pinned upstream source, and external source availability is not a code
+regression in the TclMesh preflight implementation. Run
+`kms-source-preflight` with `workflow_dispatch` on the intended branch and
+record its red/blocked outcome as a **separate unresolved integration
+prerequisite**. The ordinary `test` workflow continues to run all synthetic
+source-integrity negative controls on every PR; a green `test` result never
+means a KMS revision was fetched or authenticated.
+
+The dispatch-only workflow intentionally stays red when source retrieval fails and writes a
 nonsecret JSON report labeled `kms_source_unavailable` to preserve the exact
 blocker. A preceding anonymous HTTP probe records status codes for Git smart-HTTP,
 the repository metadata API and the pinned commit API as **diagnostics only**;
