@@ -36,10 +36,14 @@ threshold is `r_output = 3`; the published fault/corruption profile is
 `f_byz = 1` and the privacy guarantee described in the current documentation
 is at most `f_priv = 1`. Thus a *claim* of `q = 3` would require
 `f_priv >= 2`, which this documented guarantee does not establish. This
-is **not** a proof that two-party compromise works. A different
-scheme/proof/parameter profile could behave differently. The exact pinned KMS
-source is still inaccessible in the existing hosted source experiment, so this
-remains a candidate-level decision gate, not source-audited cryptography.
+is **not** a proof that two-party compromise works. In fact, **no**
+`q` in `1..4` passes these *necessary* checks for the particular sample
+numbers: `r_output=3` requires `q>=3`, whereas `f_priv=1` can only
+justify `q<=2`. The synthetic tests enumerate all four choices.
+A different scheme/proof/parameter profile could behave differently. The
+exact pinned KMS source is still inaccessible in the existing hosted source
+experiment, so this remains a candidate-level decision gate, not source-
+audited cryptography.
 
 ## Reproduce the independent checks
 
