@@ -11,6 +11,10 @@ example as 3-of-4 secrecy. Lattigo is a useful arbitrary-threshold research
 comparison, not an approved replacement. A signature, source hash, response count,
 or passing policy arithmetic test cannot enable cryptographic release.
 
+[Follow-up source review](threshold-alternatives-followup.md) covers Tulva and the
+Fhenix authenticated-MPC rounding implementation, including four native benchmark
+limitation witnesses. Neither supplies an accepted backend.
+
 ## Required security profile
 
 | Quantity | Meaning | Example requirement |

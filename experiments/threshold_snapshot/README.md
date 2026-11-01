@@ -6,6 +6,10 @@ the official Zama threshold-fhe snapshot
 reconstruction implementations. The test scalars and RNG seeds are public
 fixtures. No FHE key generation or ciphertext decryption is performed.
 
+This is the runner's default `--candidate zama-snapshot`. A separate
+[`fhenix-paper` experiment](../threshold_fhenix/README.md) has its own fixed
+source pin, overlay and test-name set; results cannot be cross-attributed.
+
 | Native test | What it checks |
 | --- | --- |
 | All six degree-one raw-share pairs | Each pair reconstructs the fixture scalar using `RevealOp::reconstruct(1)` |

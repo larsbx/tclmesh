@@ -41,6 +41,11 @@ class SourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unexpected source pin"):
             MODULE.source_files(self.root)
 
+    def test_explicit_candidate_pin_is_not_replaced_by_default(self):
+        with patch.object(MODULE, "PIN", self.pin):
+            with self.assertRaisesRegex(ValueError, "unexpected source pin"):
+                MODULE.source_files(self.root, "a" * 40)
+
     def test_dirty_file(self):
         (self.root / "lib.rs").write_text("// modified\n")
         with self.assertRaises(ValueError):
@@ -111,6 +116,24 @@ class ResultTests(unittest.TestCase):
 
     def test_exact_native_test_set(self):
         self.assertTrue(MODULE.check_result(0, self.output()))
+
+    def test_candidate_results_cannot_be_cross_attributed(self):
+        expected = MODULE.CANDIDATES["fhenix-paper"]["expected"]
+        self.assertFalse(MODULE.check_result(0, self.output(), expected))
+        fhenix_output = ("\n".join(f"test {name} ... ok" for name in sorted(expected))
+                         + "\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;\n")
+        self.assertTrue(MODULE.check_result(0, fhenix_output, expected))
+        self.assertFalse(MODULE.check_result(0, fhenix_output))
+
+    def test_empty_expected_set_cannot_pass(self):
+        self.assertFalse(MODULE.check_result(0, "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;", set()))
+
+    def test_unknown_candidate_never_executes(self):
+        with patch.object(MODULE.subprocess, "run") as run:
+            report = MODULE.probe(Path("missing"), Path("cache"), 10, "unreviewed")
+        run.assert_not_called()
+        self.assertEqual(report["status"], "BLOCKED")
+        self.assertFalse(report["cryptographic_release_admitted"])
 
     def test_zero_tests_not_evidence(self):
         self.assertFalse(MODULE.check_result(0, "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out;"))

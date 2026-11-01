@@ -29,6 +29,25 @@ EXPECTED = {
     "degree_two_four_party_robust_open_rejects_fault_bounds",
     "degree_one_four_responses_correct_one_corrupted_raw_share",
 }
+CANDIDATES = {
+    "zama-snapshot": {
+        "pin": PIN, "overlay": OVERLAY, "expected": EXPECTED,
+        "tools": ("cargo", "rustc", "protoc"),
+        "scope": "native_sharing_primitives_with_public_fixtures",
+    },
+    "fhenix-paper": {
+        "pin": "19b0f0a5a71b67badb85c3c8715b3eba7e866f79",
+        "overlay": ROOT / "experiments/threshold_fhenix/primitive_tests.rs",
+        "expected": {
+            "final_phase_zero_mac_sum_returns_empty",
+            "final_phase_nonzero_mac_sum_also_returns_empty",
+            "final_phase_missing_peer_values_also_returns_empty",
+            "four_party_additive_fixture_needs_all_four_fixed_shares",
+        },
+        "tools": ("cargo", "rustc"),
+        "scope": "native_benchmark_limitation_witnesses_with_public_fixtures",
+    },
+}
 
 
 def git(root: Path, *args: str) -> bytes:
@@ -36,12 +55,12 @@ def git(root: Path, *args: str) -> bytes:
                           check=True, capture_output=True, timeout=30).stdout
 
 
-def source_files(root: Path) -> dict[str, bytes]:
+def source_files(root: Path, expected_pin: str | None = None) -> dict[str, bytes]:
     """Check every blob, including changes hidden by skip-worktree/index flags."""
     root = root.resolve(strict=True)
     if Path(git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve() != root:
         raise ValueError("not the checkout root")
-    if git(root, "rev-parse", "HEAD").decode().strip() != PIN:
+    if git(root, "rev-parse", "HEAD").decode().strip() != (expected_pin or PIN):
         raise ValueError("unexpected source pin")
     if git(root, "status", "--porcelain", "--untracked-files=normal").strip():
         raise ValueError("source tree is dirty")
@@ -69,15 +88,16 @@ def source_files(root: Path) -> dict[str, bytes]:
     return files
 
 
-def check_result(returncode: int, output: str) -> bool:
+def check_result(returncode: int, output: str, expected: set[str] | None = None) -> bool:
     """A zero-test run, ignored tests or failure must not become evidence."""
+    wanted = EXPECTED if expected is None else expected
     names = re.findall(r"^test ([A-Za-z0-9_]+) \.\.\. ok$", output, re.MULTILINE)
     summaries = re.findall(
         r"test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured; (\d+) filtered out;",
         output,
     )
-    return (returncode == 0 and len(names) == len(EXPECTED) and set(names) == EXPECTED
-            and summaries == [(str(len(EXPECTED)), "0", "0", "0", "0")])
+    return (bool(wanted) and returncode == 0 and len(names) == len(wanted) and set(names) == wanted
+            and summaries == [(str(len(wanted)), "0", "0", "0", "0")])
 
 
 def verify_build_files(root: Path, expected: dict[str, bytes]) -> None:
@@ -92,13 +112,15 @@ def verify_build_files(root: Path, expected: dict[str, bytes]) -> None:
         raise ValueError("native run changed source or emitted unexpected fixture files")
 
 
-def probe(source: Path, target_dir: Path, timeout: int) -> dict:
+def probe(source: Path, target_dir: Path, timeout: int, candidate: str = "zama-snapshot") -> dict:
+    config = CANDIDATES.get(candidate)
     report = {
         "schema": "tclmesh.threshold-native-primitive-probe.v1",
         "status": "BLOCKED", "cryptographic_release_admitted": False,
-        "source_pin": PIN,
+        "candidate": candidate,
+        "source_pin": config["pin"] if config else None,
         "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "scope": "native_sharing_primitives_with_public_fixtures",
+        "scope": config["scope"] if config else "unknown_candidate",
         "limits": [
             "Not an FHE ciphertext decryption or an independently operated multiparty deployment",
             "Not a KMS v0.14.2 build, share-proof verifier or production security proof",
@@ -107,18 +129,20 @@ def probe(source: Path, target_dir: Path, timeout: int) -> dict:
         ],
     }
     try:
-        files = source_files(source)
+        if config is None:
+            raise ValueError("unreviewed native probe candidate")
+        files = source_files(source, config["pin"])
         digests = {name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())}
         report["source_files"] = len(files)
         report["source_tree_sha256"] = hashlib.sha256(
             json.dumps(digests, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-        overlay = OVERLAY.read_bytes()
+        overlay = config["overlay"].read_bytes()
         report["test_overlay_sha256"] = hashlib.sha256(overlay).hexdigest()
-        report["expected_tests"] = sorted(EXPECTED)
+        report["expected_tests"] = sorted(config["expected"])
         report["toolchain"] = {
             tool: subprocess.run([os.environ.get("PROTOC", tool) if tool == "protoc" else tool, "--version"], capture_output=True, text=True,
                                  check=True, timeout=15).stdout.strip()
-            for tool in ("cargo", "rustc", "protoc")
+            for tool in config["tools"]
         }
         with tempfile.TemporaryDirectory(prefix="tclmesh-native-primitives-") as tmp:
             build = Path(tmp) / "source"
@@ -149,11 +173,11 @@ def probe(source: Path, target_dir: Path, timeout: int) -> dict:
             # Only these public-fixture tests execute. Bound diagnostics; never
             # use this runner with real keys or attach arbitrary backend logs.
             report["native_output_tail"] = output[-12000:]
-            if check_result(result.returncode, result.stdout):
+            if check_result(result.returncode, result.stdout, config["expected"]):
                 report["status"] = "NATIVE_PRIMITIVES_ONLY"
             else:
                 report["blocker"] = "native_build_or_expected_tests_did_not_pass"
-        if source_files(source) != files:
+        if source_files(source, config["pin"]) != files:
             raise ValueError("source changed during probe")
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         report["status"] = "BLOCKED"
@@ -165,6 +189,8 @@ def probe(source: Path, target_dir: Path, timeout: int) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--candidate", choices=sorted(CANDIDATES), default="zama-snapshot",
+                        help="reviewed source pin and public-fixture test set; never a release capability")
     parser.add_argument("--target-dir", type=Path, required=True,
                         help="build cache outside the pinned source checkout")
     parser.add_argument("--timeout", type=int, default=600)
@@ -174,7 +200,7 @@ def main() -> int:
     source, target = args.source.resolve(), args.target_dir.resolve()
     if target == source or source in target.parents:
         parser.error("--target-dir must be outside the pinned source")
-    report = probe(source, target, args.timeout)
+    report = probe(source, target, args.timeout, args.candidate)
     print(json.dumps(report, sort_keys=True, indent=2))
     return 0 if report["status"] == "NATIVE_PRIMITIVES_ONLY" else 2
 
