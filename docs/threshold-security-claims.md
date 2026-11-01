@@ -77,9 +77,12 @@ The original head `bc5e031cc158d5354c6649f23bdd17472c134424` failed to
 build: the two closed example proofs could not synthesize `Decidable` through
 the named predicates. Explicitly unfolding those definitions before `decide`
 repairs the proof scripts without changing the definitions or theorem statements.
-With that correction, `lake build` passes and `lake env lean Audit.lean` reports
-**1,834 declarations / 631 theorems, standard axioms only**. All **11** synthetic
-Python controls also pass. These are formal-model checks, not cryptographic tests.
+With that correction and current `main` merged, `lake build` passes and
+`lake env lean Audit.lean` reports **1,931 declarations / 692 theorems, standard
+axioms only**. All **51** synthetic Python controls pass, including the **11**
+claim tests. The resolved CI workflow uses `test_threshold*.py` discovery to run
+the claim and existing provenance/policy controls together. These are formal-model
+and diagnostic checks, not cryptographic tests.
 
 The run used the official Lean 4.35.0 Linux release, archive SHA-256
 `7289597a44543246c9227b8cae501767e095ce17f6d448b95fc4a8dc97268f6d`,

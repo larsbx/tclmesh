@@ -210,7 +210,11 @@ Proof obligations:
 - [ ] independently justify the native TFHE-rs absolute-noise and adaptive
   conditional probability premises ([audit](noise-correspondence.md));
 - [ ] noise-budget soundness for leveled circuits, and the refinement of
-  TFHE-rs integer operations to block gate programs;
+  TFHE-rs integer operations to block gate programs (done for ripple-carry
+  addition, subtraction and oblivious select: `Radix.add_wrap32`,
+  `Radix.sub_wrap32`, `Radix.sel_wrap32`; open for negation, multiplication,
+  comparison, composition of these programs, and TFHE-rs's parallel carry
+  propagation);
 - [ ] leakage budgets in bits and in differential-privacy epsilon across runs.
 
 Engineering sequence, after the proofs above:

@@ -1,0 +1,52 @@
+{
+  "candidate": "fhenix-paper",
+  "command": [
+    "cargo",
+    "--config",
+    "profile.test.opt-level=0",
+    "--config",
+    "profile.test.package.\"*\".opt-level=0",
+    "--config",
+    "profile.test.debug=0",
+    "test",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "2",
+    "--target-dir",
+    "/workspace/scratch/de4a1d875be2/fhenix-native-target",
+    "--test",
+    "tclmesh_threshold_primitive_probe",
+    "--",
+    "--test-threads=1"
+  ],
+  "cryptographic_release_admitted": false,
+  "date": "2026-11-01",
+  "expected_tests": [
+    "final_phase_missing_peer_values_also_returns_empty",
+    "final_phase_nonzero_mac_sum_also_returns_empty",
+    "final_phase_zero_mac_sum_returns_empty",
+    "four_party_additive_fixture_needs_all_four_fixed_shares"
+  ],
+  "limits": [
+    "Not an FHE ciphertext decryption or an independently operated multiparty deployment",
+    "Not a KMS v0.14.2 build, share-proof verifier or production security proof",
+    "No distributed key custody, recipient-only release or TclMesh wire compatibility established",
+    "Local build environment is not hermetic or independently attested"
+  ],
+  "native_output_sha256": "6be11bb8d4d776b46bd63b601fc8da97c469f3d32b826929fafadf2852a4f2fb",
+  "native_output_tail": "\nrunning 4 tests\ntest final_phase_missing_peer_values_also_returns_empty ... ok\ntest final_phase_nonzero_mac_sum_also_returns_empty ... ok\ntest final_phase_zero_mac_sum_returns_empty ... ok\ntest four_party_additive_fixture_needs_all_four_fixed_shares ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Compiling threshold-decryption v0.1.0 (/tmp/tclmesh-native-primitives-izcvv1ui/source)\nwarning: unused doc comment\n   --> src/network/participant.rs:119:9\n    |\n119 |           /// Load configuration from a file\n    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n123 | /         Ok(Participant {\n124 | |             id,\n125 | |             greetings: HashMap::new(),\n126 | |             public_parameters: params.clone(),\n...   |\n129 | |             config\n130 | |         })\n    | |__________- rustdoc does not generate documentation for expressions\n    |\n    = help: use `//` for a plain comment\n    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `Read`\n --> src/network/participant.rs:8:21\n  |\n8 | use std::io::{self, Read};\n  |                     ^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: unused import: `rayon::prelude`\n  --> src/network/participant.rs:13:5\n   |\n13 | use rayon::prelude::*;\n   |     ^^^^^^^^^^^^^^\n\nwarning: `threshold-decryption` (lib) generated 3 warnings\n    Finished `test` profile [unoptimized] target(s) in 2.18s\n     Running tests/tclmesh_threshold_primitive_probe.rs (/workspace/scratch/de4a1d875be2/fhenix-native-target/debug/deps/tclmesh_threshold_primitive_probe-4f8b79bd4cb683c9)\n",
+  "returncode": 0,
+  "runner_sha256": "65395ddcf1ffa83348c9b6e9e193f29021bb44bd9bc1420fc3299aade4ef16fe",
+  "schema": "tclmesh.threshold-native-primitive-probe.v1",
+  "scope": "native_benchmark_limitation_witnesses_with_public_fixtures",
+  "source_files": 251,
+  "source_pin": "19b0f0a5a71b67badb85c3c8715b3eba7e866f79",
+  "source_tree_sha256": "c3fd86d6d49d203b244158aac116334753b3ef16acb851866f5c986637305e57",
+  "status": "NATIVE_PRIMITIVES_ONLY",
+  "test_overlay_sha256": "f534067b4681ebdbec067ae907cfc5aae317fb10c7873886502f89eb87e89dc5",
+  "toolchain": {
+    "cargo": "cargo 1.93.1 (083ac5135 2025-12-15)",
+    "rustc": "rustc 1.93.1 (01f6ddf75 2026-02-11)"
+  }
+}

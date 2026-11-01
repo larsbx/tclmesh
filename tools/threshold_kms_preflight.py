@@ -21,6 +21,56 @@ CANDIDATE_KMS_COMMIT = "afcc7e5a48c31f7c3772b1799c8e856c8e3166f1"
 CRATES = ("tfhe", "tfhe-zk-pok")
 
 
+def assess_release_policy(participants: int = 4, q_release: int = 3) -> dict:
+    """Deny-only review of the published four-party example, NOT a crypto verifier.
+
+    These bounds come from unpinned documentation, not the unavailable candidate
+    source. Never derive f_priv from num_reconstruct or accept caller-supplied
+    security claims. Even satisfying necessary bounds cannot enable a backend.
+    """
+    blockers = [
+        "pinned_kms_security_model_unverified",
+        "cryptographic_access_threshold_unestablished",
+        "verified_contribution_protocol_unimplemented",
+        "distributed_custody_and_recipient_release_undemonstrated",
+    ]
+    valid = (type(participants) is int and type(q_release) is int
+             and 1 <= q_release <= participants)
+    if not valid:
+        blockers.append("invalid_release_policy")
+    elif participants != 4:
+        blockers.append("participant_configuration_not_reviewed")
+    else:
+        # Published example only: neither a bound for arbitrary n nor a proof
+        # about the pinned KMS implementation. f_byz is not q_release.
+        if q_release - 1 > 1:
+            blockers.append("required_privacy_exceeds_documented_example_bound")
+        if q_release < 3:
+            blockers.append("requested_quorum_below_documented_output_responses")
+    return {
+        "status": "BLOCKED",
+        "cryptographic_release_admitted": False,
+        "participants": participants,
+        "q_release": q_release,
+        "required_f_priv": q_release - 1 if valid else None,
+        "published_example": {
+            "evidence_kind": "unpinned_documentation_not_source_attestation",
+            "n": 4, "f_priv": 1, "f_byz": 1, "r_output": 3,
+            "q_release": None,
+            "sources": [
+                "https://github.com/zama-ai/kms/blob/main/docs/getting-started/concepts.md",
+                "https://github.com/zama-ai/kms/blob/main/core-client/config/client_local_threshold.toml",
+            ],
+        },
+        "blockers": blockers,
+        "limits": [
+            "Necessary privacy and response bounds are not sufficient for acceptance",
+            "No policy report or source-preflight success enables runtime threshold release",
+            "No authenticated KMS source, security proof or multiparty decryption result supplied by this check",
+        ],
+    }
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -89,7 +139,7 @@ def inspect_checkout(root: Path, lock_relative: Path, additional: tuple[Path, ..
 
 
 def evaluate(tclmesh: dict, kms: dict, expected_kms_commit: str,
-             config: dict | None) -> dict:
+             config: dict | None, participants: int = 4, q_release: int = 3) -> dict:
     blockers: list[str] = []
     if kms["head"] != expected_kms_commit:
         blockers.append("kms_source_head_not_expected_pin")
@@ -126,10 +176,12 @@ def evaluate(tclmesh: dict, kms: dict, expected_kms_commit: str,
         "kms": kms,
         "kms_config": {k: config.get(k) for k in ("kms_type", "num_parties", "num_reconstruct", "num_majority", "fhe_params")} if config else None,
         "expected_kms_commit": expected_kms_commit,
+        "release_policy": assess_release_policy(participants, q_release),
     }
 
 
-def preflight(tclmesh_root: Path, kms_root: Path, kms_commit: str) -> dict:
+def preflight(tclmesh_root: Path, kms_root: Path, kms_commit: str,
+              participants: int = 4, q_release: int = 3) -> dict:
     if not re.fullmatch(r"[0-9a-f]{40}", kms_commit):
         raise ValueError("--kms-commit must be a full lowercase 40-digit SHA")
     tclmesh = inspect_checkout(tclmesh_root, Path("backends/tfhe/Cargo.lock"))
@@ -137,23 +189,45 @@ def preflight(tclmesh_root: Path, kms_root: Path, kms_commit: str) -> dict:
     kms = inspect_checkout(kms_root, Path("Cargo.lock"), (config_relative,))
     conf_path = kms_root / config_relative
     config = tomllib.loads(conf_path.read_text(encoding="utf-8")) if conf_path.is_file() else None
-    return evaluate(tclmesh, kms, kms_commit, config)
+    return evaluate(tclmesh, kms, kms_commit, config, participants, q_release)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tclmesh-source", type=Path,
                         default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--kms-source", type=Path, required=True,
+    parser.add_argument("--kms-source", type=Path,
                         help="local, exact-commit Zama KMS checkout")
     parser.add_argument("--kms-commit", default=CANDIDATE_KMS_COMMIT,
                         help="full reviewed KMS commit SHA")
+    parser.add_argument("--participants", type=int, default=4)
+    parser.add_argument("--release-threshold", type=int, default=3,
+                        help="cryptographic access threshold, NOT response count or fault tolerance")
+    parser.add_argument("--policy-only", action="store_true",
+                        help="report documented policy blockers without claiming source retrieval")
+    parser.add_argument("--require-release-policy", action="store_true",
+                        help="exit nonzero unless both source and cryptographic policy gates pass")
     args = parser.parse_args()
+    policy = assess_release_policy(args.participants, args.release_threshold)
+    if args.policy_only:
+        if args.kms_source is not None:
+            parser.error("--policy-only cannot be combined with --kms-source")
+        print(json.dumps(policy, sort_keys=True, indent=2))
+        return 2
+    if args.kms_source is None:
+        parser.error("--kms-source is required unless --policy-only is used")
     try:
-        report = preflight(args.tclmesh_source, args.kms_source, args.kms_commit)
+        report = preflight(args.tclmesh_source, args.kms_source, args.kms_commit,
+                           args.participants, args.release_threshold)
     except (OSError, ValueError, KeyError, subprocess.SubprocessError, tomllib.TOMLDecodeError) as exc:
         print(json.dumps({"status": "BLOCKED", "blockers": ["source_or_lockfile_unverifiable"],
-                          "detail": str(exc)}, sort_keys=True, indent=2))
+                          "detail": str(exc), "release_policy": policy}, sort_keys=True, indent=2))
+        return 2
+    if args.require_release_policy and not report["release_policy"]["cryptographic_release_admitted"]:
+        report["source_status"] = report["status"]
+        report["status"] = "BLOCKED"
+        report["blockers"].extend(report["release_policy"]["blockers"])
+        print(json.dumps(report, sort_keys=True, indent=2))
         return 2
     print(json.dumps(report, sort_keys=True, indent=2))
     return 0 if report["status"] == "SOURCE_PREFLIGHT_ONLY" else 2
