@@ -92,6 +92,21 @@ Proceed with an authenticated local exact checkout if the upstream repository
 can be accessed. Until then the failure is a **reproducible retrieval blocker**,
 not evidence supporting crypto acceptance.
 
+## Policy assessment added 2026-11-01
+
+See [backend evaluation](threshold-backend-evaluation.md) for pinned alternative
+source reviews, adversary models, compatibility and reproducible acceptance gates.
+The older official threshold-fhe snapshot was retrieved; the exact KMS candidate
+remains unavailable. These are separate source identities.
+
+Run `python3 tools/threshold_kms_preflight.py --policy-only --participants 4
+--release-threshold 3` for a source-independent, deny-only policy report (expected
+exit 2). A normal source preflight now also includes `release_policy.status` and
+`cryptographic_release_admitted=false`. Its top-level `SOURCE_PREFLIGHT_ONLY`
+status and exit 0 still describe source checks only. For a release-acceptance
+invocation, add `--require-release-policy`: matching source fixtures cannot pass
+that gate. No report enables the runtime threshold capability.
+
 ## Decision gate: response count is not a cryptographic secrecy threshold
 
 The public, unpinned KMS documentation for the four-core example describes
