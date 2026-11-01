@@ -38,6 +38,8 @@ jobs:
         run: python3 tools/check_threshold_boundary_mutants.py
       - name: KMS source preflight negative controls (not cryptographic conformance)
         run: python3 -m unittest discover -s tests -p 'test_threshold_kms_preflight.py'
+      - name: Threshold security claim negative controls (numerical only)
+        run: python3 -m unittest discover -s tests -p 'test_threshold_security_claims.py'
       - name: Run release self-check
         run: tclsh tools/release_check.tcl
 
