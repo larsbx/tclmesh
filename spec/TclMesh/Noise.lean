@@ -505,6 +505,28 @@ theorem analyze_append (D : Discipline) :
   | nil => intro b; simp [analyze]
   | cons g gs ih => intro b; simp only [List.cons_append, analyze, ih]; cases checkedStep D s g <;> simp
 
+theorem evalV_append (inp : Nat → Int) :
+    ∀ (xs : List Int) (a b : List Gate), evalV inp xs (a ++ b) = evalV inp (evalV inp xs a) b := by
+  intro xs a
+  induction a generalizing xs with
+  | nil => intro b; rfl
+  | cons g gs ih => intro b; exact ih _ b
+
+/-- Fresh inputs are checked once their block is admissible. -/
+theorem analyze_inputs (D : Discipline) (hD : admissible D ⟨0, D.msgMax, 1⟩ = true) :
+    ∀ (s : List Abs) (l : List Nat), analyze D s (l.map .input) = some (s ++ l.map fun _ => ⟨0, D.msgMax, 1⟩) := by
+  intro s l
+  induction l generalizing s with
+  | nil => simp [analyze]
+  | cons x xs ih => simp [analyze, checkedStep, stepAbs, hD, ih]
+
+theorem evalV_inputs (inp : Nat → Int) :
+    ∀ (xs : List Int) (l : List Nat), evalV inp xs (l.map .input) = xs ++ l.map inp := by
+  intro xs l
+  induction l generalizing xs with
+  | nil => simp [evalV]
+  | cons x xs' ih => simp [evalV, stepV, ih]
+
 theorem getD_getElem {α} {l : List α} {j : Nat} {d a : α} (hj : j < l.length)
     (h : l.getD j d = a) : l[j] = a := by
   simpa [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj] using h
