@@ -39,6 +39,15 @@ class ThresholdClaimDiagnosticsTests(unittest.TestCase):
         self.assertIn("every_authorized_q_subset_can_reconstruct",
                       x["unverified_obligations"])
 
+    def test_kms_sample_is_not_compatible_with_any_four_party_quorum(self):
+        # With r_output=3 the release quorum must be >=3, but with
+        # f_priv=1 the claimed secrecy threshold can be at most 2.
+        # Thus no q in [1,4] satisfies both necessary conditions.
+        for q in range(1, 5):
+            with self.subTest(quorum=q):
+                x = M.assess(self.claim(q=q))
+                self.assertEqual(x["status"], "CLAIMS_REJECTED")
+
     def test_response_count_above_policy_quorum_is_rejected(self):
         x = M.assess(self.claim(privacy=2, responses=4))
         self.assertIn("requires_more_responses_than_policy_quorum", x["blockers"])
