@@ -36,6 +36,21 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_TCLMESH_SHA"
           test -z "$(git status --porcelain --untracked-files=normal)"
 
+      - name: Diagnose anonymous public GitHub source access
+        shell: bash
+        run: |
+          # HTTP statuses are diagnostic only. Neither a 200 nor a 404 proves
+          # anything about the existence/authenticity of the target Git object.
+          set +e
+          for item in \
+            'https://github.com/zama-ai/kms.git/info/refs?service=git-upload-pack' \
+            'https://api.github.com/repos/zama-ai/kms' \
+            'https://api.github.com/repos/zama-ai/kms/commits/afcc7e5a48c31f7c3772b1799c8e856c8e3166f1'; do
+            code=$(curl --location --silent --show-error --max-time 15 \
+              --output /dev/null --write-out '%{http_code}' "$item")
+            printf 'Public source probe: %s => HTTP %s\\n' "$item" "$code"
+          done
+
       - name: Fetch exact KMS source pin outside TclMesh checkout
         shell: bash
         run: |
