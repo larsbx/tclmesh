@@ -27,7 +27,7 @@ def sha256(path: Path) -> str:
 
 def git(repo: Path, *args: str) -> str:
     completed = subprocess.run(
-        ["git", "-C", str(repo), *args], check=True,
+        ["git", "--no-replace-objects", "-C", str(repo), *args], check=True,
         capture_output=True, text=True, timeout=15,
     )
     return completed.stdout.strip()
@@ -45,10 +45,11 @@ def lock_versions(lock: Path) -> dict[str, list[str]]:
 
 
 def verify_committed_file(root: Path, relative: Path) -> str:
-    """Read only files tracked *at HEAD* and byte-identical to HEAD.
+    """Require real HEAD bytes, not a replacement object or ignored file.
 
-    Git's nearest-repository behavior and ignored files are not evidence of a
-    pinned checkout. Reject both, including symlinks pointing out of the tree.
+    Git's nearest-repository behavior, ignored files and replacement objects
+    are not evidence of a pinned checkout. Reject them even when a local
+    working tree seems clean.
     """
     name = relative.as_posix()
     if relative.is_absolute() or ".." in relative.parts:
@@ -58,7 +59,7 @@ def verify_committed_file(root: Path, relative: Path) -> str:
         raise ValueError(f"non-regular or missing source: {name}")
     git(root, "ls-files", "--error-unmatch", "--", name)
     committed = subprocess.run(
-        ["git", "-C", str(root), "show", "HEAD:" + name],
+        ["git", "--no-replace-objects", "-C", str(root), "show", "HEAD:" + name],
         check=True, capture_output=True, timeout=15,
     ).stdout
     digest = sha256(path)
