@@ -122,6 +122,26 @@ class SourcePreflightTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             self._report()
 
+    def test_reject_replaced_commit_object(self):
+        # An attacker could replace the bad HEAD object with a good commit,
+        # then checkout the substituted bytes while HEAD keeps the bad SHA.
+        good_head = MODULE.git(self.kms, "rev-parse", "HEAD")
+        (self.kms / "Cargo.lock").write_text(LOCK.format(version="1.6.2"))
+        self._commit_modified()
+        bad_head = MODULE.git(self.kms, "rev-parse", "HEAD")
+        run("git", "-C", str(self.kms), "replace", bad_head, good_head)
+        run("git", "-C", str(self.kms), "checkout", "-qf", "--detach", bad_head)
+
+        # The pristine original commit remains the authority, regardless
+        # of whether this Git version materializes the replacement checkout.
+        try:
+            report = self._report(bad_head)
+        except ValueError as exc:
+            self.assertIn("does not match HEAD", str(exc))
+        else:
+            self.assertEqual(report["status"], "BLOCKED")
+            self.assertIn("tfhe_locked_versions_differ", report["blockers"])
+
     def test_report_includes_committed_file_digests(self):
         data = self._report()
         self.assertIn("backends/tfhe/Cargo.lock",
