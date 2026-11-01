@@ -1,0 +1,40 @@
+{
+  "schema": "tclmesh.threshold-backend-decision.v1",
+  "date": "2026-11-01",
+  "decision": "INTEGRATION_BLOCKED",
+  "cryptographic_release_admitted": false,
+  "scope": "additional_pinned_source_review_only",
+  "fhenix": {
+    "repo": "FhenixProtocol/thresholdfhe-paper",
+    "pin": "19b0f0a5a71b67badb85c3c8715b3eba7e866f79",
+    "source_files": 251,
+    "source_tree_sha256": "c3fd86d6d49d203b244158aac116334753b3ef16acb851866f5c986637305e57",
+    "tree_digest_encoding": "SHA256 of UTF-8 JSON mapping every sorted tracked path to its SHA256; sort_keys=True, separators=(',', ':')",
+    "verification": "Existing tools/threshold_snapshot_probe.py source_files checked every file against pinned Git blob identity; git fsck --full passed",
+    "selected_sha256": {
+      "Cargo.toml": "82442b3ee67ebbd4fb7b74238047f57f3139a188975bb101de36d8b4078a373a",
+      "src/mpc/preprocessing.rs": "a09309421650519e58ea854c882e7bd833afe4ae5c7d22c20600906edb0e3d78",
+      "src/mpc/mac_scheme.rs": "c36139a6b36f8165dadfa0cf9c527bfbb41035bc4b40ee28e53ba11ddc9750bc",
+      "src/network/worker.rs": "d4f1379fd1b85b9e245cc3e6a2f24c99a36fd725029583db6750b1c84ba82676"
+    },
+    "observations": [
+      "Preprocessing::run takes complete sk and centrally constructs all party shares",
+      "Local batch_open creates MAC shares from supplied current values using global alpha; batch_check can reject an inconsistent supplied relation but does not authenticate computation history",
+      "Network worker waits for n-1 peer messages at each step",
+      "No MP-SPDZ preprocessing importer or authenticated fixed-four-holder active-three conversion identified in tracked source and setup/worker paths"
+    ]
+  },
+  "prior_evidence": [
+    "threshold-backend-source-review-20261101.json",
+    "threshold-alternatives-source-review-20261101.json",
+    "threshold-fhenix-native-probe-20261101.json",
+    "threshold-zama-regression-probe-20261101.json"
+  ],
+  "limits": [
+    "No new native execution or actual multiparty FHE decryption",
+    "No author signature, binary attestation or independent cryptographic proof verification",
+    "No impossibility or implementation-insecurity claim",
+    "Security with abort is distinct from guaranteed output under Byzantine faults",
+    "Admission requires distributed custody, authenticated fixed-keyset any-three protocol, TFHE compatibility and recipient-only verified output"
+  ]
+}
