@@ -1,0 +1,60 @@
+{
+  "cryptographic_release_admitted": false,
+  "date": "2026-11-01",
+  "documents": [
+    {
+      "bytes": 1019809,
+      "sha256": "c6f3ec9bcf559928611f400a1500d5bf6c3bd8583a97a130f47b4f64637c7e57",
+      "url": "https://arxiv.org/pdf/2610.20521"
+    },
+    {
+      "bytes": 353408,
+      "sha256": "1d6607fcf277c16b8e2c0c5f5c8b28f2f5916c547b6c06a540f527654156e42a",
+      "url": "https://csrc.nist.gov/csrc/media/Projects/threshold-cryptography/documents/TCall-1/Tulva-PW03.pdf"
+    }
+  ],
+  "fhenix": {
+    "pin": "19b0f0a5a71b67badb85c3c8715b3eba7e866f79",
+    "repo": "FhenixProtocol/thresholdfhe-paper",
+    "selected_sha256": {
+      "Cargo.lock": "9c2cd7e793213c05ed2d7ab154b7fdcc5b8c8d3efc2c45246904f2a321a0d029",
+      "Cargo.toml": "82442b3ee67ebbd4fb7b74238047f57f3139a188975bb101de36d8b4078a373a",
+      "src/mpc/additive_sharing.rs": "b206d730e6ff25455d4dbe3d3d9635b89113f91457e3a25e83d760d75903468d",
+      "src/mpc/lwe_scheme.rs": "e34d61b6b13a7708f11c9c0a4a4206eae6f9832e227d0707668c826f666f5caf",
+      "src/mpc/mac_scheme.rs": "c36139a6b36f8165dadfa0cf9c527bfbb41035bc4b40ee28e53ba11ddc9750bc",
+      "src/mpc/main.rs": "a7eb64c422371d337bee7fb770f79538ec9f01f99d9c7888674954b1960ef1d8",
+      "src/mpc/party.rs": "4e1e177657a9d84e20fb94b77e56ae81bd2d37b238236ad96e17add46e6b84bf",
+      "src/mpc/protocol.rs": "aa8922528fea5a889e47e57b27cc31f773272bfc88898752a9837010f3fd84de",
+      "src/network/discovery_server.rs": "b148f76a268bace57d438941c512336df9c565a0f35a8c771dcd31aa64dc6da6"
+    },
+    "source_files": 251,
+    "tfhe_crates": []
+  },
+  "limits": [
+    "Repository-pinned Git bytes and HTTPS documents; no author signature or binary attestation",
+    "Fhenix native checks witness direct-method limitations; no network exploit or production theorem failure established",
+    "No actual threshold FHE ciphertext decryption, distributed setup or recipient-only release demonstrated"
+  ],
+  "native_records": {
+    "fhenix": {
+      "native_tests": 4,
+      "receipt": "threshold-fhenix-native-probe-20261101.json",
+      "status": "NATIVE_PRIMITIVES_ONLY"
+    },
+    "zama": {
+      "native_tests": 6,
+      "receipt": "threshold-zama-regression-probe-20261101.json",
+      "status": "NATIVE_PRIMITIVES_ONLY"
+    }
+  },
+  "schema": "tclmesh.threshold-alternatives-source-review.v1",
+  "tulva": {
+    "implementation_source_obtained": false,
+    "pin": "c13a15c010fc7b5dc1601fb5898bf54193f4deed",
+    "readme_sha256": "e2ad70be92c574b3a09704664726689c721ddc48521a69e0457919cb23e5f7b0",
+    "repo": "osdnk/tulva",
+    "tracked_files": [
+      "README.md"
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "cryptographic_release_admitted": false,
+  "date": "2026-11-01",
+  "kms_candidate": {
+    "commit": "afcc7e5a48c31f7c3772b1799c8e856c8e3166f1",
+    "limits": "404 does not establish repository deletion, privacy status or incompatibility",
+    "repo": "zama-ai/kms",
+    "retrieval": "GitHub connection commit API and v0.14.2 tag API returned 404",
+    "source_authenticated": false
+  },
+  "limits": [
+    "Repository identity/transport and Git object hashes checked; no author/release signature verification",
+    "Pinned bytes and documentation reviewed; not a complete cryptographic code audit",
+    "No native backend build, secure DKG, multiparty decryption or negative cryptographic experiment performed"
+  ],
+  "repository_file_reviews": [
+    {
+      "blob": "fe40baf26c652b64b725bb621441f53fb5e32e3b",
+      "commit": "7abb8d5dec86c6cc609e29540ddfc0c16864e14b",
+      "path": "SECURITY.md",
+      "repo": "tuneinsight/lattigo",
+      "retrieval": "GitHub connection, file at exact repository commit; Git blob identity checked",
+      "sha256": "6f433faf32f53a1a2b9b1c1ce2dcfd2089560dd810ad15ace4f0fdde99319801"
+    },
+    {
+      "blob": "48d708820acd59f3c4b1b9e06c4c11ea0f002062",
+      "commit": "7abb8d5dec86c6cc609e29540ddfc0c16864e14b",
+      "path": "multiparty/README.md",
+      "repo": "tuneinsight/lattigo",
+      "retrieval": "GitHub connection, file at exact repository commit; Git blob identity checked",
+      "sha256": "85b763e5dffcdd0ba25a3f54796e6291bcedd9a88b1d63dff1bfb7e8a85a5ab2"
+    },
+    {
+      "blob": "26353bc78536b1b45119293426add47bc3265afc",
+      "commit": "b59e1f291965f14fbee5172cd83a20f5b856204f",
+      "path": "docs/sphinx_rsts/intro/security.rst",
+      "repo": "openfheorg/openfhe-development",
+      "retrieval": "GitHub connection, file at exact repository commit; Git blob identity checked",
+      "sha256": "369df6bb2d9782d7774e28defa599d29e17f3e0de777de53d2df2c8742cec07e"
+    },
+    {
+      "blob": "4e523e72715a94df935020211f215cb93dd66f2d",
+      "commit": "b59e1f291965f14fbee5172cd83a20f5b856204f",
+      "path": "src/pke/include/cryptocontext.h",
+      "repo": "openfheorg/openfhe-development",
+      "retrieval": "GitHub connection, file at exact repository commit; Git blob identity checked",
+      "sha256": "c8a57e88b446645643c653e03d8482bcfb2b24e836b88a2100d53b5de6c65beb"
+    }
+  ],
+  "schema": "tclmesh.threshold-source-review.v1",
+  "status": "SOURCE_REVIEW_ONLY",
+  "tclmesh_lock": {
+    "commit": "56b82073e1ad6d0b50123cf40197f742a8b76b49",
+    "crates": {
+      "tfhe": [
+        "1.8.2"
+      ],
+      "tfhe-zk-pok": [
+        "0.9.0"
+      ]
+    },
+    "sha256": "d6997fa32b303b433962d769ed4974a74d8048ef1388f5a04d1de33112bc769c"
+  },
+  "threshold_fhe_snapshot": {
+    "cargo_lock_sha256": "e0524c17849cfe12e1f43856be26aa664b3beafcdae9db04a5c3ec94d957be5c",
+    "crates": {
+      "tfhe": [
+        "1.0.1"
+      ],
+      "tfhe-zk-pok": [
+        "0.5.0"
+      ]
+    },
+    "head": "c668fdd32a33270fc3ad2fd92b49267b734463dd",
+    "repo": "zama-ai/threshold-fhe",
+    "retrieval": "official repository Git clone; no replacement objects; git fsck --full --no-dangling passed",
+    "tracked_dirty": false,
+    "verified_source_digests": {
+      "Cargo.lock": "e0524c17849cfe12e1f43856be26aa664b3beafcdae9db04a5c3ec94d957be5c",
+      "Cargo.toml": "49d9dd3c1b5714c6feb98408be3ecb676e280180c4ebabc5da64f827c08d5e2e",
+      "README.md": "ad53e17b01cb8e03665397d3f1588abaf642ac6232b3c41dfef5b5d329ebed9a",
+      "docs/CryptographicDocumentation.pdf": "d0c48bbb34da4fde3ec64decea7f8877e3fd410742bba48d8c8898bb38883a14",
+      "docs/threshold-benchmark.md": "34d6d0efd099580bf82f939c36f65c5f6bc3973d6460203059c86b46d4fd65d9",
+      "examples/distributed_decryption.rs": "5994463bc584f2566bcfd9d3c3ec3ebcd3cc405d3a4d455c430912347bded27e",
+      "src/algebra/poly.rs": "414a39582e8539a180a12095ce46f0aac65fe4320b5f4eb6ddb8312cfca1e7f6",
+      "src/execution/runtime/session.rs": "db7721489af1a51d9cdbb0bbdbe3c3fed4718a2912dcdf74cdec17636a5fae99",
+      "src/execution/sharing/shamir.rs": "9b25271fcd00f03621fb13336f09c0b9c765f1d8dbea9a83f60779c4a03dba00"
+    }
+  }
+}

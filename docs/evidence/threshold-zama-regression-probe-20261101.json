@@ -1,0 +1,55 @@
+{
+  "candidate": "zama-snapshot",
+  "command": [
+    "cargo",
+    "--config",
+    "profile.test.opt-level=0",
+    "--config",
+    "profile.test.package.\"*\".opt-level=0",
+    "--config",
+    "profile.test.debug=0",
+    "test",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "2",
+    "--target-dir",
+    "/workspace/scratch/de4a1d875be2/threshold-native-target",
+    "--test",
+    "tclmesh_threshold_primitive_probe",
+    "--",
+    "--test-threads=1"
+  ],
+  "cryptographic_release_admitted": false,
+  "date": "2026-11-01",
+  "expected_tests": [
+    "degree_one_all_four_honest_triples_robust_open",
+    "degree_one_all_six_raw_share_pairs_reconstruct",
+    "degree_one_four_responses_correct_one_corrupted_raw_share",
+    "degree_one_two_responses_do_not_complete_robust_open",
+    "degree_two_all_four_raw_triples_reconstruct",
+    "degree_two_four_party_robust_open_rejects_fault_bounds"
+  ],
+  "limits": [
+    "Not an FHE ciphertext decryption or an independently operated multiparty deployment",
+    "Not a KMS v0.14.2 build, share-proof verifier or production security proof",
+    "No distributed key custody, recipient-only release or TclMesh wire compatibility established",
+    "Local build environment is not hermetic or independently attested"
+  ],
+  "native_output_sha256": "5d3c9b1086ab8ca8367bbcd424be090b162e2a21c8e60b5341c0b5c575005361",
+  "native_output_tail": "\nrunning 6 tests\ntest degree_one_all_four_honest_triples_robust_open ... ok\ntest degree_one_all_six_raw_share_pairs_reconstruct ... ok\ntest degree_one_four_responses_correct_one_corrupted_raw_share ... ok\ntest degree_one_two_responses_do_not_complete_robust_open ... ok\ntest degree_two_all_four_raw_triples_reconstruct ... ok\ntest degree_two_four_party_robust_open_rejects_fault_bounds ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n\n   Compiling threshold-fhe v0.1.0 (/tmp/tclmesh-native-primitives-rz1vxp1l/source)\n   Compiling conf-trace v0.1.0 (/tmp/tclmesh-native-primitives-rz1vxp1l/source/conf-trace)\nwarning: unused import: `error`\n --> conf-trace/src/grpc.rs:5:15\n  |\n5 | use tracing::{error, trace, warn, Level, Span};\n  |               ^^^^^\n  |\n  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `conf-trace` (lib) generated 1 warning (run `cargo fix --lib -p conf-trace` to apply 1 suggestion)\n    Finished `test` profile [unoptimized] target(s) in 21.03s\n     Running tests/tclmesh_threshold_primitive_probe.rs (/workspace/scratch/de4a1d875be2/threshold-native-target/debug/deps/tclmesh_threshold_primitive_probe-bbc7e58afbad0877)\n",
+  "returncode": 0,
+  "runner_sha256": "65395ddcf1ffa83348c9b6e9e193f29021bb44bd9bc1420fc3299aade4ef16fe",
+  "schema": "tclmesh.threshold-native-primitive-probe.v1",
+  "scope": "native_sharing_primitives_with_public_fixtures",
+  "source_files": 209,
+  "source_pin": "c668fdd32a33270fc3ad2fd92b49267b734463dd",
+  "source_tree_sha256": "640143fd7cebe260a72218858910fdc81d8f90d5391abf86c7f236ebf3688c58",
+  "status": "NATIVE_PRIMITIVES_ONLY",
+  "test_overlay_sha256": "bbe2dc109828d128b77d18b6c51009f1f0ca30b2b44eec8ff05d299bce07fa59",
+  "toolchain": {
+    "cargo": "cargo 1.93.1 (083ac5135 2025-12-15)",
+    "protoc": "libprotoc 3.21.12",
+    "rustc": "rustc 1.93.1 (01f6ddf75 2026-02-11)"
+  }
+}

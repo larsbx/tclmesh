@@ -3,6 +3,10 @@
 Date: 2026-10-30. Tracks [issue #36](https://github.com/larsbx/tclmesh/issues/36).
 This correction is independently reviewable and does not complete that issue.
 
+Follow-up: [2026-11-01 backend evaluation](threshold-backend-evaluation.md)
+compares authenticated repository bytes, security-model limits and acceptance
+tests. No reviewed production threshold profile has been enabled.
+
 ## Current implemented security boundary
 
 | Mode/capability | Accepted inputs and implementation | Claim |
