@@ -46,6 +46,14 @@ need verification. Larger deployments, a different response count, or setting
 `threshold=2` in a config cannot repair the four-party claim. Do not extrapolate
 the example's bounds to other deployments or infer a universal impossibility.
 
+The native follow-up now checks the snapshot's primitives directly: all six raw
+degree-one share pairs reconstruct a public fixture, while the asynchronous robust
+API completes for all four honest triples and remains pending for two responses.
+Degree-two raw triples reconstruct, but the snapshot's robust-opening algorithms
+reject four-party configurations at fault bounds one and two. These results
+illustrate the access/response distinction and a specific protocol limitation;
+they are not a KMS ciphertext attack or a blanket impossibility result.
+
 ## Source and proof evidence
 
 The [source receipt](evidence/threshold-backend-source-review-20261101.json)
@@ -98,17 +106,22 @@ Specific inspected evidence:
 | Recipient release | KMS user-decryption candidate, not public output; exact recipient key and request binding verified at recipient | Collective public-key switching is a potential recipient-only mechanism in Lattigo; active correctness and retry security remain missing |
 | Lean contract | Map actual native verification to `Release.Verified.validShare` and `canCombine`; MPC result verification may need a transcript/result model | Same obligations; library signatures or opaque payloads cannot instantiate `verifyProof` |
 
-No backend build or actual multiparty decryption was performed in this evaluation.
+The initial source-review stage did not build a backend. The subsequent
+[pinned native primitive probe](../experiments/threshold_snapshot/README.md)
+compiled the older snapshot and exercised raw sharing/reconstruction only.
+No actual multiparty FHE ciphertext decryption was performed.
 The existing Lean theorems are conditional on named cryptographic soundness
 hypotheses, not proofs of KMS, Lattigo or OpenFHE. Do not add axioms, `sorry`, or
 an adapter that treats a signature as partial-decryption correctness.
 
-Local validation of this change: 21 synthetic Python provenance/policy tests pass;
+Initial local validation: 21 synthetic Python provenance/policy tests pass;
 the Tcl suite reports 196 passed, 29 TFHE-dependent skipped, zero failed. All
 three existing threshold boundary mutants are rejected, and the release self-check
 passes. An isolated Python mutant disabling the new release-policy exit gate is
-also rejected. These validate diagnostics and refusal boundaries only. Native
-TFHE/KMS integration and Lean builds were not run; no Lean definitions changed.
+also rejected. The native follow-up adds 15 runner-integrity controls (36 Python
+tests total). Native TFHE/KMS integration and Lean builds were not run; no Lean
+definitions changed. Native primitive results and their limits are recorded in
+the experiment's separate receipt; no runtime threshold capability is enabled.
 
 ## Integration path and acceptance gates
 
