@@ -36,7 +36,7 @@ jobs:
         run: tclsh tests/all.tcl
       - name: Threshold boundary mutants must be rejected
         run: python3 tools/check_threshold_boundary_mutants.py
-      - name: KMS provenance and release-policy negative controls (not cryptographic conformance)
+      - name: Threshold provenance, policy and claim controls (not cryptographic conformance)
         run: python3 -m unittest discover -s tests -p 'test_threshold*.py'
       - name: Run release self-check
         run: tclsh tools/release_check.tcl
