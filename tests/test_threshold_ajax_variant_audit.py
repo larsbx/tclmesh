@@ -18,7 +18,7 @@ OLD = {
     "thfhe/src/key_gen.rs": "noise_distribution_div_count(noise_number);\n",
     "thfhe/src/secret_key.rs": "secret-key old\n",
     "thfhe/examples/thfhe.rs": "if party_id <= threshold { run(); }\n",
-    "mpc/src/dn.rs": "//! n > 2t; semi-honest\nif self.triplez2k_buffer.is_empty() { return (0, 0, 0); }\n",
+    "mpc/src/dn.rs": "//! n > 2t; semi-honest\nif self.triplez2k_buffer.is_empty() { return (0, 0, 0); }\nlet triples = self.next_triple_z2k();\nlet d = a[i] - r; let e = b[i] - s;\nopen_secrets_z2k(0, self.num_threshold, &masked_values, true);\n",
     "thfhe/Cargo.toml": (
         '[dependencies]\n'
         'algebra = { git = "https://github.com/serendipity-crypto/primus-fhe", branch = "ajax" }\n'
@@ -33,7 +33,7 @@ ALT = {
     "thfhe/src/key_gen.rs": "noise_distribution_multi_party(noise_number);\n",
     "thfhe/src/secret_key.rs": "secret-key changed\n",
     "thfhe/examples/thfhe.rs": "// changed demo\n",
-    "mpc/src/dn.rs": "//! another version n > 2t; semi-honest\nif self.triplez2k_buffer.is_empty() { return (0, 0, 0); }\n",
+    "mpc/src/dn.rs": "//! another version n > 2t; semi-honest\nif self.triplez2k_buffer.is_empty() { return (0, 0, 0); }\nlet triples = self.next_triple_z2k();\nlet d = a[i] - r; let e = b[i] - s;\nopen_secrets_z2k(0, self.num_threshold, &masked_values, true);\n",
     "thfhe/Cargo.toml": (
         '[dependencies]\n'
         'algebra = { path = "../algebra" }\n'
@@ -137,6 +137,8 @@ class VersionVariantAuditTests(unittest.TestCase):
         self.assertTrue(differences["alternative_concrete_ntt_floating_branch"])
         self.assertTrue(differences["ajax_empty_triple_fallback_zero"])
         self.assertTrue(differences["alternative_empty_triple_fallback_zero"])
+        self.assertTrue(differences["ajax_zero_triple_feeds_masked_opening"])
+        self.assertTrue(differences["alternative_zero_triple_feeds_masked_opening"])
         self.assertEqual(differences["ajax_imports_unresolved_git_ajax_branch"],
                          ["algebra", "fhe_core", "lattice"])
 
