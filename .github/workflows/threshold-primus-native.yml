@@ -53,17 +53,18 @@ jobs:
         id: compile
         shell: bash
         run: |
-          set -uo pipefail
+          set -euo pipefail
           rustc -Vv > research-output/rustc-version.txt
           cargo -V > research-output/cargo-version.txt
-          # Resolve all registry dependencies to an artifact-stored exact lockfile.
-          cargo generate-lockfile --manifest-path primus-source/Cargo.toml \
-            > research-output/lock-resolution.log 2>&1
-          lock_status=$?
-          echo "lock_exit=$lock_status" >> research-output/scope.txt
-          if [ "$lock_status" -ne 0 ]; then
-            echo 'Unable to generate a fully resolved lock: no native acceptance'
-            exit "$lock_status"
+          # Resolve registry packages and pin Git dependencies in the artifact lock.
+          if cargo generate-lockfile --manifest-path primus-source/Cargo.toml \
+               > research-output/lock-resolution.log 2>&1; then
+            echo 'lock_exit=0' >> research-output/scope.txt
+          else
+            rc=$?
+            echo "lock_exit=$rc" >> research-output/scope.txt
+            echo 'No fully resolved lock: native acceptance remains unavailable'
+            exit "$rc"
           fi
           python3 - <<'PY'
           import tomllib
@@ -76,12 +77,15 @@ jobs:
                                     for x in candidates), candidates
           PY
           # Compile-only: a passing cargo check does not exercise real DKG/FHE.
-          cargo check --manifest-path primus-source/Cargo.toml \
-            --package thfhe --example thfhe --locked \
-            > research-output/native-cargo-check.log 2>&1
-          build_status=$?
-          echo "native_compile_exit=$build_status" >> research-output/scope.txt
-          exit "$build_status"
+          if cargo check --manifest-path primus-source/Cargo.toml \
+               --package thfhe --example thfhe --locked \
+               > research-output/native-cargo-check.log 2>&1; then
+            echo 'native_compile_exit=0' >> research-output/scope.txt
+          else
+            rc=$?
+            echo "native_compile_exit=$rc" >> research-output/scope.txt
+            exit "$rc"
+          fi
       - name: Publish public research build provenance even on failure
         if: always()
         uses: actions/upload-artifact@v4
