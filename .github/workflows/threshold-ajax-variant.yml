@@ -1,0 +1,74 @@
+name: Ajax exact-source variant audit (research only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/threshold-ajax-variant.yml'
+      - 'tools/threshold_ajax_variant_audit.py'
+      - 'tests/test_threshold_ajax_variant_audit.py'
+      - 'docs/threshold-ajax-variant-audit.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  variant-source-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exact-commit synthetic provenance and mismatch tests (not crypto)
+        run: python3 -m unittest discover -s tests -p 'test_threshold_ajax_variant_audit.py' -v
+      - name: Compare strictly pinned public Ajax and Primus source variants
+        shell: bash
+        run: |
+          set -euo pipefail
+          d="$(mktemp -d)"
+          trap 'rm -rf "$d"' EXIT
+          # Deliberately clone the two separately documented repositories. The
+          # alternative is NOT an authenticated copy of the missing ajax branch.
+          git clone --quiet --depth 1 --single-branch --branch main \
+            https://github.com/primus-labs/Ajax.git "$d/ajax"
+          git clone --quiet --depth 1 --single-branch --branch thfhe \
+            https://github.com/primus-labs/primus-fhe.git "$d/alternative"
+          test "$(git -C "$d/ajax" rev-parse HEAD)" = \
+            64b4f80fb90da3096e03af200d3c95abe865a987
+          test "$(git -C "$d/alternative" rev-parse HEAD)" = \
+            a0d075d9ec055fb8652925fee65768a14a627cfa
+          mkdir -p research-output
+          PYTHONDONTWRITEBYTECODE=1 python3 tools/threshold_ajax_variant_audit.py \
+            --ajax "$d/ajax" --alternative "$d/alternative" \
+            > research-output/ajax-variant-source-audit.json
+          python3 - <<'PY'
+          import json
+          with open('research-output/ajax-variant-source-audit.json', encoding='utf-8') as f:
+              r = json.load(f)
+          assert r['status'] == 'SOURCE_VARIANTS_DIFFER_REVIEW_REQUIRED'
+          assert not r['candidate_dependency_equivalence_established']
+          assert not r['candidate_security_equivalence_established']
+          assert not r['cryptographic_tests_executed']
+          assert not r['cryptographic_release_admitted']
+          assert len(r['differences']['source_blobs_differ']) == 6
+          PY
+          # A verification flag must *fail*, not silently bless the overlay.
+          if PYTHONDONTWRITEBYTECODE=1 python3 tools/threshold_ajax_variant_audit.py \
+             --ajax "$d/ajax" --alternative "$d/alternative" \
+             --require-cryptographic-release > research-output/deny-only.json; then
+             echo "ERROR: source comparison promoted to cryptographic release"
+             exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          with open('research-output/deny-only.json', encoding='utf-8') as f:
+              r = json.load(f)
+          assert r['status'] == 'SOURCE_VARIANTS_DIFFER_REVIEW_REQUIRED'
+          assert r['cryptographic_release_admitted'] is False
+          PY
+      - name: Attach public source-only receipts (not a cryptographic certificate)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ajax-source-variant-receipt
+          path: research-output/*.json
+          if-no-files-found: ignore
