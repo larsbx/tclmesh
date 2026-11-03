@@ -82,6 +82,30 @@ jobs:
           assert r['status'] == 'BLOCKED'
           assert r['cryptographic_release_admitted'] is False
           PY
+      - name: Execute patched Rust helper unit tests without external FHE dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Compile the *actual inserted helper source* in isolation, so the
+          # fail-before-open primitives are exercised even if old Cargo deps fail.
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('primus-research/mpc/src/dn.rs').read_text(encoding='utf-8')
+          begin=source.index('// TclMesh #49 research-only modified-overlay hardening.')
+          end=source.index('/// MPC backend implementing', begin)
+          tests=source.index('#[cfg(test)]\nmod tclmesh_research_preprocessing_tests')
+          helper=source[begin:end]
+          unit=source[tests:]
+          Path('research-output/isolated-preprocessing-helpers.rs').write_text(
+              'use std::collections::VecDeque;\n' + helper + '\n' + unit,
+              encoding='utf-8')
+          PY
+          rustc --edition=2021 --test research-output/isolated-preprocessing-helpers.rs \
+            -o /tmp/primus-preprocessing-helper-tests \
+            > research-output/rustc-helper-compile.log 2>&1
+          /tmp/primus-preprocessing-helper-tests \
+            > research-output/rustc-helper-unit-tests.log 2>&1
+          echo 'native_isolated_helper_tests=passed' >> research-output/scope.txt
       - name: Resolve complete dependency lock; run native patch regression unit tests
         shell: bash
         run: |
