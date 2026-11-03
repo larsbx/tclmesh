@@ -1,0 +1,63 @@
+name: proof-extraction
+
+# Provenance of the Aeneas translation: rebuild the pinned Charon and Aeneas
+# and regenerate proof/TclMeshProof/Core from kernel/core. The test.yml
+# `proof` job only checks the source digest and the committed translation, so
+# a stale translation committed together with a refreshed digest would pass
+# there; it cannot pass here.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'kernel/core/**'
+      - 'proof/**'
+      - '.github/workflows/proof-extraction.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pins are consistent (pins file = lakefile = Aeneas' locked Charon)
+        id: pins
+        run: |
+          set -eu
+          . proof/extraction-pins.env
+          grep -Fx "rev = \"$AENEAS_REV\"" proof/lakefile.toml
+          echo "aeneas=$AENEAS_REV" >> "$GITHUB_OUTPUT"
+          echo "charon=$CHARON_REV" >> "$GITHUB_OUTPUT"
+      # Same Nix setup and binary cache as Aeneas' own CI.
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-substituters = https://hacl.cachix.org
+            extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
+      - name: Build pinned Aeneas and Charon
+        id: tools
+        env:
+          FLAKE: github:AeneasVerif/aeneas/${{ steps.pins.outputs.aeneas }}
+        run: |
+          set -eu
+          locked=$(nix flake metadata "$FLAKE" --json \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["locks"]["nodes"]["charon"]["locked"]["rev"])')
+          test "$locked" = "${{ steps.pins.outputs.charon }}" || {
+            echo "Aeneas $FLAKE locks charon $locked, pins file says ${{ steps.pins.outputs.charon }}"
+            exit 1
+          }
+          echo "aeneas=$(nix build -L --no-link --print-out-paths "$FLAKE#aeneas")/bin/aeneas" >> "$GITHUB_OUTPUT"
+          echo "charon=$(nix build -L --no-link --print-out-paths "$FLAKE#charon")/bin/charon" >> "$GITHUB_OUTPUT"
+      - name: Committed translation and digest equal the regenerated ones
+        env:
+          AENEAS: ${{ steps.tools.outputs.aeneas }}
+          CHARON: ${{ steps.tools.outputs.charon }}
+        run: proof/extract.sh --check

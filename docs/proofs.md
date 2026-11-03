@@ -118,10 +118,18 @@ kernel lowers each JSON predicate to `predicate::Pred` exactly as
 the subset Aeneas translates: loops without early return, slices, `Vec`, enums,
 no `?` on `Option`, no traits beyond derives.
 
-`proof/extract.sh` runs Charon and Aeneas, both pinned, and regenerates
+`proof/extract.sh` runs Charon and Aeneas, both pinned in
+`proof/extraction-pins.env`, and regenerates
 `proof/TclMeshProof/Core/Core.lean`, a pure Lean model of that Rust code.
-`proof/CORE_SOURCE.sha256` records the sources it was generated from, and CI
-fails if they change without regeneration. The model contains no axioms.
+`proof/CORE_SOURCE.sha256` records the sources it was generated from, and the
+`test` workflow fails if they change without regeneration. The digest alone
+cannot catch a stale translation committed with a refreshed digest, so the
+`proof-extraction` workflow builds the pinned tools from Aeneas' flake. It
+checks that the Charon locked there is the pinned one, and that the
+Aeneas pin equals the Lean library pin in `lakefile.toml`. It then runs
+`proof/extract.sh --check`, which regenerates into a scratch tree and diffs
+both the translation and the digest against the committed files. The model
+contains no axioms.
 
 | File | Theorem | Statement |
 |---|---|---|
