@@ -164,6 +164,17 @@ def audit(ajax: Path, alternative: Path) -> dict:
         "alternative_empty_triple_fallback_zero":
             "if self.triplez2k_buffer.is_empty()" in b_mpc
             and "return (0, 0, 0);" in b_mpc,
+        # The same MPC source consumes triples as multiplication masks and
+        # opens differences. Exhaustion may therefore feed known-zero masks
+        # into an opening operation; proof of exploit requires native analysis.
+        "ajax_zero_triple_feeds_masked_opening":
+            "self.next_triple_z2k()" in a_mpc
+            and "a[i] - r" in a_mpc and "b[i] - s" in a_mpc
+            and "open_secrets_z2k(0, self.num_threshold, &masked_values, true)" in a_mpc,
+        "alternative_zero_triple_feeds_masked_opening":
+            "self.next_triple_z2k()" in b_mpc
+            and "a[i] - r" in b_mpc and "b[i] - s" in b_mpc
+            and "open_secrets_z2k(0, self.num_threshold, &masked_values, true)" in b_mpc,
     }
     if len(differences["source_blobs_differ"]) < 1:
         raise ValueError("unexpected identical variant: re-review source classification")
@@ -176,6 +187,8 @@ def audit(ajax: Path, alternative: Path) -> dict:
         "alternative_concrete_ntt_floating_branch",
         "ajax_empty_triple_fallback_zero",
         "alternative_empty_triple_fallback_zero",
+        "ajax_zero_triple_feeds_masked_opening",
+        "alternative_zero_triple_feeds_masked_opening",
     )):
         raise ValueError("expected semantics-relevant source difference not observed")
     return {
@@ -192,7 +205,7 @@ def audit(ajax: Path, alternative: Path) -> dict:
             "Authenticate historical primus-fhe/ajax revision or label alternate as a modified overlay",
             "Pin concrete-ntt and Cargo registry dependencies in an audited lockfile",
             "Compare noise parameter semantics and masked-intermediate visibility before compilation",
-            "Reject exhausted/missing preprocessing: reviewed source currently falls back to a deterministic zero Beaver triple",
+            "Reject exhausted/missing preprocessing: zero Beaver-triple fallback flows into opening masked inputs in the same MPC source",
             "Separate semi-honest native success from malicious/recipient-aware acceptance",
         ],
     }
