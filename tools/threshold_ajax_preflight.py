@@ -28,9 +28,12 @@ def git(repo: Path, *args: str) -> bytes:
 
 
 def assess(repo: Path, expected: str = PIN) -> dict:
-    """Check tracked source identities and report only *negative* source observations."""
+    """Return source-only observations; nonstandard pins are synthetic fixture evidence."""
+    # Check the supplied pathname before resolve(), which would erase symlink evidence.
+    if repo.is_symlink():
+        raise ValueError("source checkout path must not be a symlink")
     repo = repo.resolve(strict=True)
-    if not repo.is_dir() or repo.is_symlink():
+    if not repo.is_dir():
         raise ValueError("source is not a real directory")
     root = Path(git(repo, "rev-parse", "--show-toplevel").decode().strip()).resolve()
     if root != repo:
@@ -89,8 +92,10 @@ def assess(repo: Path, expected: str = PIN) -> dict:
         observations.append("DN_backend_documented_honest_majority_privacy")
     return {
         "schema": "tclmesh.threshold-ajax-preflight.v1",
-        "source": "primus-labs/Ajax", "pin": head,
-        "status": "SOURCE_REVIEW_ONLY", "cryptographic_release_admitted": False,
+        "source": "primus-labs/Ajax" if expected == PIN else "synthetic_fixture",
+        "pin": head,
+        "status": "SOURCE_REVIEW_ONLY" if expected == PIN else "TEST_FIXTURE_ONLY",
+        "cryptographic_release_admitted": False,
         "illustrative_paper_profile": {
             "n": 5, "f_priv_semi_honest_claimed": 2, "q_release_claimed": 3,
             "active_malicious_security_verified": False,
@@ -111,10 +116,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path)
     parser.add_argument("--require-release", action="store_true")
-    parser.add_argument("--expected-commit", default=PIN, help="source-only evaluation; never enables release")
     args = parser.parse_args()
     try:
-        report = assess(args.source, args.expected_commit)
+        report = assess(args.source, PIN)
     except (ValueError, OSError, UnicodeDecodeError, subprocess.SubprocessError, tomllib.TOMLDecodeError) as err:
         print(json.dumps({"status": "SOURCE_INVALID", "cryptographic_release_admitted": False,
                           "error": str(err)}, sort_keys=True))
