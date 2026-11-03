@@ -47,6 +47,9 @@ class PreprocessingPatchTests(unittest.TestCase):
         self.assertIn("fn rejects_empty_triple_file()", patched)
         self.assertIn("fn detects_exhaustion_before_masking()", patched)
         self.assertIn("fn accepts_128_bit_file_values_with_original_cast_semantics()", patched)
+        self.assertIn("fn rejects_missing_preprocessing_file()", patched)
+        self.assertIn("fn rejects_incomplete_preprocessing_file()", patched)
+        self.assertIn("read_and_parse_z2k_triple_file(filename)", patched)
 
     def test_patch_rejects_missing_underflow_signature(self):
         with self.assertRaisesRegex(ValueError, "old triple"):
