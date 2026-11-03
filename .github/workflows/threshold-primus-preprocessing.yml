@@ -100,7 +100,9 @@ jobs:
               'use std::collections::VecDeque;\n' + helper + '\n' + unit,
               encoding='utf-8')
           PY
-          rustc --edition=2021 --test research-output/isolated-preprocessing-helpers.rs \
+          rustc --edition=2021 --test \
+            --crate-name tclmesh_preprocessing_helpers \
+            research-output/isolated-preprocessing-helpers.rs \
             -o /tmp/primus-preprocessing-helper-tests \
             > research-output/rustc-helper-compile.log 2>&1
           /tmp/primus-preprocessing-helper-tests \
@@ -131,6 +133,7 @@ jobs:
           PY
           for mutant in disabled_batch_guard restored_zero_triple_fallback; do
             rustc --edition=2021 --test \
+              --crate-name tclmesh_preprocessing_mutant \
               "research-output/mutant-${mutant}.rs" \
               -o "/tmp/primus-mutant-${mutant}" \
               > "research-output/mutant-${mutant}-compile.log" 2>&1
