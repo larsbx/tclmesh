@@ -90,3 +90,73 @@ can enable the reserved threshold capability.
 Local follow-up validation: 40 synthetic Python controls, six Zama native
 regression tests and four Fhenix native limitation witnesses pass. Full threshold
 FHE decryption, independent holder custody and Lean builds remain unperformed.
+
+## Final source decision: integration blocked
+
+A bounded follow-up audit of the same Fhenix pin closes the preprocessing and
+subset questions. It does not add another experimental cryptosystem or promote
+the existing primitive witnesses into multiparty decryption evidence.
+
+| Pinned source | Additional observation | Admission consequence |
+| --- | --- | --- |
+| [`preprocessing.rs:32-107`](https://github.com/FhenixProtocol/thresholdfhe-paper/blob/19b0f0a5a71b67badb85c3c8715b3eba7e866f79/src/mpc/preprocessing.rs#L32-L107) | `run(s,r,sk)` takes a complete secret vector and centrally builds every party's preprocessing and additive secret-key shares | Not distributed setup or a custody-preserving preprocessing adapter |
+| [`mac_scheme.rs:54-111`](https://github.com/FhenixProtocol/thresholdfhe-paper/blob/19b0f0a5a71b67badb85c3c8715b3eba7e866f79/src/mpc/mac_scheme.rs#L54-L111) | The local object holds global `alpha`; `batch_open` makes MAC shares from its supplied current values | These MACs do not establish authentication of the preceding computation. `batch_check` does check its supplied MAC relation and can return `None`; that algebraic check alone does not instantiate the paper's authenticated black box |
+| [`worker.rs:152-180`](https://github.com/FhenixProtocol/thresholdfhe-paper/blob/19b0f0a5a71b67badb85c3c8715b3eba7e866f79/src/network/worker.rs#L152-L180) | Each step waits for `n-1` peer messages in addition to the local party | The four-party benchmark is not an available-three protocol. Changing `n` to three creates a different setup; it does not make each triple of the original keyset usable |
+| `Cargo.toml`, tracked source inventory, and setup/worker paths | No MP-SPDZ preprocessing importer or authenticated four-holder-to-three-holder conversion was identified in this snapshot | The paper's reported preprocessing instantiation remains a dependency to obtain and review, not an implemented TclMesh path |
+
+The [decision receipt](evidence/threshold-backend-decision-20261101.json) records
+the additional file hashes and the complete source-tree digest. All 251 tracked
+files were checked against their pinned Git blob identities with the existing
+`source_files` verifier; `git fsck --full` passed. These checks authenticate the
+retrieved repository bytes to the pin, not the authors, security proof or build.
+No new native run, network execution or cryptographic test is claimed here.
+
+The integration decision for the evidence obtained on 2026-11-01 is **no-go**:
+
+| Candidate configuration | Established boundary | Missing condition for TclMesh 3-of-4 |
+| --- | --- | --- |
+| Published KMS four-party example | `f_priv=1`, `f_byz=1`, `r_output=3`; exact v0.14.2 source unavailable | Secrecy against two colluding holders and authenticated compatible source |
+| Old Zama four-party degree-one profile | Raw pairs reconstruct; honest triples complete the probed robust opening | Pair secrecy; raising degree to two fails the probed four-party robust constraints |
+| Lattigo 3-of-4 | Passive threshold sharing is documented | Malicious contribution/output verification, safe repeated-decryption model and TFHE compatibility |
+| Fhenix four-party benchmark | Additive all-party setup and public-fixture method witnesses | Distributed authenticated preprocessing, immutable-keyset subset protocol, integrity before output and TFHE adapter |
+| Tulva advertised 3-of-4 family | Published design, trusted-dealer model; retrieved repository contains only a README | Concrete source/parameters, distributed setup and checked-output variant within the response budget |
+
+OpenFHE and ATASSES remain the semi-honest leads described in the
+[initial comparison](threshold-backend-evaluation.md); neither supplies an admitted
+malicious-secure adapter in the inspected evidence. This decision concerns the
+retrieved versions and TclMesh contract, not impossibility of threshold FHE or a
+claim that any implementation is insecure.
+
+The most defensible next engineering path is an **external, reviewed authenticated
+MPC backend**, if one can supply the required distributed setup and fixed-keyset
+access structure. The Fhenix paper motivates that path; its benchmark is not the
+dependency to register. Do not patch in a final MAC comparison and infer that the
+black-box assumptions, preprocessing, subset handling or recipient privacy follow.
+
+For three-of-four, specify separately: secrecy against two corrupt holders;
+successful output from each cooperative valid triple with the fourth offline;
+and integrity against the declared malicious coalition. A protocol secure **with
+abort** may refuse output when an active participant misbehaves. It must not be
+advertised as tolerating that fault while guaranteeing output. Individually
+verifiable partials and verified malicious-secure MPC output are alternative
+contracts; neither is established by holder signatures or response counts.
+
+Reopen adapter implementation only when an immutable dependency provides:
+
+1. An exact protocol/security profile and reviewed setup/preprocessing with no
+   complete secret at the evaluator, including a custody-preserving way to use
+   every allowed triple of the same four-holder keyset and epoch.
+2. A verifier or authenticated MPC output boundary that rejects corruption before
+   plaintext exposure, with explicit adversary, ciphertext and retry assumptions.
+3. A buildable TFHE-rs 1.8.2 key/evaluation-key/ciphertext conversion contract and
+   recipient-only delivery path. Serialization resemblance is not compatibility.
+4. Reproducible independent-party acceptance: all four valid triples; all six
+   pairs refused; invalid-but-signed contributions; verification-bypass and
+   incorrect-output controls; binding/recipient tampering; outage, revocation and
+   crash/retry. Pair refusal is an implementation check, not a proof of pair
+   secrecy. Refine the Lean predicates against the actual verifier while keeping
+   computational soundness hypotheses explicit.
+
+Until these dependencies exist, keep the runtime refusal and deny-only capability
+assessment. Synthetic controls, primitive tests and numerical Lean checks cannot
+enable release or close Issue #36.
