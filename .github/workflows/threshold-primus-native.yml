@@ -1,0 +1,93 @@
+name: Primus ThFHE modified-overlay native compile (research only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/threshold-primus-native.yml'
+      - 'docs/threshold-ajax-variant-audit.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-pinned-modified-primus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Obtain exact publicly pinned Primus ThFHE variant
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p research-output
+          git clone --quiet --depth 1 --single-branch --branch thfhe \
+            https://github.com/primus-labs/primus-fhe.git primus-source
+          test "$(git -C primus-source rev-parse HEAD)" = \
+            a0d075d9ec055fb8652925fee65768a14a627cfa
+          # This is NOT the original Ajax's missing historical ajax branch.
+          # Modify only a temporary public-source variant and record every edit.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("primus-source/algebra/Cargo.toml")
+          raw = path.read_bytes()
+          old = b'branch = "dev"'
+          new = b'rev = "cdeba793e46208320b30d78be19f7be78d49016a"'
+          assert raw.count(old) == 1, "unexpected concrete-ntt source; fail closed"
+          assert b'https://github.com/primus-labs/concrete-ntt' in raw
+          path.write_bytes(raw.replace(old, new))
+          PY
+          git -C primus-source diff -- algebra/Cargo.toml > research-output/modified-overlay.patch
+          test -s research-output/modified-overlay.patch
+          printf '%s\n' \
+            'research_only_modified_overlay=true' \
+            'cryptographic_release_admitted=false' \
+            'actual_multiparty_decryption_executed=false' \
+            'native_compilation_only=true' \
+            'primus_commit=a0d075d9ec055fb8652925fee65768a14a627cfa' \
+            'concrete_ntt_commit=cdeba793e46208320b30d78be19f7be78d49016a' \
+            > research-output/scope.txt
+      - name: Record toolchain and attempt isolated compile (no parties or keys)
+        id: compile
+        shell: bash
+        run: |
+          set -uo pipefail
+          rustc -Vv > research-output/rustc-version.txt
+          cargo -V > research-output/cargo-version.txt
+          # Resolve all registry dependencies to an artifact-stored exact lockfile.
+          cargo generate-lockfile --manifest-path primus-source/Cargo.toml \
+            > research-output/lock-resolution.log 2>&1
+          lock_status=$?
+          echo "lock_exit=$lock_status" >> research-output/scope.txt
+          if [ "$lock_status" -ne 0 ]; then
+            echo 'Unable to generate a fully resolved lock: no native acceptance'
+            exit "$lock_status"
+          fi
+          python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          lock = Path('primus-source/Cargo.lock')
+          p = tomllib.loads(lock.read_text(encoding='utf-8'))
+          candidates = [x.get('source', '') for x in p.get('package', [])
+                        if x.get('name') == 'concrete-ntt']
+          assert candidates and all('cdeba793e46208320b30d78be19f7be78d49016a' in x
+                                    for x in candidates), candidates
+          PY
+          # Compile-only: a passing cargo check does not exercise real DKG/FHE.
+          cargo check --manifest-path primus-source/Cargo.toml \
+            --package thfhe --example thfhe --locked \
+            > research-output/native-cargo-check.log 2>&1
+          build_status=$?
+          echo "native_compile_exit=$build_status" >> research-output/scope.txt
+          exit "$build_status"
+      - name: Publish public research build provenance even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: primus-modified-overlay-compile-receipt
+          path: |
+            research-output/
+            primus-source/Cargo.lock
+          if-no-files-found: warn
