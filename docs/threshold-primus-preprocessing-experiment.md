@@ -41,8 +41,11 @@ inside a clean checkout. It does not change TclMesh production source.
    narrowing to `u64`. Pinned upstream fixtures contain values above
    `u64::MAX`; replacing the parser with `u64` parsing would
    inadvertently reject legitimate author fixtures and is not a valid fix.
-5. Add Rust tests for the empty, malformed, partial and 128-bit fixtures,
-   shortage-before-open, and exhausted-buffer behavior.
+5. Add seven Rust tests covering the empty, malformed, partial and
+   128-bit fixtures, **actual missing/truncated file reads**,
+   shortage-before-open, and exhausted-buffer behavior. The file-loading
+   helper returns `Result` for native tests; its production-source research
+   wrapper fails on errors before mutating the triple buffer.
 
 The patch and synthetic test fixtures are **not** formal proofs of
 privacy or proper Beaver triple generation. Even a fully populated file
