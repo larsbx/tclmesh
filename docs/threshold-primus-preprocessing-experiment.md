@@ -114,3 +114,48 @@ contributions or MPC transcripts, ensure authenticated recipient-only
 delivery, and test replay, epochs, noise and corrupt preprocessing.
 
 `cryptographic_release_admitted=false` at every source/replay stage.
+
+## Opening-boundary regression
+
+The workflow fetches the exact Primus commit directly. It compiles the
+extracted, patched loader, triple consumer, and complete multiplication method
+with Rust 1.85.1 and no Cargo dependencies. The probe substitutes an in-process
+opening spy and a small-ring addition stub for the networking and field code.
+Run each case in its own process with a timeout. The valid fixture must reach
+the spy with masked inputs and return the expected synthetic product.
+
+The rejection cases cover a missing file, an empty file, a truncated row
+after a valid row, a malformed row before a valid row, a short batch, and an
+exhausted pool after one successful multiplication. They require the expected
+error, zero attempted openings for the failing operation, no returned product,
+and the expected remaining pool size. Both short-batch and exhausted cases
+also run against a mutant that removes the batch guard and restores the
+upstream zero fallback. The same oracle must reject the mutant specifically
+because the original synthetic operands reached the opening spy.
+
+### Local source-only receipt
+
+- Base TclMesh PR #50 revision: `d9c356fc20a9f930c29d2448ca422cc024f1ab58`.
+- Python 3.12.14: all 11 existing patch tests passed. Generated both probes
+  from the verified Primus blob. Workflow YAML and Bash scripts parsed.
+- Ajax `64b4f80fb90da3096e03af200d3c95abe865a987`, blob
+  `275ff6b11180d7e85975f654aed316ee4a46c5db`: independently checked
+  the zero-fallback, subtraction, and opening order in the pinned source.
+- SHA-256 of the Primus input:
+  `224241f432cf4d35d61d12fdc40a6186cb692390e619f79bac6075ad7ac0612f`.
+  Fixed probe:
+  `68bdbc42a5ebde6324f5d3a1795acaa90cce3a1f090663cd7f471c94778f8f53`.
+  Mutant probe:
+  `4db6289d867f7c79186832d0e2ec400a27611bb392254cf37c4dc76607ff41de`.
+- Rust/Cargo were unavailable in the local verification environment. Hosted
+  probe execution requires a completed exact-revision run and receipt.
+
+The spy observes calls at the opening boundary. It does not exercise peer
+coordination, network delivery, plaintext decryption or the protocol's
+security assumptions. A local panic may leave peers waiting, so a real
+multi-party test still needs a bounded abort and opening/output assertions
+across all parties. Original Ajax additionally requires the historical
+dependency pin from #47. The modified Primus Cargo stage resolves a fresh
+lockfile and captures it as evidence, so its result is exploratory until a
+reviewed lockfile and toolchain are replayed. Cryptographic release remains
+disabled.
