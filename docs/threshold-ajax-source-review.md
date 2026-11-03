@@ -103,3 +103,34 @@ the presence of a validated feature.
 **Acceptance gate:** neither this paper, the upstream demo, nor a clean source
 preflight can enable `cryptographic-threshold-decryption`. Existing
 authorization-only paths must remain distinct and TclMesh must fail closed.
+
+## Reproducible all-subsets selection matrix (not crypto)
+
+A separate **pure enumeration tool** generates the exact test cases a future
+native backend must execute, rather than silently substituting one fixed
+subset from the upstream benchmark:
+
+```sh
+python3 tools/threshold_subset_plan.py --participants 5 --release-quorum 3
+# Exactly 10 three-holder attempts and 10 two-holder insufficient coalitions.
+
+python3 tools/threshold_subset_plan.py --participants 4 --release-quorum 3
+# Exactly 4 three-holder attempts and 6 two-holder insufficient coalitions.
+
+python3 -m unittest discover -s tests -p 'test_threshold*.py'
+```
+
+The planner enforces a 4,096-case default enumeration budget and fails instead
+of dropping an unknown fraction of cases. Its JSON has
+`cryptographic_tests_executed=false` and
+`cryptographic_release_admitted=false`. A real native runner must later import
+these cases and bind the **same cryptographic keyset and ciphertext family**
+across every subset. A pair being rejected by a combiner does **not** prove the
+pair learns nothing from its shares; that confidentiality remains a theorem and
+adversarial-analysis obligation.
+
+The Ajax preflight CLI uses **only the hard-coded audited upstream commit**.
+The Python unit tests may internally pass a synthetic fixture SHA, but such a
+report is marked `TEST_FIXTURE_ONLY` with source
+`synthetic_fixture`, never `SOURCE_REVIEW_ONLY`. Symlinked checkout paths,
+nonmatching source heads and modified/untracked source are rejected.
