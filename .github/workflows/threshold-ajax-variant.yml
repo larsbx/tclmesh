@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Exact-commit synthetic provenance and mismatch tests (not crypto)
         run: python3 -m unittest discover -s tests -p 'test_threshold_ajax_variant_audit.py' -v
       - name: Compare strictly pinned public Ajax and Primus source variants
@@ -64,6 +66,20 @@ jobs:
               r = json.load(f)
           assert r['status'] == 'SOURCE_VARIANTS_DIFFER_REVIEW_REQUIRED'
           assert r['cryptographic_release_admitted'] is False
+          PY
+          # Provenance divergence can never be upgraded to equivalence by a flag.
+          if PYTHONDONTWRITEBYTECODE=1 python3 tools/threshold_ajax_variant_audit.py \
+             --ajax "$d/ajax" --alternative "$d/alternative" \
+             --require-equivalence > research-output/deny-equivalence.json; then
+             echo "ERROR: source comparison promoted to source/security equivalence"
+             exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          with open('research-output/deny-equivalence.json', encoding='utf-8') as f:
+              r = json.load(f)
+          assert r['status'] == 'SOURCE_VARIANTS_DIFFER_REVIEW_REQUIRED'
+          assert r['candidate_security_equivalence_established'] is False
           PY
       - name: Attach public source-only receipts (not a cryptographic certificate)
         if: always()
