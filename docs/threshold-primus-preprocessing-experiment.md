@@ -60,6 +60,12 @@ performs three progressively stronger **non-cryptographic** checks:
   with `rustc --test`. This tests the inserted parsing/exhaustion
   primitives without requiring the historical FHE dependencies or any
   networked participant.
+- **Kill two native Rust negative mutants:** one intentionally disables the
+  pre-opening batch-capacity guard, and one restores the zero-triple
+  exhaustion fallback. Both altered helper binaries must compile but
+  **fail their corresponding tests**. Captured failure logs are retained as
+  negative-control evidence. A negative-mutant failure is not a production
+  cryptographic attack or a security proof.
 - Pin `primus-labs/concrete-ntt` to
   `cdeba793e46208320b30d78be19f7be78d49016a` in a separately
   archived temporary patch; generate an exact Cargo.lock; attempt
