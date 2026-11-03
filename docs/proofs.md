@@ -50,6 +50,10 @@ typing rule:
 | | `compile_correct`, `compile_typed`, `compile_oblivious`, `compile_strict` | compiling `if` to `select` preserves values, is well typed at the label of what it reads, is oblivious, and leaks nothing |
 | `Release` | `accepts_quorum` | an accepted threshold release has at least `t` distinct authorized holders, each with a valid share bound to this request |
 | | `accepts_ignores_other_requests`, `accepts_duplicate` | shares for other requests and repeated shares have no effect |
+| `ReleaseMachine` | `reachable_inv` | in every reachable state of the release lifecycle (durable requests and write-ahead attempt journal, live revocation and epoch rotation, volatile in-flight calls lost on crash, idempotency-gated retry), every journaled attempt carries a verified quorum of distinct holders, each unrevoked under the epoch of the request's canonical binding, and is addressed to the policy recipient |
+| | `output_bound` | a request holding an output is `released` through such an attempt; its binding names the request itself |
+| | `at_most_once` | without an idempotent backend, no request reaches the backend twice, whatever crashes, failures and recoveries occur |
+| | `revoked_blocks_combine`, `stale_blocks_combine`, `crash_durable`, `no_response_after_crash` | a revoked contributor or a rotated epoch blocks combination with nothing journaled; a crash keeps the durable state and no lost response can complete afterwards |
 | `Deontic` | `admits_iff` | execution is admitted iff all verdicts are one verdict other than `H` |
 | | `admits_congr`, `H_blocks`, `conflict_blocks` | admission ignores order and repetition; `H` and any conflict block execution |
 | `Decimal` | `le_refl`, `le_trans`, `le_total` | exact decimal order is a total preorder |
@@ -107,6 +111,24 @@ or the fault resolution raised) and makes `and`/`or` binary; then
 resolving operands that short-circuiting never inspects changes nothing. `lake exe spec-eval VECTORS` runs it, and CI requires the Rust
 kernel to reproduce every outcome exactly, on the curated vectors and on
 seeded random ones.
+
+### Release lifecycle conformance
+
+`lake exe spec-eval --release conformance/release_traces.json` replays each
+trace through `Machine.replay`, which uses the same `step` the theorems
+quantify over. `tools/release_conformance.tcl check` replays the same traces
+through the governed Tcl API (`request-authorized`, `contribute-authorized`,
+`combine-authorized`, `recover-authorized`, `reject-`/`expire-authorized`,
+`language revoke`, manifest re-activation for epoch rotation) on a fresh file
+store. Every `crash` is a real process exit: either between steps, or inside
+the backend after `combining` is committed. A new process reloads the store
+and resumes. CI requires the result, the request status and the attempt count
+to be equal after every step. As a negative control it also removes
+combine-time re-authorization from `src/release_policy.tcl` and requires the
+check to fail. In these runs the verifiers accept every contribution:
+authorization-quorum mode has no cryptographic shares, and `sig`/`proof` stay
+the abstract hypotheses of `Verified.cryptographic_quorum`. The requester's
+own authorization and context matching are checked by Tcl and are not modelled.
 
 ## Rust refinement (Aeneas)
 
@@ -186,7 +208,9 @@ These are listed in the [roadmap](roadmap.md#formal-methods-first):
   which the Rust kernel implements outside `kernel/core` and which are covered
   by exact conformance with the executable specification only;
 - ciphertext and labels in the kernel IR;
-- per-mechanism lemmas under cryptographic assumptions;
+- per-mechanism lemmas under cryptographic assumptions, including discharging
+  the `sig`/`proof` soundness hypothesis of `ReleaseMachine` for a real
+  threshold scheme (cryptographic threshold release stays refused);
 - noise-budget soundness for leveled (bootstrap-free) evaluation beyond the
   block discipline, and the refinement of TFHE-rs integer operations to
   block gate programs beyond ripple-carry addition, subtraction and select

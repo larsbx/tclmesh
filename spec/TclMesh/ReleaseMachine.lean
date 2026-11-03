@@ -664,36 +664,72 @@ theorem no_response_after_crash (V : Verifiers) (cfg : Config) (s : State) (id :
     step V cfg { s with inflight := [] } (.backendOk id o) = .error .notInflight := by
   simp [step, respond]
 
-/-! ## Executable traces (shared with `tools/release_conformance.tcl`) -/
+/-! ## Executable traces (shared with `tools/release_conformance.tcl`)
 
-/-- Observation after each trace step: `ok` or the error class, then the
-status and journaled attempt count of the step's request (if any). -/
+A trace drives the machine through the event alphabet both implementations
+share. `combine` carries the backend outcome, and `ok` is the journaled attempt
+followed by a response. `fail` reports `backend-failed`, as Tcl's
+`COMBINE_FAILED`, and `crash` is process loss after the attempt is journaled.
+In conformance runs the verifiers accept every contribution. The authorization
+layer (live revocation, epochs, membership) is what Tcl implements today. -/
+
+inductive Outcome where | ok | fail | crash
+
+inductive TraceEvent where
+  | create | contribute (id : Nat) (holder : String) | revoke (holder : String) | rotate
+  | combine (id : Nat) (o : Outcome) | crash | recover (id : Nat) (disposition : String)
+  | reject (id : Nat) | expire (id : Nat)
+
+/-- Observation after a step: `ok` or the error class, then the status and the
+journaled attempt count of the step's request (if it exists). -/
 structure Obs where
   result : String
   status : Option String
   attempts : Nat
-  deriving DecidableEq, Repr
 
 def observe (s : State) (id : Option Nat) (result : String) : Obs :=
-  match id.bind (s.requests[·]?) with
-  | some r => ⟨result, some r.status.name, attemptsFor s id.get!⟩
+  match id with
+  | some i => match s.requests[i]? with
+    | some r => ⟨result, some r.status.name, attemptsFor s i⟩
+    | none => ⟨result, none, 0⟩
   | none => ⟨result, none, 0⟩
-
-/-- Trace-level combine: the journaled attempt followed by the backend outcome. -/
-inductive Outcome where | ok | fail | crash
 
 def run (V : Verifiers) (cfg : Config) (s : State) (e : Event) : String × State :=
   match step V cfg s e with
   | .ok s' => ("ok", s')
   | .error err => (err.name, s)
 
-def combineWith (V : Verifiers) (cfg : Config) (s : State) (id : Nat) (o : Outcome) :
-    String × State :=
-  match step V cfg s (.combine id) with
-  | .error err => (err.name, s)
-  | .ok s' => match o with
-    | .ok => run V cfg s' (.backendOk id "released")
-    | .fail => ("backend-failed", (run V cfg s' (.backendFail id)).2)
-    | .crash => ("ok", (run V cfg s' .crash).2)
+def exec (V : Verifiers) (cfg : Config) (p : Policy) (s : State) : TraceEvent → Obs × State
+  | .create =>
+    let (r, s') := run V cfg s (.create "keyset" "digest" p)
+    (observe s' (if r = "ok" then some s.requests.length else none) r, s')
+  | .contribute i h =>
+    let b := (s.requests[i]?.map Req.binding).getD ⟨i, "", 0, ""⟩
+    let (r, s') := run V cfg s (.contribute i ⟨h, b, "", "", ""⟩)
+    (observe s' (some i) r, s')
+  | .revoke h => let (r, s') := run V cfg s (.revoke h); (observe s' none r, s')
+  | .rotate => let (r, s') := run V cfg s .rotate; (observe s' none r, s')
+  | .crash => let (r, s') := run V cfg s .crash; (observe s' none r, s')
+  | .combine i o =>
+    let (r, s') := match step V cfg s (.combine i) with
+      | .error err => (err.name, s)
+      | .ok s₁ => match o with
+        | .ok => run V cfg s₁ (.backendOk i "released")
+        | .fail => ("backend-failed", (run V cfg s₁ (.backendFail i)).2)
+        | .crash => ("ok", (run V cfg s₁ .crash).2)
+    (observe s' (some i) r, s')
+  | .recover i d =>
+    let e := match d with
+      | "retry" => Event.recoverRetry i
+      | "released" => .recoverReleased i "recovered"
+      | _ => .recoverFailed i
+    let (r, s') := run V cfg s e
+    (observe s' (some i) r, s')
+  | .reject i => let (r, s') := run V cfg s (.reject i); (observe s' (some i) r, s')
+  | .expire i => let (r, s') := run V cfg s (.expire i); (observe s' (some i) r, s')
+
+def replay (V : Verifiers) (cfg : Config) (p : Policy) (events : List TraceEvent) : List Obs :=
+  (events.foldl (fun (s, acc) e => let (o, s') := exec V cfg p s e; (s', o :: acc))
+    (State.init, [])).2.reverse
 
 end TclMesh.Release.Machine
