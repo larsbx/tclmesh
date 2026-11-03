@@ -46,7 +46,8 @@ class AjaxSourceTests(unittest.TestCase):
 
     def test_positive_source_review_is_not_release_acceptance(self):
         result = MODULE.assess(self.repo, self.head)
-        self.assertEqual(result["status"], "SOURCE_REVIEW_ONLY")
+        self.assertEqual(result["status"], "TEST_FIXTURE_ONLY")
+        self.assertEqual(result["source"], "synthetic_fixture")
         self.assertFalse(result["cryptographic_release_admitted"])
         self.assertEqual(result["illustrative_paper_profile"]["q_release_claimed"], 3)
         self.assertIn("active_malicious_share_verification_not_established", result["blockers"])
@@ -80,15 +81,29 @@ class AjaxSourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "modified"):
             MODULE.assess(self.repo, self.head)
 
-    def test_source_success_require_release_still_exit_two(self):
-        cmd = [sys.executable, str(SCRIPT), "--source", str(self.repo),
-               "--expected-commit", self.head]
+    def test_cli_never_relabels_fixture_as_upstream(self):
+        # Arbitrary expected-commit overrides must not be accepted in the CLI:
+        # a synthetic repo must not impersonate a pinned reviewed upstream.
+        cmd = [sys.executable, str(SCRIPT), "--source", str(self.repo)]
         source = subprocess.run(cmd, capture_output=True, text=True)
-        self.assertEqual(source.returncode, 0, source.stderr)
-        self.assertEqual(json.loads(source.stdout)["status"], "SOURCE_REVIEW_ONLY")
+        self.assertEqual(source.returncode, 2)
+        self.assertEqual(json.loads(source.stdout)["status"], "SOURCE_INVALID")
         release = subprocess.run(cmd + ["--require-release"], capture_output=True, text=True)
         self.assertEqual(release.returncode, 2)
         self.assertFalse(json.loads(release.stdout)["cryptographic_release_admitted"])
+
+    def test_cli_rejects_arbitrary_expected_commit_flag(self):
+        cmd = [sys.executable, str(SCRIPT), "--source", str(self.repo),
+               "--expected-commit", self.head]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('"status": "SOURCE_REVIEW_ONLY"', result.stdout)
+
+    def test_symlinked_checkout_is_rejected(self):
+        link = Path(self.temp.name) / "alias"
+        link.symlink_to(self.repo, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            MODULE.assess(link, self.head)
 
 
 if __name__ == "__main__":
