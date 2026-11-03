@@ -152,6 +152,24 @@ class VersionVariantAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "noise|difference"):
             self.audit()
 
+    def test_equivalence_request_is_explicitly_rejected(self):
+        report = self.audit()
+        argv = ["audit", "--ajax", str(self.a), "--alternative", str(self.b),
+                "--require-equivalence"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(M, "audit", return_value=report), \
+             mock.patch("sys.stdout", new_callable=__import__("io").StringIO):
+            self.assertEqual(M.main(), 2)
+
+    def test_cryptographic_release_request_is_explicitly_rejected(self):
+        report = self.audit()
+        argv = ["audit", "--ajax", str(self.a), "--alternative", str(self.b),
+                "--require-cryptographic-release"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch.object(M, "audit", return_value=report), \
+             mock.patch("sys.stdout", new_callable=__import__("io").StringIO):
+            self.assertEqual(M.main(), 2)
+
     def test_public_cli_does_not_accept_synthetic_git_pin(self):
         r = subprocess.run([sys.executable, str(SCRIPT), "--ajax", str(self.a),
                             "--alternative", str(self.b)], capture_output=True, text=True)
