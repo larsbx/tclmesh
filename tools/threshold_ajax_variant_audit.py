@@ -118,6 +118,8 @@ def audit(ajax: Path, alternative: Path) -> dict:
     )
     # The extra source blobs are bound by the exact alternate commit; their
     # source identity is read and measured, never guessed from floating refs.
+    a_mpc = (ajax / "mpc/src/dn.rs").read_text(encoding="utf-8")
+    b_mpc = (alternative / "mpc/src/dn.rs").read_text(encoding="utf-8")
     a_keygen = (ajax / "thfhe/src/key_gen.rs").read_text(encoding="utf-8")
     b_keygen = (alternative / "thfhe/src/key_gen.rs").read_text(encoding="utf-8")
     a_dec = (ajax / "thfhe/src/distdec.rs").read_text(encoding="utf-8")
@@ -154,6 +156,14 @@ def audit(ajax: Path, alternative: Path) -> dict:
             "reveal_slice_to_all_z2k(&res_vec, 64, true)" in b_dec,
         "alternative_concrete_ntt_floating_branch":
             concrete.get("branch") == "dev" and not concrete.get("rev"),
+        # A zero triple is valid algebraically but not a secure substitute for
+        # a random Beaver triple; avoid treating missing preprocessing as ready.
+        "ajax_empty_triple_fallback_zero":
+            "if self.triplez2k_buffer.is_empty()" in a_mpc
+            and "return (0, 0, 0);" in a_mpc,
+        "alternative_empty_triple_fallback_zero":
+            "if self.triplez2k_buffer.is_empty()" in b_mpc
+            and "return (0, 0, 0);" in b_mpc,
     }
     if len(differences["source_blobs_differ"]) < 1:
         raise ValueError("unexpected identical variant: re-review source classification")
@@ -164,6 +174,8 @@ def audit(ajax: Path, alternative: Path) -> dict:
         "old_decryption_opens_masked_intermediate_to_party_zero",
         "alternative_decryption_opens_masked_intermediate_to_all",
         "alternative_concrete_ntt_floating_branch",
+        "ajax_empty_triple_fallback_zero",
+        "alternative_empty_triple_fallback_zero",
     )):
         raise ValueError("expected semantics-relevant source difference not observed")
     return {
@@ -180,6 +192,7 @@ def audit(ajax: Path, alternative: Path) -> dict:
             "Authenticate historical primus-fhe/ajax revision or label alternate as a modified overlay",
             "Pin concrete-ntt and Cargo registry dependencies in an audited lockfile",
             "Compare noise parameter semantics and masked-intermediate visibility before compilation",
+            "Reject exhausted/missing preprocessing: reviewed source currently falls back to a deterministic zero Beaver triple",
             "Separate semi-honest native success from malicious/recipient-aware acceptance",
         ],
     }
