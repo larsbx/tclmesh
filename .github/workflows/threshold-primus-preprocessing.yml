@@ -106,6 +106,42 @@ jobs:
           /tmp/primus-preprocessing-helper-tests \
             > research-output/rustc-helper-unit-tests.log 2>&1
           echo 'native_isolated_helper_tests=passed' >> research-output/scope.txt
+      - name: Negative mutants must fail their Rust unit tests (research-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Mutate the actual extracted Rust test source, not a detached mock:
+          # one mutant removes the batch-availability assertion and one
+          # substitutes a deterministic zero triple when the pool is empty.
+          python3 - <<'PY'
+          from pathlib import Path
+          original=Path('research-output/isolated-preprocessing-helpers.rs').read_text()
+          mutations={
+              'disabled_batch_guard': (
+                  'assert!(available >= needed, "Insufficient Z2k preprocessing");',
+                  'let _ = (available, needed);'),
+              'restored_zero_triple_fallback': (
+                  'buffer.pop_front().expect("Z2k preprocessing exhausted")',
+                  'buffer.pop_front().unwrap_or((0, 0, 0))'),
+          }
+          for name,(old,new) in mutations.items():
+              assert original.count(old)==1, f'nonunique mutation target: {name}'
+              Path(f'research-output/mutant-{name}.rs').write_text(
+                  original.replace(old,new),encoding='utf-8')
+          PY
+          for mutant in disabled_batch_guard restored_zero_triple_fallback; do
+            rustc --edition=2021 --test \
+              "research-output/mutant-${mutant}.rs" \
+              -o "/tmp/primus-mutant-${mutant}" \
+              > "research-output/mutant-${mutant}-compile.log" 2>&1
+            if "/tmp/primus-mutant-${mutant}" \
+                > "research-output/mutant-${mutant}-test.log" 2>&1; then
+              echo "ERROR: required negative mutant survived: $mutant"
+              exit 1
+            fi
+            grep -q 'FAILED' "research-output/mutant-${mutant}-test.log"
+            echo "killed_mutant_${mutant}=true" >> research-output/scope.txt
+          done
       - name: Resolve complete dependency lock; run native patch regression unit tests
         shell: bash
         run: |
