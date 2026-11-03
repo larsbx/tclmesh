@@ -18,7 +18,7 @@ OLD = {
     "thfhe/src/key_gen.rs": "noise_distribution_div_count(noise_number);\n",
     "thfhe/src/secret_key.rs": "secret-key old\n",
     "thfhe/examples/thfhe.rs": "if party_id <= threshold { run(); }\n",
-    "mpc/src/dn.rs": "//! n > 2t; semi-honest\n",
+    "mpc/src/dn.rs": "//! n > 2t; semi-honest\nif self.triplez2k_buffer.is_empty() { return (0, 0, 0); }\n",
     "thfhe/Cargo.toml": (
         '[dependencies]\n'
         'algebra = { git = "https://github.com/serendipity-crypto/primus-fhe", branch = "ajax" }\n'
@@ -33,7 +33,7 @@ ALT = {
     "thfhe/src/key_gen.rs": "noise_distribution_multi_party(noise_number);\n",
     "thfhe/src/secret_key.rs": "secret-key changed\n",
     "thfhe/examples/thfhe.rs": "// changed demo\n",
-    "mpc/src/dn.rs": "//! another version n > 2t; semi-honest\n",
+    "mpc/src/dn.rs": "//! another version n > 2t; semi-honest\nif self.triplez2k_buffer.is_empty() { return (0, 0, 0); }\n",
     "thfhe/Cargo.toml": (
         '[dependencies]\n'
         'algebra = { path = "../algebra" }\n'
@@ -135,6 +135,8 @@ class VersionVariantAuditTests(unittest.TestCase):
         self.assertTrue(differences["alternative_keygen_noise_multi_party"])
         self.assertTrue(differences["alternative_decryption_opens_masked_intermediate_to_all"])
         self.assertTrue(differences["alternative_concrete_ntt_floating_branch"])
+        self.assertTrue(differences["ajax_empty_triple_fallback_zero"])
+        self.assertTrue(differences["alternative_empty_triple_fallback_zero"])
         self.assertEqual(differences["ajax_imports_unresolved_git_ajax_branch"],
                          ["algebra", "fhe_core", "lattice"])
 
@@ -169,6 +171,20 @@ class VersionVariantAuditTests(unittest.TestCase):
              mock.patch.object(M, "audit", return_value=report), \
              mock.patch("sys.stdout", new_callable=__import__("io").StringIO):
             self.assertEqual(M.main(), 2)
+
+    def test_removed_zero_triple_fallback_is_a_different_source_profile(self):
+        target = self.b / "mpc/src/dn.rs"
+        target.write_text("// source changed: empty triple now errors\n")
+        git(self.b, "add", ".")
+        git(self.b, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+            "commit", "-qm", "different fallback profile")
+        self.b_commit = git(self.b, "rev-parse", "HEAD")
+        self.blobs["mpc/src/dn.rs"] = (
+            self.blobs["mpc/src/dn.rs"][0],
+            git(self.b, "rev-parse", "HEAD:mpc/src/dn.rs"),
+        )
+        with self.assertRaisesRegex(ValueError, "semantics-relevant"):
+            self.audit()
 
     def test_public_cli_does_not_accept_synthetic_git_pin(self):
         r = subprocess.run([sys.executable, str(SCRIPT), "--ajax", str(self.a),
