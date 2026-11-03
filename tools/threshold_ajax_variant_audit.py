@@ -88,11 +88,6 @@ def inspect_checkout(path: Path, expected_commit: str,
         file = root / rel
         if not file.is_file() or file.is_symlink():
             raise ValueError("missing, non-regular or symlinked source: " + rel)
-        actual_bytes = git(root, "show", "HEAD:" + rel, input_bytes=None)
-        if file.read_bytes().rstrip(b"\n") != actual_bytes:
-            # Above git() strips subprocess output; compare exact bytes below instead.
-            # (Do not trust this preliminary match for raw files.)
-            pass
         raw = subprocess.run(
             ["git", "--no-replace-objects", "-C", str(root), "show", "HEAD:" + rel],
             check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
