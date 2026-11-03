@@ -89,35 +89,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # One run on one revision: every fixed scenario (including the
+          # multi-party shortage abort) must pass, and the zero-fallback mutant
+          # must leak in all three exhaustion scenarios. The harness's
+          # SCENARIOS table is the only oracle; this step adds no expectations.
           probe_dir="$(mktemp -d)"
           trap 'rm -rf "$probe_dir"' EXIT
           git -C primus-research show HEAD:mpc/src/dn.rs > "$probe_dir/dn.rs"
-          python3 tools/threshold_primus_opening_harness.py "$probe_dir/dn.rs" "$probe_dir"
           rustup toolchain install 1.85.1 --profile minimal
           rustc +1.85.1 -Vv > research-output/opening-probe-rustc.txt
-          (cd "$probe_dir"; sha256sum dn.rs fixed.rs zero-fallback.rs) \
-            > research-output/opening-probe-sha256.txt
-          for variant in fixed zero-fallback; do
-            rustc +1.85.1 --edition=2021 --crate-name opening_probe "$probe_dir/$variant.rs" -o "$probe_dir/$variant"
-          done
-          cd "$probe_dir"
-          printf '%s\n' 'a: 2, b: 3, c: 6' > valid
-          : > empty
-          printf '%s\n' 'a: 2, b: 3, c: 6' 'a: 2, b: 3' > truncated-row
-          printf '%s\n' 'a: 2, b: invalid, c: 6' 'a: 2, b: 3, c: 6' > malformed
-          {
-            for scenario in valid missing empty truncated-row malformed; do
-              timeout 10 ./fixed "$scenario" "$scenario"
-            done
-            for scenario in short-batch exhausted; do
-              timeout 10 ./fixed "$scenario" valid
-              rc=0
-              timeout 10 ./zero-fallback "$scenario" valid 2> mutant.log || rc=$?
-              test "$rc" -eq 49
-              grep -Fx 'FAIL: unmasked operands reached the opening spy' mutant.log
-              printf 'PASS: negative control detected (%s)\n' "$scenario"
-            done
-          } > "$GITHUB_WORKSPACE/research-output/opening-probe.log" 2>&1
+          python3 tools/threshold_primus_opening_harness.py \
+            "$probe_dir/dn.rs" "$probe_dir" --run --rustc 'rustc +1.85.1' \
+            --report research-output/opening-probe.json \
+            > research-output/opening-probe.log
+          python3 - <<'PY'
+          import json
+          r = json.load(open('research-output/opening-probe.json', encoding='utf-8'))
+          assert r['ok'] is True and r['cryptographic_release_admitted'] is False
+          cells = {(c['variant'], c['scenario']): c['exit'] for c in r['results']}
+          for s in ('short-batch', 'exhausted', 'multiparty-shortage'):
+              assert cells[('fixed', s)] == 0 and cells[('zero-fallback', s)] == 49, s
+          PY
       - name: Execute patched Rust helper unit tests without external FHE dependencies
         shell: bash
         run: |

@@ -1,17 +1,18 @@
 """Red-first source-transform and deny-only tests; no native FHE is executed."""
 
 from pathlib import Path
-import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 
-TOOL = Path(__file__).resolve().parents[1] / "tools" / "threshold_primus_preprocessing_patch.py"
-SPEC = importlib.util.spec_from_file_location("threshold_primus_preprocessing_patch", TOOL)
-P = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(P)
+TOOLS = Path(__file__).resolve().parents[1] / "tools"
+TOOL = TOOLS / "threshold_primus_preprocessing_patch.py"
+sys.path.insert(0, str(TOOLS))
+import threshold_primus_preprocessing_patch as P  # noqa: E402
+import threshold_primus_opening_harness as H  # noqa: E402
 
 
 class PreprocessingPatchTests(unittest.TestCase):
@@ -89,6 +90,59 @@ class PreprocessingPatchTests(unittest.TestCase):
                                   capture_output=True, text=True)
             self.assertEqual(proc.returncode, 2)
             self.assertFalse(json.loads(proc.stdout)["cryptographic_release_admitted"])
+
+
+class OpeningOracleTests(unittest.TestCase):
+    """The probe oracle must match what the overlay actually panics with."""
+
+    def setUp(self):
+        self.patched = P.rewrite_source(P.TEST_SOURCE_FIXTURE)
+        self.probes = {v: H.render(self.patched, m) for v, m in H.VARIANTS.items()}
+
+    def test_every_oracle_prefix_is_emitted_by_the_overlay(self):
+        for name, scenario in H.SCENARIOS.items():
+            if scenario.panic:
+                self.assertIn(f'"{scenario.panic}', self.patched, name)
+
+    def test_loader_distinguishes_unreadable_from_malformed(self):
+        loader = H.method(self.patched, "pub fn read_z2k_triples_from_files(")
+        self.assertIn("ErrorKind::InvalidData", loader)
+        self.assertIn(P.UNREADABLE_FILE, loader)
+        self.assertIn(P.MALFORMED_FILE, loader)
+
+    def test_rendered_oracle_is_the_scenario_table(self):
+        for name, scenario in H.SCENARIOS.items():
+            arm = f'"{name}" => ("{scenario.panic or ""}", {scenario.remaining}),'
+            self.assertIn(arm, self.probes["fixed"])
+
+    def test_matrix_covers_every_scenario_and_both_exhaustion_mutants(self):
+        cells = H.matrix()
+        self.assertEqual({s for v, s in cells if v == "fixed"}, set(H.SCENARIOS))
+        self.assertEqual({s for v, s in cells if v == "zero-fallback"}, set(H.EXHAUSTION))
+        self.assertIn("multiparty-shortage", H.EXHAUSTION)
+
+    def test_render_rejects_source_without_overlay(self):
+        with self.assertRaises(ValueError):
+            H.render(P.TEST_SOURCE_FIXTURE)
+
+    @unittest.skipUnless(shutil.which("rustc"), "rustc unavailable")
+    def test_native_matrix_passes_and_mutants_leak(self):
+        with tempfile.TemporaryDirectory() as d:
+            report = H.run_matrix(self.probes, Path(d))
+        self.assertTrue(report["ok"], json.dumps(report["results"], indent=1))
+        self.assertFalse(report["cryptographic_release_admitted"])
+
+    @unittest.skipUnless(shutil.which("rustc"), "rustc unavailable")
+    def test_native_oracle_rejects_a_drifted_panic_message(self):
+        # Regression for the PR #50 stale oracle: if the loader's message drifts
+        # from the oracle, the matrix must fail instead of passing silently.
+        drifted = dict(self.probes, fixed=self.probes["fixed"].replace(
+            f'panic!("{P.UNREADABLE_FILE}', 'panic!("Missing, malformed, or empty', 1))
+        self.assertNotEqual(drifted["fixed"], self.probes["fixed"])
+        with tempfile.TemporaryDirectory() as d:
+            report = H.run_matrix(drifted, Path(d))
+        failed = {(r["variant"], r["scenario"], r["exit"]) for r in report["results"] if not r["ok"]}
+        self.assertEqual(failed, {("fixed", "missing", 51)})
 
 
 if __name__ == "__main__":

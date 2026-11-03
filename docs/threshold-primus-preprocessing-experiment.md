@@ -136,28 +136,57 @@ also run against a mutant that removes the batch guard and restores the
 upstream zero fallback. The same oracle must reject the mutant specifically
 because the original synthetic operands reached the opening spy.
 
-### Local source-only receipt
+### Single oracle (fix for the stale PR #50 oracle)
 
-- Base TclMesh PR #50 revision: `d9c356fc20a9f930c29d2448ca422cc024f1ab58`.
-- Python 3.12.14: all 11 existing patch tests passed. Generated both probes
-  from the verified Primus blob. Workflow YAML and Bash scripts parsed.
-- Ajax `64b4f80fb90da3096e03af200d3c95abe865a987`, blob
-  `275ff6b11180d7e85975f654aed316ee4a46c5db`: independently checked
-  the zero-fallback, subtraction, and opening order in the pinned source.
-- SHA-256 of the Primus input:
-  `224241f432cf4d35d61d12fdc40a6186cb692390e619f79bac6075ad7ac0612f`.
-  Fixed probe:
-  `68bdbc42a5ebde6324f5d3a1795acaa90cce3a1f090663cd7f471c94778f8f53`.
-  Mutant probe:
-  `4db6289d867f7c79186832d0e2ec400a27611bb392254cf37c4dc76607ff41de`.
-- Rust/Cargo were unavailable in the local verification environment. Hosted
-  probe execution requires a completed exact-revision run and receipt.
+At `dfe5f8e` the loader panicked with `Missing, malformed, or empty Z2k
+preprocessing file`, while the probe expected `Missing Z2k preprocessing file`
+or `Malformed or empty Z2k preprocessing file`. Neither prefix matched, so the
+hosted step would have stopped at `missing` before the exhaustion mutants ran;
+the Python tests only checked source text and passed regardless. Now:
+
+- `threshold_primus_preprocessing_patch.py` defines each panic prefix once
+  (`UNREADABLE_FILE`, `MALFORMED_FILE`, `INSUFFICIENT`, `EXHAUSTED`). The
+  injected Rust interpolates them, and the loader splits
+  `io::ErrorKind::InvalidData` (malformed, empty, non-UTF-8) from every other
+  I/O error (missing, unreadable).
+- `threshold_primus_opening_harness.py` holds the only scenario table
+  (`SCENARIOS`, `EXHAUSTION`). It renders the Rust oracle from that table, and
+  `--run` compiles both variants and checks every matrix cell's exit status
+  (`0` fixed; `49` zero-fallback on each exhaustion scenario). CI runs that
+  command and adds no expectations of its own.
+- The unit tests render probes from a clean-room fixture (TclMesh-authored
+  Beaver multiply with the upstream masking/opening order; no upstream code
+  vendored) and, where `rustc` exists, run the whole matrix natively. An
+  oracle-sensitivity test drifts the loader message back to the PR #50 text
+  and requires exactly `fixed/missing` to fail with exit `51`.
+
+### Multi-party shortage
+
+`multiparty-shortage` runs three parties as threads over a simulated
+broadcast transport. An opening needs every party's masked shares, and each
+receive is bounded by a 500 ms deadline. Party 2 holds one triple fewer than
+the batch of two. The fixed probe requires all of the following: party 2 aborts
+with `INSUFFICIENT` before sending and keeps its triple; every peer aborts on
+the timeout; no party completes an opening or returns a product; and the
+whole run finishes within `(N + 1) * timeout`. The zero-fallback mutant must
+instead deliver party 2's unmasked operands to a peer (exit `49`). The
+transport is a simulation, not Primus networking. It shows that the patched
+methods abort cleanly when composed with a deadline-bounded opening, not that
+upstream networking has such a deadline.
+
+### Local native receipt (this revision)
+
+- Primus input SHA-256 `224241f432cf4d35d61d12fdc40a6186cb692390e619f79bac6075ad7ac0612f`
+  (blob `da2e4457a9f7d8f434815d8645c4b4b1b8c0eded`).
+- rustc 1.97.0: all 11 cells matched (8 fixed `PASS`; 3 mutant exit `49`).
+  The isolated helper tests passed, and both helper mutants failed.
+- Python: 18 patch/oracle tests passed, and 102 `test_threshold*.py` tests passed.
+- The pinned 1.85.1 hosted run and its `opening-probe.json` receipt remain the
+  acceptance evidence for this PR.
 
 The spy observes calls at the opening boundary. It does not exercise peer
 coordination, network delivery, plaintext decryption or the protocol's
-security assumptions. A local panic may leave peers waiting, so a real
-multi-party test still needs a bounded abort and opening/output assertions
-across all parties. Original Ajax additionally requires the historical
+security assumptions beyond the simulated transport above. Original Ajax additionally requires the historical
 dependency pin from #47. The modified Primus Cargo stage resolves a fresh
 lockfile and captures it as evidence, so its result is exploratory until a
 reviewed lockfile and toolchain are replayed. Cryptographic release remains

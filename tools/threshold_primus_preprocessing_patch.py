@@ -19,6 +19,21 @@ SOURCE_SHA = "a0d075d9ec055fb8652925fee65768a14a627cfa"
 SOURCE_BLOB = "da2e4457a9f7d8f434815d8645c4b4b1b8c0eded"
 REL = "mpc/src/dn.rs"
 
+# Single source of truth for every fail-closed panic prefix. The injected Rust
+# and the opening-probe oracle (threshold_primus_opening_harness.py) both
+# interpolate these, so the oracle cannot drift from the code it checks.
+UNREADABLE_FILE = "Missing or unreadable Z2k preprocessing file"
+MALFORMED_FILE = "Malformed or empty Z2k preprocessing file"
+INSUFFICIENT = "Insufficient Z2k preprocessing"
+EXHAUSTED = "Z2k preprocessing exhausted"
+
+
+def _fill(template: str) -> str:
+    return (template.replace("__UNREADABLE__", UNREADABLE_FILE)
+            .replace("__MALFORMED__", MALFORMED_FILE)
+            .replace("__INSUFFICIENT__", INSUFFICIENT)
+            .replace("__EXHAUSTED__", EXHAUSTED))
+
 OLD_LOADER = """    /// read z2k beaver triples from files
     pub fn read_z2k_triples_from_files(&mut self, filename: &Path) {
         //println!("read file {:?}", filename);
@@ -44,14 +59,18 @@ OLD_LOADER = """    /// read z2k beaver triples from files
     }
 """
 
-NEW_LOADER = """    /// A malformed, absent, or empty preprocessing file fails before any
+NEW_LOADER = _fill("""    /// A malformed, absent, or empty preprocessing file fails before any
     /// share masking or opening. Parsed rows are committed atomically.
     pub fn read_z2k_triples_from_files(&mut self, filename: &Path) {
-        let parsed = read_and_parse_z2k_triple_file(filename)
-            .expect("Missing, malformed, or empty Z2k preprocessing file");
+        let parsed = read_and_parse_z2k_triple_file(filename).unwrap_or_else(|e| {
+            if e.kind() == std::io::ErrorKind::InvalidData {
+                panic!("__MALFORMED__: {e}");
+            }
+            panic!("__UNREADABLE__: {e}");
+        });
         self.triplez2k_buffer.extend(parsed);
     }
-"""
+""")
 
 OLD_NEXT_TRIPLE = """    pub fn next_triple_z2k(&mut self) -> (u64, u64, u64) {
         if self.triplez2k_buffer.is_empty() {
@@ -85,7 +104,7 @@ NEW_BATCH = """        let batch_size = a.len();
             (0..batch_size).map(|_| self.next_triple_z2k()).collect();
 """
 
-HELPERS = """
+HELPERS = _fill("""
 // TclMesh #49 research-only modified-overlay hardening.
 // The wire data use u128 decimal values narrowed to u64 as in the original
 // importer. A u64-only parser would reject the real upstream fixture data.
@@ -128,15 +147,15 @@ fn read_and_parse_z2k_triple_file(
 }
 
 fn require_z2k_triples_available(available: usize, needed: usize) {
-    assert!(available >= needed, "Insufficient Z2k preprocessing");
+    assert!(available >= needed, "__INSUFFICIENT__");
 }
 
 fn take_z2k_triple_checked(buffer: &mut VecDeque<(u64, u64, u64)>)
     -> (u64, u64, u64)
 {
-    buffer.pop_front().expect("Z2k preprocessing exhausted")
+    buffer.pop_front().expect("__EXHAUSTED__")
 }
-"""
+""")
 
 NATIVE_TESTS = """
 #[cfg(test)]
@@ -211,11 +230,34 @@ mod tclmesh_research_preprocessing_tests {
 }
 """
 
-# Source-only test fixture, deliberately **not** the actual upstream file.
-TEST_SOURCE_FIXTURE = ("mod matrix;\n" + OLD_LOADER + OLD_NEXT_TRIPLE
-                       + OLD_BATCH
-                       + "        let masked_values: Vec<u64> = vec![];\n"
-                       + "        .open_secrets_z2k(0, self.num_threshold, &masked_values, true)\n")
+# Clean-room test fixture, deliberately **not** the upstream (LGPL) file: the
+# three pinned signatures plus a TclMesh-authored textbook Beaver multiply with
+# the upstream masking/opening order, so probes render and run without it.
+TEST_SOURCE_FIXTURE = ("mod matrix;\n\nimpl Fixture {\n" + OLD_LOADER + "\n" + OLD_NEXT_TRIPLE
+                       + """
+    fn mul_element_wise_z2k(&mut self, a: &[u64], b: &[u64], k: u32) -> Vec<u64> {
+        self.mul_count_z2k += a.len() as u32;
+        assert_eq!(a.len(), b.len(), "Input vector lengths must match");
+""" + OLD_BATCH + """
+        let masked_values: Vec<u64> = triples
+            .iter()
+            .enumerate()
+            .flat_map(|(i, &(r, s, _))| [a[i] - r, b[i] - s])
+            .collect();
+        let opened_values = self
+            .open_secrets_z2k(0, self.num_threshold, &masked_values, true)
+            .unwrap();
+        triples
+            .iter()
+            .enumerate()
+            .map(|(i, &(r, s, t))| {
+                let (d, e) = (opened_values[i * 2], opened_values[i * 2 + 1]);
+                self.add_z2k_const(d * e, d * s + e * r + t, k)
+            })
+            .collect()
+    }
+}
+""")
 
 
 def _replace_exact_once(source: str, old: str, new: str, description: str) -> str:
