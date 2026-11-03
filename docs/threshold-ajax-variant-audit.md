@@ -128,11 +128,24 @@ can therefore reduce the usable pool without an explicit load failure.
 - [Modified Primus variant](https://github.com/primus-labs/primus-fhe/blob/a0d075d9ec055fb8652925fee65768a14a627cfa/mpc/src/dn.rs#L1298-L1304)
 
 This is a **source-level safety blocker for accepting exhausted or incomplete
-preprocessing**. A zero triple satisfies the algebraic equation
-`c = a*b`, but replacing unpredictable, independently generated
-preprocessing with a known constant is not justified by the paper's
-security proof. This review does **not** establish an exploitable break
-in a deployed protocol. No native runtime exhaustion test has occurred.
+preprocessing**. The same source's
+[`mul_element_wise_z2k` (Ajax)](https://github.com/primus-labs/Ajax/blob/64b4f80fb90da3096e03af200d3c95abe865a987/mpc/src/dn.rs#L1786-L1811)
+consumes each triple as `(r,s,t)`, forms `d=a-r` and `e=b-s`,
+then calls `open_secrets_z2k(..., &masked_values, true)`.
+The [Primus variant](https://github.com/primus-labs/primus-fhe/blob/a0d075d9ec055fb8652925fee65768a14a627cfa/mpc/src/dn.rs#L1786-L1810)
+contains the corresponding sequence.
+
+**Conditional privacy danger:** after an underflow, `r=s=0`, so
+`d=a` and `e=b` are passed to the opening procedure rather than
+properly randomized masked operands. This is a concrete source-code path
+that demands a native, adversary-model-aware test. It is **not yet a
+demonstrated exploit against any deployment**, because no executed trace
+has established which inputs actually reach underflow or what external
+parties observe. A zero triple satisfies the algebraic equation
+`c=a*b` but is not a valid substitute for unpredictably generated
+authenticated preprocessing.
+
+No native runtime exhaustion test has occurred.
 
 **Necessary negative experiment before any native threshold acceptance:**
 provide an insufficient, missing, malformed or truncated triple file and
