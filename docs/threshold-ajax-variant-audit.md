@@ -91,3 +91,27 @@ it cannot authenticate an author signature or certify a reduction.
    `cryptographic_release_admitted=false` remain mandatory audit outcomes.
    In particular, none of these tools can satisfy TclMesh's runtime
    cryptographic-threshold conformance gate.
+
+## Separate native build experiment: modified Primus variant only
+
+A second [dedicated workflow](../.github/workflows/threshold-primus-native.yml)
+attempts an isolated **`cargo check`** of the distinct Primus `thfhe` source
+tree. It does **not** execute distributed DKG or decryption, does **not**
+recover the missing Ajax dependency, and is **not** a compatibility claim.
+
+It checks out exactly `a0d075d9ec055fb8652925fee65768a14a627cfa`,
+edits *only the temporary public research checkout* to replace
+`concrete-ntt`'s floating `dev` ref with observed exact commit
+`cdeba793e46208320b30d78be19f7be78d49016a`, and saves the
+patch. It generates and archives a complete Cargo.lock, records
+`rustc -Vv`, `cargo -V` and build logs, then executes
+`cargo check --package thfhe --example thfhe --locked`.
+
+This is intentionally a **modified overlay compilation experiment**,
+and must not be reported as reproduction of the original Ajax author's
+benchmark or as TclMesh cryptographic acceptance. The run remains
+`cryptographic_release_admitted=false` regardless of its result.
+Build success would not establish semihonest confidentiality,
+malicious-share verification, any-3 reconstruction, independent custody,
+or recipient-only release. Its CI status must be read from the hosted
+exact-head workflow before marking even compilation accepted.
