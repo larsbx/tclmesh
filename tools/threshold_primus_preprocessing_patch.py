@@ -47,10 +47,8 @@ OLD_LOADER = """    /// read z2k beaver triples from files
 NEW_LOADER = """    /// A malformed, absent, or empty preprocessing file fails before any
     /// share masking or opening. Parsed rows are committed atomically.
     pub fn read_z2k_triples_from_files(&mut self, filename: &Path) {
-        let content = std::fs::read_to_string(filename)
-            .expect("Missing Z2k preprocessing file");
-        let parsed = parse_z2k_triple_file(&content)
-            .expect("Malformed or empty Z2k preprocessing file");
+        let parsed = read_and_parse_z2k_triple_file(filename)
+            .expect("Missing, malformed, or empty Z2k preprocessing file");
         self.triplez2k_buffer.extend(parsed);
     }
 """
@@ -120,6 +118,15 @@ fn parse_z2k_triple_file(contents: &str)
     Ok(parsed)
 }
 
+fn read_and_parse_z2k_triple_file(
+    filename: &std::path::Path,
+) -> std::io::Result<Vec<(u64, u64, u64)>> {
+    let content = std::fs::read_to_string(filename)?;
+    parse_z2k_triple_file(&content).map_err(|e| {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+    })
+}
+
 fn require_z2k_triples_available(available: usize, needed: usize) {
     assert!(available >= needed, "Insufficient Z2k preprocessing");
 }
@@ -162,6 +169,26 @@ mod tclmesh_research_preprocessing_tests {
             let valid = data == "a: 1, b: 2, c: 3\n";
             assert_eq!(parse_z2k_triple_file(data).is_ok(), valid);
         }
+    }
+
+    #[test]
+    fn rejects_missing_preprocessing_file() {
+        let path = std::env::temp_dir().join(
+            format!("tclmesh-missing-z2k-{}.txt", std::process::id())
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(read_and_parse_z2k_triple_file(&path).is_err());
+    }
+
+    #[test]
+    fn rejects_incomplete_preprocessing_file() {
+        let path = std::env::temp_dir().join(
+            format!("tclmesh-invalid-z2k-{}.txt", std::process::id())
+        );
+        std::fs::write(&path, "a: 1, b: 2, c: 3\nmalformed row\n").unwrap();
+        let result = read_and_parse_z2k_triple_file(&path);
+        std::fs::remove_file(&path).unwrap();
+        assert!(result.is_err());
     }
 
     #[test]
