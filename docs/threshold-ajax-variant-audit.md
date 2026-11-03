@@ -115,3 +115,33 @@ Build success would not establish semihonest confidentiality,
 malicious-share verification, any-3 reconstruction, independent custody,
 or recipient-only release. Its CI status must be read from the hosted
 exact-head workflow before marking even compilation accepted.
+
+## New preprocessing-safety finding: silent exhaustion fallback
+
+Direct inspection of both independently pinned `mpc/src/dn.rs` variants
+shows `next_triple_z2k` returns **`(0, 0, 0)`** when the buffered
+Beaver-triple pool is empty. In both versions, the file-based loader
+only appends rows that parse into three integer fields; malformed rows
+can therefore reduce the usable pool without an explicit load failure.
+
+- [Original Ajax source](https://github.com/primus-labs/Ajax/blob/64b4f80fb90da3096e03af200d3c95abe865a987/mpc/src/dn.rs#L1299-L1305)
+- [Modified Primus variant](https://github.com/primus-labs/primus-fhe/blob/a0d075d9ec055fb8652925fee65768a14a627cfa/mpc/src/dn.rs#L1298-L1304)
+
+This is a **source-level safety blocker for accepting exhausted or incomplete
+preprocessing**. A zero triple satisfies the algebraic equation
+`c = a*b`, but replacing unpredictable, independently generated
+preprocessing with a known constant is not justified by the paper's
+security proof. This review does **not** establish an exploitable break
+in a deployed protocol. No native runtime exhaustion test has occurred.
+
+**Necessary negative experiment before any native threshold acceptance:**
+provide an insufficient, missing, malformed or truncated triple file and
+require the experiment to fail with an explicit nonzero status *before*
+opening any masked values or emitting any plaintext. Do not simply count
+the number of entries loaded or substitute zeros. Source-only probes
+must continue to report `cryptographic_release_admitted=false`.
+
+The exact-source audit now checks the fallback signature in **both**
+pinned variants, and the synthetic fixture includes a mutant that removes
+it; passing source checks indicate a *recognized unresolved blocker*,
+not a security gate that became green.
