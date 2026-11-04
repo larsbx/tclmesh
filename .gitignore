@@ -7,3 +7,5 @@ proof/.lake/
 kernel/core/target/
 security/target/
 backends/tfhe/target/
+__pycache__/
+*.pyc
