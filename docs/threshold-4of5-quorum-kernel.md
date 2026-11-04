@@ -205,7 +205,8 @@ rung is gated by the same O/M obligations plus its own.
 3. **P2 — DKG.** Each party deals its own `sⱼ` in replicated form, and
    `s = Σ sⱼ`. `pk` aggregates over a common reference string; `rlk` needs a
    multiparty relinearization-key round. Gate: O2–O7 pass with DKG keys, and
-   the dealer is gone from the code path.
+   the dealer is gone from the code path. P2a below exercises the public-key
+   and holder-local setup before the relinearization round.
 4. **P3 — malicious inputs.** Proof of plaintext knowledge bound to
    `(sid, i)`, or the TFHE clamp path. Gate: INV-Q10, plus a replay or copy
    mutant that must be rejected.
@@ -251,3 +252,37 @@ enter the opaque simulation envelope but aborts before a result is
 recorded. This replay uses trusted toy vectors and the original trusted
 dealer. Share authentication and cryptographic proof verification belong
 to later rungs.
+
+## 9. P2a toy collective public key and holder setup
+
+The [P2a experiment](../tools/q45_collective_setup.py) gives each of five
+participants a separate deterministic random stream in the test harness.
+They agree on one public polynomial `a` and each samples a private additive
+contribution `s_i` and error `e_i`. Each publishes `b_i = -a s_i + e_i`.
+The evaluator receives only `(Σ b_i, a)`. In the toy ring, adding the public
+shares gives `Σ b_i = -a Σ s_i + Σ e_i`.
+
+Each participant also splits its own `s_i` using the P0 replicated sharing.
+For each excluded triple, it sends one copy of the corresponding fragment to
+each of the two remaining holders. A holder adds the five fragments for each
+triple assigned to it. Each designated holder then computes its partial from
+its own inbox-derived pieces. No API in this setup returns the aggregate
+secret polynomial. The single-process test harness simulates all five inboxes
+and can inspect their contents.
+
+The tests encrypt all 32 input patterns, add the five ciphertexts, and
+reconstruct the resulting parity through each of the five possible quorums
+on each of four seeds. They also check exact fragment routing and rejection
+of incomplete, duplicate, foreign, malformed, and misrouted contributions.
+Run from the repository root:
+
+```sh
+python3 -B -m unittest discover -s tests -p 'test_threshold_q45_collective_setup.py'
+```
+
+This experiment assumes honest participants, a consistent public setup and
+private fragment delivery by the harness. Its parameters and randomness are
+for reproducible tests. The remaining P2 gate requires collective
+relinearization-key generation and replay of the nonlinear `e4` circuit
+under that key. Authenticated delivery and verifiable share correctness are
+outside the P2a model.
