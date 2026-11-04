@@ -4,9 +4,10 @@ A kernel that reveals exactly one bit, `T = [x₁+…+x₅ ≥ 4]`, decryptable 
 4 of 5 key holders. The P0 oracle `tools/q45_oracle.py` discharges 10/10
 obligations on 4 seeds (`tests/test_threshold_q45_oracle.py`).
 
-**Status: P0 reference only. Its parameters are not secure.** Nothing here
-changes the [threshold boundary](threshold-release-boundary.md): no
-cryptographic threshold backend is integrated.
+**Status: P0 toy arithmetic reference and P1 inert ceremony experiment.**
+The P0 parameters are insecure. P1 checks message order and binding using
+simulated payloads. The [governed threshold release boundary](threshold-release-boundary.md)
+still refuses cryptographic threshold release.
 
 ## 1. Reference semantics
 
@@ -20,7 +21,7 @@ P = \{P_1,\dots,P_5\},\quad x_i \in \mathbb{F}_2,\quad w = \textstyle\sum_i x_i 
 | Leakage | `T` only; `w` and every `xᵢ` stay hidden |
 | Access structure | `𝒜 = {S ⊆ P : |S| ≥ 4}`; maximal unqualified sets `C(5,3)` = 10 |
 | Adversary | static; semi-honest at P0–P2, malicious from P3; corrupts ≤ 3 parties |
-| Availability | any one party may be offline |
+| Availability | any one party may be offline after all five have input and sealed |
 
 Two limits are inherent, not defects. Four colluders form a quorum and can
 decrypt any `Enc(xᵢ)`. The last partial decryptor sees `T` first (no
@@ -111,11 +112,30 @@ itself.
 6. **Combine.** Anyone computes `T` from the 4 partials and appends it to
    the ledger.
 
-A missing input aborts the session; substituting `xᵢ = 0` is a policy
-choice, not a default. A missing partial re-forms the quorum as `S′ ≠ S`.
-Partials for two quorums over the same `c_T` are safe: both carry the same
-plaintext and independent smudging. The only backward edge is that re-form,
-and both exits to Abort happen before any partial exists.
+### P1 transition contract
+
+The [standalone Erlang experiment](../experiments/threshold_q45/q45_ceremony.erl)
+serializes one session in a `gen_statem`. Its deterministic reducer takes a
+trusted logical time. The process adapter supplies local monotonic time and
+fires an idle timeout. Each phase has a fresh deadline, fixed until the next
+phase. A message processed at the deadline or later causes a terminal abort.
+
+| Phase | Accepted transition |
+|---|---|
+| Inputs | One nonempty ciphertext per party in the session. After all five, a trusted simulated evaluator receives them in party order and fixes the exact output bytes and SHA-256 digest. |
+| Sealing | All five distinct parties attest to the locally computed digest. A conflicting digest is rejected and does not count. |
+| Quorum | The first four distinct commitments to that digest freeze the sorted quorum and the share designation. |
+| Partials | A single nonempty simulated payload per frozen member, bound to the session, exact output bytes, digest, and canonical quorum. |
+| Result | After all four contributions, a matching one-bit result is checked by the trusted simulated combiner and recorded once. |
+| Complete or aborted | Terminal. Later submissions cannot change the session. |
+
+P1 aborts on missing inputs, attestations, commitments, partials, or a result
+at the respective deadline. A missing partial requires a fresh session ID
+and a fresh transcript. In-session quorum re-formation is deferred. The
+caller is responsible for unique session IDs, authenticated attribution in
+any future integration, and trusted, deterministic evaluation and
+combination callbacks. P1 records state in memory. Its simulated messages
+carry no signatures or proofs of input knowledge or partial correctness.
 
 ## 5. Invariants
 
@@ -128,8 +148,8 @@ and both exits to Abort happen before any partial exists.
 | INV-Q5 | Noise margin: `log₂‖e‖ + κ ≤ ς` and `‖e‖ + 5·2^ς < Δ/2` | O5 | P0 |
 | INV-Q6 | Smudging present: `‖dᵢ − c₁σᵢ‖∞ ≥ 2^(ς−4)` | O7 | P0 |
 | INV-Q7 | Sub-quorum blind: 3 parties pooling every share they hold decode `T` at chance | O6 (empirical) | P0 |
-| INV-Q8 | Decrypt-only-`c_T`: an honest party refuses a partial for any `c ≠` its recomputed `c_T` | state-machine test | P1 |
-| INV-Q9 | Ledger order: `S`, `δ_S` frozen before the first partial; `T` appended once per sid | state-machine test | P1 |
+| INV-Q8 | Decrypt-only-`c_T`: admit simulated partials only for the exact locally recomputed `c_T` | Exact-byte and digest checks, foreign ciphertext mutant | P1 |
+| INV-Q9 | Model order: `S`, `δ_S` frozen before the first partial; `T` recorded once in the session process | Prefix model, deadline tests, transition mutants | P1 |
 | INV-Q10 | Input binding: `cᵢ` bound to `(sid, i)` with a proof of plaintext knowledge | proof verifier + replay mutant | P3 |
 
 ## 6. Dec∘Eval differential oracle
@@ -165,7 +185,10 @@ rate falls between 0.477 and 0.586.
 M1–M3 are the discriminating witnesses. Each one is a plausible wrong
 implementation the oracle must reject, so a green run cannot be vacuous. The
 tests add a fourth: with smudging removed, O7 fails. O6 is a statistical band,
-not a proof; a P1 rerun should widen it to 10⁴ trials.
+not a proof. The P1 sampling check uses 10⁴ trials across the same four
+seeds, drawing a fresh replicated sharing and a random three-party coalition
+each trial from a balanced target-bit distribution over the existing toy
+ciphertext corpus.
 
 ## 7. Rung ladder and open questions
 
@@ -174,9 +197,10 @@ rung is gated by the same O/M obligations plus its own.
 
 1. **P0 — toy reference (done).** Python BFV, trusted dealer, replicated
    sharing. Gate: 10/10 on 4 seeds.
-2. **P1 — ceremony state machine.** The ceremony as a BEAM `gen_statem`.
-   Gate: INV-Q8 and Q9 under property tests over adversarial message orders
-   and timeouts, plus O6 at 10⁴ trials.
+2. **P1 — inert ceremony state machine.** Check INV-Q8 and Q9 using
+   every commitment permutation, adversarial submissions at each modeled
+   prefix, exact deadlines, and deliberately broken transitions. The wider
+   O6 check remains an empirical toy measurement.
 3. **P2 — DKG.** Each party deals its own `sⱼ` in replicated form, and
    `s = Σ sⱼ`. `pk` aggregates over a common reference string; `rlk` needs a
    multiparty relinearization-key round. Gate: O2–O7 pass with DKG keys, and
@@ -191,10 +215,25 @@ rung is gated by the same O/M obligations plus its own.
 
 Open questions:
 
-- [ ] Missing-input policy: abort the session, or substitute `xᵢ = 0`?
+- [ ] Should a later rung support retrying with a different quorum within one session?
 - [ ] Output receiver: does `T` go to all 5 parties, or only to the quorum?
 - [ ] Is fairness (commit-then-reveal of partials) required?
 - [ ] Does the chosen library's threshold API support k-of-n with local `λ`,
   or only n-of-n with share recovery? Unverified; check before P4.
 - [ ] Many concurrent sessions in SIMD slots: `t = 2` batching is restricted,
   so does P4 need `t ≥ 7` or TFHE instead?
+
+## 8. Reproduce P1
+
+From the repository root with Python 3 and Erlang/OTP (compiler, Crypto and EUnit):
+
+```sh
+python3 tools/check_q45_ceremony_mutants.py
+python3 -B -m unittest discover -s tests -p 'test_threshold_q45*.py'
+```
+
+The EUnit model visits the prefixes of 120 complete commitment orders,
+including all five possible frozen quorums. The mutant runner compiles each
+changed transition separately and requires its named acceptance test to fail.
+The Python suite exercises the original arithmetic and the wider toy O6
+sampling check.

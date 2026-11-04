@@ -41,6 +41,15 @@ jobs:
       - name: Run release self-check
         run: tclsh tools/release_check.tcl
 
+  q45-ceremony:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Erlang/OTP
+        run: sudo apt-get update && sudo apt-get install -y erlang-base erlang-dev erlang-eunit erlang-crypto
+      - name: Check inert ceremony and reject transition mutants
+        run: python3 tools/check_q45_ceremony_mutants.py
+
   kernel:
     runs-on: ubuntu-latest
     steps:
