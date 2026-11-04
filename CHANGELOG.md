@@ -2,6 +2,12 @@
 
 ## Unreleased — v0.3 reference runtime
 
+- SPEC_4of5 P0 ([docs](docs/threshold-4of5-quorum-kernel.md)): a toy-BFV
+  Dec∘Eval oracle (`tools/q45_oracle.py`) for the 4-of-5 threshold bit
+  `T = e₄(x)` (7 multiplications, depth 2) under replicated key sharing.
+  It discharges 10/10 obligations on 4 seeds, including the mutants M1–M3.
+  The parameters are insecure, and it is not a cryptographic threshold
+  backend;
 - radix addition and subtraction as block gate programs
   (`spec/TclMesh/Radix.lean`): the base-4 ripple-carry adder, and the same
   adder on complemented digits with carry in `1`, pass the repaired noise

@@ -1,0 +1,200 @@
+# SPEC_4of5 — encrypted 4-of-5 quorum kernel
+
+A kernel that reveals exactly one bit, `T = [x₁+…+x₅ ≥ 4]`, decryptable by any
+4 of 5 key holders. The P0 oracle `tools/q45_oracle.py` discharges 10/10
+obligations on 4 seeds (`tests/test_threshold_q45_oracle.py`).
+
+**Status: P0 reference only. Its parameters are not secure.** Nothing here
+changes the [threshold boundary](threshold-release-boundary.md): no
+cryptographic threshold backend is integrated.
+
+## 1. Reference semantics
+
+```math
+P = \{P_1,\dots,P_5\},\quad x_i \in \mathbb{F}_2,\quad w = \textstyle\sum_i x_i \in [0,5],\quad T(x) = [\,w \ge 4\,] \in \mathbb{F}_2
+```
+
+| Property | Requirement |
+|---|---|
+| Output | `T(x)`, released to the decrypting quorum (or a designated receiver) |
+| Leakage | `T` only; `w` and every `xᵢ` stay hidden |
+| Access structure | `𝒜 = {S ⊆ P : |S| ≥ 4}`; maximal unqualified sets `C(5,3)` = 10 |
+| Adversary | static; semi-honest at P0–P2, malicious from P3; corrupts ≤ 3 parties |
+| Availability | any one party may be offline |
+
+Two limits are inherent, not defects. Four colluders form a quorum and can
+decrypt any `Enc(xᵢ)`. The last partial decryptor sees `T` first (no
+fairness). Fixing that needs commit-then-reveal of partials, which is out of
+scope.
+
+## 2. Kernel circuit
+
+Over 𝔽₂ the threshold is one symmetric polynomial, `T ≡ e₄(x)`, the high bit
+of the 3-bit popcount:
+
+```math
+[\,w \ge k\,] = \sum_{j=k}^{n} (-1)^{j-k}\binom{j-1}{k-1} e_j(x)
+\;\Longrightarrow\; T = e_4 - 4e_5 \equiv e_4 \equiv \mathrm{bit}_2(w) \pmod 2
+```
+
+The identity is checked for all `n ≤ 11`. The mod-2 collapse is Lucas:
+`C(w,4) mod 2 = bit₂(w)` because `w ≤ 5 < 8`.
+
+```math
+p_{12}=x_1x_2,\; p_{45}=x_4x_5,\; \pi = x_3x_4 + x_3x_5 + p_{45},\; \rho = (x_1{+}x_2)x_3,\qquad T = p_{12}\pi + p_{45}\rho
+```
+
+Level 1 holds 5 multiplications and level 2 holds 2: **7 multiplications,
+depth 2**. A cost semantics in the tests counts the distinct multiplication
+nodes, so the shared `p₄₅` is counted once. The kernel is written once as
+`e4(add, mul, x)` and evaluated under 𝔽₂ and toy-BFV semantics. The oracle
+therefore compares one term, not two transcriptions of it.
+
+| Backend | Evaluation | Cost | Input validity |
+|---|---|---|---|
+| BFV/BGV, `t = 2` — **P0 default** | `e₄` circuit above | 7 mult + 7 relin, depth 2 | free: every plaintext is in 𝔽₂ |
+| TFHE | `w = Σ cᵢ`, one PBS with LUT `s ↦ [s ≥ 4]`; message space ≥ 6 | 4 adds + 1 PBS | clamp each input `x ↦ [x ≠ 0]` (+5 PBS), or a ZK bit proof |
+| BFV, prime `t ≥ 7` | `f(w) = C(w,4)·(21 − 4w)/5` | depth 3 | ZK proof `xᵢ ∈ {0,1}` required |
+| Additive HE only | `Enc(rₐ(w − a))`, `a ∈ {0..3}`, shuffle, threshold-decrypt; any zero ⇒ `T = 0` | 4 decryptions + 1 shuffle | ZK proof `xᵢ ∈ {0,1}` required |
+
+## 3. Key sharing
+
+Replicated sharing over the 10 maximal unqualified sets. Every recombination
+coefficient is 1, so partial-decryption noise is never amplified.
+
+```math
+\mathcal{U} = \tbinom{P}{3},\quad s = \sum_{A\in\mathcal{U}} r_A,\quad r_A \text{ held by } H(A) = P\setminus A,\qquad \delta_S(A) = \min\big(H(A)\cap S\big)
+```
+
+- **Load.** Each share has 2 holders. Each party holds `C(4,3) = 4` shares.
+- **Designation is total iff `S ∈ 𝒜`.** If `|S| ≤ 3` then `S ⊆ A` for some
+  `A`, so `r_A` is unreachable. If `|S| ≥ 4` then every `H(A)` meets `S`.
+- **Partial.** `dᵢ = c₁·σᵢ + Eᵢ`, where `σᵢ = Σ r_A` over `δ_S(A) = i` and
+  `Eᵢ ← U[−2^ς, 2^ς]^N`.
+- **Combine.** `c₀ + Σ_{i∈S} dᵢ = Δ·T + e + Σ Eᵢ`, decoded by rounding `(t/q)·(·)`.
+
+```math
+\varsigma \ge \log_2\lVert e\rVert_\infty + \kappa, \qquad \lVert e\rVert_\infty + |S|\cdot 2^{\varsigma} < \Delta/2
+```
+
+**Shamir alternative.** Shares are `sⱼ = f(j)` with `deg f = 3` and
+`f(0) = s`. Party `j` must apply its own Lagrange coefficient:
+`dⱼ = λⱼˢ·c₁·sⱼ + Eⱼ`. If the combiner applies `λ` after smudging, the noise
+is `Σ λⱼEⱼ`, and `λⱼ mod q` is q-sized whenever `λⱼ ∉ ℤ`. The oracle measures
+this: only `{1,2,3,4}` (λ = 4, −6, 4, −1) and `{2,3,4,5}` (λ = 10, −20, 15,
+−4) survive. Shoup's `n!` scaling makes every `λ` integral, but
+`5! ≡ 0 (mod 2)` erases a `t = 2` plaintext. It needs `gcd(n!, t) = 1`, so it
+is excluded.
+
+**Choice.** Replicated sharing at `n = 5`. Shamir with local `λ` only if `n`
+grows: the replicated share count `C(n, k−1)` explodes (`n = 10, k = 7` gives
+210).
+
+## 4. Ceremony
+
+Privacy against ≤ 3 corrupt parties rests on one rule. Every quorum contains
+an honest party, and an honest party decrypts only the `c_T` it recomputed
+itself.
+
+1. **Setup.** Produce `pk`, `rlk` and the holdings `{r_A}`. A trusted dealer
+   does this at P0; DKG replaces it at P2.
+2. **Input.** `Pᵢ` publishes `cᵢ = Enc_pk(xᵢ)`, bound to `(sid, i)`. From P3
+   on, it also attaches a proof of plaintext knowledge, which stops copying or
+   tweaking another party's input.
+3. **Seal.** With all 5 inputs present, every party recomputes
+   `c_T = e4(add, mul_rlk, c)` deterministically and posts `H(c_T)`. Sealing
+   requires all posted hashes to agree.
+4. **Quorum.** The first 4 parties to commit form `S`. `S` and `δ_S` are
+   frozen in the ledger before any partial is released.
+5. **Partial.** Each `i ∈ S` releases `dᵢ` over `c_T` only, bound to
+   `(sid, H(c_T), S)`, with fresh smudging `Eᵢ`.
+6. **Combine.** Anyone computes `T` from the 4 partials and appends it to
+   the ledger.
+
+A missing input aborts the session; substituting `xᵢ = 0` is a policy
+choice, not a default. A missing partial re-forms the quorum as `S′ ≠ S`.
+Partials for two quorums over the same `c_T` are safe: both carry the same
+plaintext and independent smudging. The only backward edge is that re-form,
+and both exits to Abort happen before any partial exists.
+
+## 5. Invariants
+
+| ID | Statement | Discharged by | Rung |
+|---|---|---|---|
+| INV-Q1 | Circuit fidelity: `e4` over 𝔽₂ equals `T` on all of 𝔽₂⁵ | O1; M1, M2 rejected | P0 |
+| INV-Q2 | Correctness: `∀x ∀S ∈ C(P,4)`, `Combine_S ∘ Partial_S ∘ Eval ∘ Enc(x) = (T(x), 0, …, 0)` | O2, O3 | P0 |
+| INV-Q3 | Access: `δ_S` total ⇔ `|S| ≥ 4`, over all 32 subsets | O4 | P0 |
+| INV-Q4 | Unit recombination: no coefficient other than 1 touches a smudged term | structural; M3 shows the failure | P0 |
+| INV-Q5 | Noise margin: `log₂‖e‖ + κ ≤ ς` and `‖e‖ + 5·2^ς < Δ/2` | O5 | P0 |
+| INV-Q6 | Smudging present: `‖dᵢ − c₁σᵢ‖∞ ≥ 2^(ς−4)` | O7 | P0 |
+| INV-Q7 | Sub-quorum blind: 3 parties pooling every share they hold decode `T` at chance | O6 (empirical) | P0 |
+| INV-Q8 | Decrypt-only-`c_T`: an honest party refuses a partial for any `c ≠` its recomputed `c_T` | state-machine test | P1 |
+| INV-Q9 | Ledger order: `S`, `δ_S` frozen before the first partial; `T` appended once per sid | state-machine test | P1 |
+| INV-Q10 | Input binding: `cᵢ` bound to `(sid, i)` with a proof of plaintext knowledge | proof verifier + replay mutant | P3 |
+
+## 6. Dec∘Eval differential oracle
+
+`tools/q45_oracle.py` is a pure-Python toy BFV with exact integer arithmetic:
+`N = 32`, `t = 2`, `q = 2¹²⁷ − 1` (a Mersenne prime, so Shamir `λ` exist),
+relin base `2¹⁶` with 8 digits, CBD(η = 3) errors, ternary `s` and `u`,
+`κ = 40`, `ς = 72`. A run takes about 1.5 s.
+
+```text
+python3 -I tools/q45_oracle.py [seed]
+```
+
+It exits 0 iff every obligation passes. An obligation that raises counts as a
+failure (`discharge`). Results for seed `0x45`:
+
+| Obligation | Checks | Result |
+|---|---|---|
+| O1 | `e4` over 𝔽₂ ≡ `T` | 32/32 inputs |
+| O2 | `Dec_s ∘ Eval ≡ T`, full key, all 32 coefficients | 32/32 |
+| O3 | `Combine_S ∘ Partial_S ∘ Eval ≡ T`, `∀S ∈ C(5,4)` | 160/160 (input, quorum) cases |
+| O4 | `δ_S` total ⇔ `|S| ≥ 4`; load 4 shares per party | 32 subsets; load {4} |
+| O5 | noise margins | `log₂‖e‖ = 26`; 26 + 40 ≤ 72; `Δ/2 ≈ 2¹²⁵` |
+| O6 | 3 parties pooling all held shares decode ≈ coin | hit rate 0.500 over 128 trials (band 0.3–0.7) |
+| O7 | partial residual carries smudge | 72, 72, 72, 72 bits |
+| M1 | mutant `e4` missing `x₂x₃x₄x₅` rejected | witnesses (0,1,1,1,1), (1,1,1,1,1) |
+| M2 | mutant threshold `k = 3` rejected | 10 witnesses |
+| M3 | Shamir λ-local passes `∀S`; λ-after-smudge fails `∃S` | 5/5 vs. only {1,2,3,4}, {2,3,4,5} |
+
+Across seeds `0x45, 0x1234, 0x7, 0x63`, `log₂‖e‖ ∈ {26, 27}` and the O6 hit
+rate falls between 0.477 and 0.586.
+
+M1–M3 are the discriminating witnesses. Each one is a plausible wrong
+implementation the oracle must reject, so a green run cannot be vacuous. The
+tests add a fourth: with smudging removed, O7 fails. O6 is a statistical band,
+not a proof; a P1 rerun should widen it to 10⁴ trials.
+
+## 7. Rung ladder and open questions
+
+Each later rung reuses the same oracle with one component swapped, so every
+rung is gated by the same O/M obligations plus its own.
+
+1. **P0 — toy reference (done).** Python BFV, trusted dealer, replicated
+   sharing. Gate: 10/10 on 4 seeds.
+2. **P1 — ceremony state machine.** The ceremony as a BEAM `gen_statem`.
+   Gate: INV-Q8 and Q9 under property tests over adversarial message orders
+   and timeouts, plus O6 at 10⁴ trials.
+3. **P2 — DKG.** Each party deals its own `sⱼ` in replicated form, and
+   `s = Σ sⱼ`. `pk` aggregates over a common reference string; `rlk` needs a
+   multiparty relinearization-key round. Gate: O2–O7 pass with DKG keys, and
+   the dealer is gone from the code path.
+4. **P3 — malicious inputs.** Proof of plaintext knowledge bound to
+   `(sid, i)`, or the TFHE clamp path. Gate: INV-Q10, plus a replay or copy
+   mutant that must be rejected.
+5. **P4 — production backend.** A native BFV (`t = 2`) or TFHE worker. Gate:
+   differential Dec∘Eval of the backend against the P0 reference on all 160
+   (input, quorum) cases, with secure parameters and `q` sized for `ς + κ`
+   headroom.
+
+Open questions:
+
+- [ ] Missing-input policy: abort the session, or substitute `xᵢ = 0`?
+- [ ] Output receiver: does `T` go to all 5 parties, or only to the quorum?
+- [ ] Is fairness (commit-then-reveal of partials) required?
+- [ ] Does the chosen library's threshold API support k-of-n with local `λ`,
+  or only n-of-n with share recovery? Unverified; check before P4.
+- [ ] Many concurrent sessions in SIMD slots: `t = 2` batching is restricted,
+  so does P4 need `t ≥ 7` or TFHE instead?
