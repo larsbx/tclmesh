@@ -199,8 +199,9 @@ rung is gated by the same O/M obligations plus its own.
    sharing. Gate: 10/10 on 4 seeds.
 2. **P1 — inert ceremony state machine.** Check INV-Q8 and Q9 using
    every commitment permutation, adversarial submissions at each modeled
-   prefix, exact deadlines, and deliberately broken transitions. The wider
-   O6 check remains an empirical toy measurement.
+   prefix, exact deadlines, and deliberately broken transitions. Replay the
+   P0 toy ciphertexts and partials through the P1 process for all four seeds.
+   The wider O6 check remains an empirical toy measurement.
 3. **P2 — DKG.** Each party deals its own `sⱼ` in replicated form, and
    `s = Σ sⱼ`. `pk` aggregates over a common reference string; `rlk` needs a
    multiparty relinearization-key round. Gate: O2–O7 pass with DKG keys, and
@@ -229,6 +230,7 @@ From the repository root with Python 3 and Erlang/OTP (compiler, Crypto and EUni
 
 ```sh
 python3 tools/check_q45_ceremony_mutants.py
+python3 -B tools/check_q45_toy_replay.py
 python3 -B -m unittest discover -s tests -p 'test_threshold_q45*.py'
 ```
 
@@ -237,3 +239,15 @@ including all five possible frozen quorums. The mutant runner compiles each
 changed transition separately and requires its named acceptance test to fail.
 The Python suite exercises the original arithmetic and the wider toy O6
 sampling check.
+
+The P0/P1 replay generates all 640 seed, input, and quorum combinations using
+the Python toy oracle. Its evaluator callback returns the precomputed
+ciphertext only for the exact five input ciphertexts in party order. The
+Erlang combiner independently decodes all 32 coefficients from the admitted
+partial bytes and checks the 31 trailing zeros. Each transcript rejects
+changed ciphertext bytes, the opposite result bit, and repeated result
+submission. Four extra probes demonstrate that a malformed partial can
+enter the opaque simulation envelope but aborts before a result is
+recorded. This replay uses trusted toy vectors and the original trusted
+dealer. Share authentication and cryptographic proof verification belong
+to later rungs.

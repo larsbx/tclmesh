@@ -49,6 +49,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y erlang-base erlang-dev erlang-eunit erlang-crypto
       - name: Check inert ceremony and reject transition mutants
         run: python3 tools/check_q45_ceremony_mutants.py
+      - name: Replay P0 toy ciphertexts and partials through P1
+        run: python3 -B tools/check_q45_toy_replay.py
 
   kernel:
     runs-on: ubuntu-latest
