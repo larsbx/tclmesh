@@ -2,6 +2,7 @@ import Lean.Data.Json
 import TclMesh.Kernel
 import TclMesh.Certificate
 import TclMesh.Range
+import TclMesh.ReleaseMachine
 
 /-!
 `lake exe spec-eval VECTORS` evaluates every conformance vector with the
@@ -18,6 +19,10 @@ certificate (`certify`): `{"certificates": {id: {accepted, least}}}`.
 `lake exe spec-eval --ranges RANGES` checks every range certificate with the
 proved checker (`TclMesh.Range.check`) and prints the verdict and the least
 certificate, or `null`: `{"ranges": {id: {accepted, least}}}`.
+
+`lake exe spec-eval --release TRACES` replays every release trace through the
+proved machine (`TclMesh.Release.Machine.replay`) and prints, per trace, the
+observation after each step: `{"release": {id: [[result, status, attempts]]}}`.
 
 `lake exe spec-eval --word-range CORPUS` replays the upstream word-range
 corpus (larsbx/finite-math-kernels, `UPSTREAM.toml`) against
@@ -148,11 +153,42 @@ def wordRange (path : String) : IO UInt32 := do
     ("rows", Json.num rows.length), ("mismatches", Json.arr (bad.toArray.map Json.str))])]).compress
   return if bad.isEmpty && !rows.isEmpty then 0 else 1
 
+def traceEventOf (j : Json) : TclMesh.Release.Machine.TraceEvent :=
+  let a := j.getArr?.toOption.getD #[]
+  let str (k : Nat) := (a[k]?.bind (·.getStr?.toOption)).getD ""
+  let nat (k : Nat) := (a[k]?.bind (·.getNat?.toOption)).getD 0
+  match str 0 with
+  | "create" => .create
+  | "contribute" => .contribute (nat 1) (str 2)
+  | "revoke" => .revoke (str 1)
+  | "rotate" => .rotate
+  | "combine" => .combine (nat 1) (match str 2 with | "fail" => .fail | "crash" => .crash | _ => .ok)
+  | "crash" => .crash
+  | "recover" => .recover (nat 1) (str 2)
+  | "reject" => .reject (nat 1)
+  | _ => .expire (nat 1)
+
+def release (path : String) : IO UInt32 := do
+  let json ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
+  let traces ← IO.ofExcept ((json.getObjVal? "traces").bind Json.getArr?)
+  let out := traces.toList.map fun t =>
+    let id := (field t "id").getStr?.toOption.getD "?"
+    let cfg : TclMesh.Release.Machine.Config := ⟨(field t "idempotent").getBool?.toOption.getD false⟩
+    let p : TclMesh.Release.Machine.Policy :=
+      ⟨strings (field t "holders"), (field t "quorum").getNat?.toOption.getD 0, "recipient"⟩
+    let events := ((field t "events").getArr?.toOption.getD #[]).toList.map traceEventOf
+    let obs := TclMesh.Release.Machine.replay ⟨fun _ => true, fun _ => true⟩ cfg p events
+    (id, Json.arr (obs.toArray.map fun o => Json.arr #[o.result,
+      (o.status.map Json.str).getD Json.null, o.attempts]))
+  IO.println (Json.mkObj [("release", Json.mkObj out)]).compress
+  return 0
+
 def main (args : List String) : IO UInt32 := do
   if let ["--views", path] := args then return ← views path
   if let ["--certificates", path] := args then return ← certificates path
   if let ["--ranges", path] := args then return ← ranges path
   if let ["--word-range", path] := args then return ← wordRange path
+  if let ["--release", path] := args then return ← release path
   let [path] := args | IO.eprintln "usage: spec-eval VECTORS | spec-eval --views CIRCUITS"; return 2
   let json ← IO.ofExcept (Json.parse (← IO.FS.readFile path))
   let vectors ← IO.ofExcept ((json.getObjVal? "vectors").bind Json.getArr?)

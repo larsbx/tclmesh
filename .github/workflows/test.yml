@@ -90,6 +90,19 @@ jobs:
           tclsh tools/views.tcl ranges conformance/range_admission.json > admission-ranges.json
           spec/.lake/build/bin/spec-eval --ranges admission-ranges.json > spec-admission-ranges.json
           tclsh tools/views.tcl check-ranges admission-ranges.json spec-admission-ranges.json
+      - name: Release lifecycle (governed Tcl release = proved Lean machine; real process crashes)
+        run: |
+          spec/.lake/build/bin/spec-eval --release conformance/release_traces.json > spec-release.json
+          tclsh tools/release_conformance.tcl check conformance/release_traces.json spec-release.json
+          # Negative control: without combine-time re-authorization of every
+          # contribution, Tcl must diverge from the machine.
+          sed -i 's/^\(\s*\)_authorize \[dict get \$receipt language_id\]/\1continue; &/' src/release_policy.tcl
+          git diff --exit-code --quiet src/release_policy.tcl && { echo "mutation did not apply"; exit 1; }
+          if tclsh tools/release_conformance.tcl check conformance/release_traces.json spec-release.json; then
+            echo "release conformance accepted a Tcl implementation without live revocation"
+            exit 1
+          fi
+          git checkout -- src/release_policy.tcl
       - name: Upstream word-range corpus (the Lean model replays the vendored finite-kernels corpus)
         run: spec/.lake/build/bin/spec-eval --word-range conformance/word_range_v1.txt
       - name: Random differential conformance (kernel = spec exactly; kernel refines Tcl)

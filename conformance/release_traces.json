@@ -1,0 +1,641 @@
+{
+ "traces": [
+  {
+   "id": "happy",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ]
+   ]
+  },
+  {
+   "id": "outsider-duplicate-unknown",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "z"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     1,
+     "a"
+    ],
+    [
+     "combine",
+     1,
+     "ok"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ]
+   ]
+  },
+  {
+   "id": "before-quorum-and-after",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "contribute",
+     0,
+     "c"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "contribute",
+     0,
+     "c"
+    ]
+   ]
+  },
+  {
+   "id": "revoke-before-contribution",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "revoke",
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "contribute",
+     0,
+     "c"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ]
+   ]
+  },
+  {
+   "id": "revoke-after-quorum",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "revoke",
+     "a"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ],
+    [
+     "reject",
+     0
+    ],
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     1,
+     "b"
+    ],
+    [
+     "contribute",
+     1,
+     "c"
+    ],
+    [
+     "combine",
+     1,
+     "ok"
+    ]
+   ]
+  },
+  {
+   "id": "rotate-fences-old-epoch",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "rotate"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "expire",
+     0
+    ],
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     1,
+     "a"
+    ],
+    [
+     "contribute",
+     1,
+     "b"
+    ],
+    [
+     "combine",
+     1,
+     "ok"
+    ]
+   ]
+  },
+  {
+   "id": "fail-retry-idempotent",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "combine",
+     0,
+     "fail"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ]
+   ]
+  },
+  {
+   "id": "fail-no-retry-without-idempotency",
+   "idempotent": false,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "combine",
+     0,
+     "fail"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ],
+    [
+     "recover",
+     0,
+     "failed"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ]
+   ]
+  },
+  {
+   "id": "crash-retry-idempotent",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "combine",
+     0,
+     "crash"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ]
+   ]
+  },
+  {
+   "id": "crash-without-idempotency",
+   "idempotent": false,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "combine",
+     0,
+     "crash"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ],
+    [
+     "recover",
+     0,
+     "released"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ]
+   ]
+  },
+  {
+   "id": "crash-then-revoke-blocks-recovery",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "combine",
+     0,
+     "crash"
+    ],
+    [
+     "revoke",
+     "b"
+    ],
+    [
+     "recover",
+     0,
+     "retry"
+    ],
+    [
+     "recover",
+     0,
+     "failed"
+    ]
+   ]
+  },
+  {
+   "id": "restart-preserves-state",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "crash"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "crash"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ],
+    [
+     "crash"
+    ],
+    [
+     "reject",
+     0
+    ]
+   ]
+  },
+  {
+   "id": "reject-expire-terminal",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b",
+    "c"
+   ],
+   "quorum": 2,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "reject",
+     0
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     1,
+     "a"
+    ],
+    [
+     "contribute",
+     1,
+     "b"
+    ],
+    [
+     "expire",
+     1
+    ],
+    [
+     "combine",
+     1,
+     "ok"
+    ],
+    [
+     "recover",
+     1,
+     "released"
+    ]
+   ]
+  },
+  {
+   "id": "threshold-one",
+   "idempotent": true,
+   "holders": [
+    "a",
+    "b"
+   ],
+   "quorum": 1,
+   "events": [
+    [
+     "create"
+    ],
+    [
+     "contribute",
+     0,
+     "b"
+    ],
+    [
+     "contribute",
+     0,
+     "a"
+    ],
+    [
+     "combine",
+     0,
+     "ok"
+    ]
+   ]
+  }
+ ]
+}
