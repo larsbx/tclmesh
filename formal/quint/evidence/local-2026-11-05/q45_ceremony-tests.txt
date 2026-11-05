@@ -1,0 +1,11 @@
+
+  q45_ceremony
+    ok canonicalCorruptionTest passed 1 test(s)
+    ok malformedAbortTest passed 1 test(s)
+    ok duplicateTest passed 1 test(s)
+    ok foreignBindingTest passed 1 test(s)
+    ok emptyPartialTest passed 1 test(s)
+    ok outsideQuorumTest passed 1 test(s)
+    ok withheldTest passed 1 test(s)
+
+  7 passing (70ms)

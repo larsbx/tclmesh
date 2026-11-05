@@ -46,6 +46,9 @@ The [P2b adversarial research tests](docs/threshold-q45-p2b-adversarial-acceptan
 preserve the 640-case toy replay and demonstrate accepted dishonest partials
 that flip its result. They characterize missing protocol checks and do not
 establish malicious-secure threshold FHE.
+Its [Lean and Quint verification layer](docs/threshold-q45-formal-verification.md)
+checks the abstract admission boundary and finite ceremony models, including
+counterexamples and a generated trace replay against the actual toy actor.
 Range certificates make encrypted integer arithmetic exact by proof: under an
 `int<W>-checked` profile a circuit is evaluated only if interval arithmetic from
 its declared input ranges keeps every intermediate inside the `W`-bit word, and

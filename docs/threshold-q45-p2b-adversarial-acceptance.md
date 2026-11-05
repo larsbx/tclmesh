@@ -6,6 +6,11 @@ This change adds research fixtures, tests, replay and documentation. It changes
 no setup, relinearization, partial-generation, ceremony or governed-release
 implementation. It is separate from Ajax native reproduction in issue #47.
 
+The follow-up [Lean and Quint verification layer](threshold-q45-formal-verification.md)
+adds 20 checked Lean theorems, finite-state TLC checks, explicit counterexamples,
+and a generated trace replay against P2b/P1. Cryptographic soundness remains an
+explicit unproved obligation.
+
 **Result:** the honest 640-case P2b replay is preserved. A single canonical
 partial alteration also flips the result in all 640 cases, including through
 the P1 actor. Passing this characterization suite records that missing

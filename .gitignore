@@ -7,3 +7,5 @@ proof/.lake/
 kernel/core/target/
 security/target/
 backends/tfhe/target/
+formal/quint/node_modules/
+formal/quint/_apalache-out/
