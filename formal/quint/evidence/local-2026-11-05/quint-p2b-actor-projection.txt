@@ -1,0 +1,2 @@
+Quint/P2b/P1 projection: 20 snapshots match
+Incorrect final-result projection rejected (projection_mismatch).

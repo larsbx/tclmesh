@@ -1,0 +1,59 @@
+[TLC] Compiling to TLA+ (via Apalache)...
+# Usage statistics is OFF. We care about your privacy.
+# If you want to help our project, consider enabling statistics with config --enable-stats=true.
+
+Output directory: /workspace/scratch/3eae947bb0cc/tclmesh/formal/quint/_apalache-out/server/2026-11-05T19-42-23_16565146752431900639
+# APALACHE version: 0.62.4 | build: 7954daf                       I@19:42:23.975
+Starting checker server on port 8822...                           I@19:42:23.979
+The Apalache server is running on port 8822. Press Ctrl-C to stop.
+Failed to find a usable hardware address from the network interfaces; using random bytes: 38:83:8e:9c:d2:10:d9:1a W@19:42:25.169
+PASS #0: SanyParser                                               I@19:42:28.014
+[TLC] Running TLC model checker...
+
+TLC2 Version 2026.11.05.194229
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 62 and seed -6027248785084524893 with 1 worker on 8 cores with 2048MB heap and 64MB offheap memory [pid: 438] (Linux 6.18.57 amd64, Ubuntu 21.0.12 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /tmp/quint-tlc-3w7Iks/q45_setup_views.tla
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/Integers.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/Sequences.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/FiniteSets.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/TLC.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/Apalache.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Apalache.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/Variants.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Variants.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/_TLCTrace.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/_TLCTrace.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/Naturals.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/quint-tlc-3w7Iks/tlc-13747914245208284556/TLCExt.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/TLCExt.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module Apalache
+Semantic processing of module Variants
+Semantic processing of module TLCExt
+Semantic processing of module _TLCTrace
+Semantic processing of module q45_setup_views
+Linting of module Apalache
+Linting of module Variants
+Linting of module TLCExt
+Linting of module _TLCTrace
+Linting of module q45_setup_views
+Starting... (2026-11-05 19:42:29)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-05 19:42:30.
+Progress(14) at 2026-11-05 19:42:33: 585,691 states generated (585,691 s/min), 13,516 distinct states found (13,516 ds/min), 2,520 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 3.5E-8
+  based on the actual fingerprints:  val = 1.2E-9
+5759521 states generated, 114244 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 33.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 12 and the 95th percentile is 4).
+Finished in 37s at (2026-11-05 19:43:07)
+
+[ok] No violation found (37911ms).
+Nov 05, 2026 7:42:26 PM com.google.protobuf.GeneratedMessage warnPre22Gencode
+WARNING: Vulnerable protobuf generated type in use: io.grpc.reflection.v1alpha.ServerReflectionRequest
+As of 2022/09/29 (release 21.7) makeExtensionsImmutable should not be called from protobuf gencode. If you are seeing this message, your gencode is vulnerable to a denial of service attack. You should regenerate your code using protobuf 25.6 or later. Use the latest version that meets your needs. However, if you understand the risks and wish to continue with vulnerable gencode, you can set the system property `-Dcom.google.protobuf.use_unsafe_pre22_gencode` on the command line to silence this warning. You also can set `-Dcom.google.protobuf.error_on_unsafe_pre22_gencode` to throw an error instead. See security vulnerability: https://github.com/protocolbuffers/protobuf/security/advisories/GHSA-h4h5-3hr4-j3g2

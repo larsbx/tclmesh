@@ -51,6 +51,8 @@ jobs:
         run: python3 tools/check_q45_ceremony_mutants.py
       - name: Replay P0 toy ciphertexts and partials through P1
         run: python3 -B tools/check_q45_toy_replay.py
+      - name: Characterize dishonest P2b participants (toy counterexamples only)
+        run: python3 -B tools/check_q45_adversarial.py
 
   kernel:
     runs-on: ubuntu-latest

@@ -142,6 +142,42 @@ callback_failure_test() ->
     ?assertMatch({{error, combiner_failed}, {aborted, _}},
                  step(apply_all(FailedCombine, prefix() ++ partials()), result(quorum(), 1), 0)).
 
+equivocation_is_only_locally_detected_test() ->
+    FrozenA = apply_all(new(), prefix()),
+    FrozenB = apply_all(new(), prefix()),
+    Original = partial(1, quorum()),
+    Conflicting = {partial, 1, binding(quorum()), <<"other nonempty payload">>},
+    A = accept(FrozenA, Original),
+    B = accept(FrozenB, Conflicting),
+    % No shared transcript or authenticated broadcast links these reducers.
+    ?assertNotEqual(A, B),
+    reject(A, Conflicting),
+    reject(B, Original),
+    ?assertMatch({partials, _}, A),
+    ?assertMatch({partials, _}, B).
+
+incorrect_opaque_partial_is_only_rejected_by_fixture_callback_test() ->
+    Frozen = apply_all(new(), prefix()),
+    Altered = accept(Frozen, {partial, 1, binding(quorum()), <<"wrong share">>}),
+    Ready = apply_all(Altered, tl(partials())),
+    {Reply, Aborted} = step(Ready, result(quorum(), 1), 0),
+    ?assertMatch({error, combiner_failed}, Reply),
+    ?assertMatch({aborted, _}, Aborted),
+    {aborted, Data} = Aborted,
+    ?assertNot(maps:is_key(result, Data)).
+
+withheld_frozen_holder_cannot_be_replaced_in_session_test() ->
+    Three = apply_all(new(), prefix() ++ lists:sublist(partials(), 3)),
+    reject(Three, partial(5, quorum())),
+    reject(Three, partial(5, [1, 2, 3, 5])),
+    reject(Three, commit(5)),
+    {Reply, Aborted} = q45_ceremony:step(Three, expire, ?TIMEOUT),
+    ?assertMatch({error, timeout}, Reply),
+    ?assertMatch({aborted, _}, Aborted),
+    {aborted, Data} = Aborted,
+    ?assertNot(maps:is_key(result, Data)),
+    ?assertMatch({{error, terminal}, Aborted}, step(Aborted, partial(4, quorum()), ?TIMEOUT)).
+
 actor_test() ->
     {ok, Pid} = q45_ceremony:start_link(?SID, 2000, fun evaluate/1, fun combine/3),
     try

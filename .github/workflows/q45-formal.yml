@@ -1,0 +1,53 @@
+name: Q45 Lean and Quint acceptance boundary
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/q45-formal.yml'
+      - 'spec/**'
+      - 'formal/quint/**'
+      - 'tools/q45*.py'
+      - 'tools/check_q45*.py'
+      - 'experiments/threshold_q45/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/q45-formal.yml'
+      - 'spec/**'
+      - 'formal/quint/**'
+      - 'tools/q45*.py'
+      - 'tools/check_q45*.py'
+      - 'experiments/threshold_q45/**'
+
+jobs:
+  q45-formal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: formal/quint/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Erlang/OTP
+        run: sudo apt-get update && sudo apt-get install -y erlang-base erlang-dev erlang-crypto
+      - name: Install pinned Lean toolchain through elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Install locked Quint
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix formal/quint
+      - name: Prove and model-check the acceptance boundary
+        run: |
+          mkdir -p q45-formal-evidence
+          python3 -B tools/check_q45_formal.py --receipt q45-formal-evidence/receipt.json --evidence-dir q45-formal-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: q45-lean-quint-evidence
+          path: q45-formal-evidence

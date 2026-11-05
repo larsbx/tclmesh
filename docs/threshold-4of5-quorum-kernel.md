@@ -329,3 +329,20 @@ python3 -B -m unittest discover -s tests -p 'test_threshold_q45_collective_relin
 The experiment assumes honest contributors and a consistent first-round
 aggregate delivered to each participant. The Python objects do not implement
 authenticated broadcast, share proofs, or production key custody.
+
+## 11. P2b dishonest-participant characterization
+
+The [adversarial acceptance model](threshold-q45-p2b-adversarial-acceptance.md)
+preserves the 640 honest cases and exposes canonical dishonest contributions
+that the current interfaces accept. In particular, adding `DELTA` to one
+partial flips the bit in all 640 cases, including through the inert P1 actor.
+The 80-bit smudging checks establish correctness bounds only under the honest
+noise and bounded-mask assumptions; they do not enforce contribution integrity.
+
+```sh
+python3 -B tools/check_q45_adversarial.py
+```
+
+The failure matrix distinguishes local validation, authenticated agreement,
+verifiable sharing/partial proofs and construction-level obligations. These
+tests document limitations and add no malicious-security or release capability.
