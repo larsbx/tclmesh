@@ -49,6 +49,9 @@ establish malicious-secure threshold FHE.
 Its [Lean and Quint verification layer](docs/threshold-q45-formal-verification.md)
 checks the abstract admission boundary and finite ceremony models, including
 counterexamples and a generated trace replay against the actual toy actor.
+The [Lean and Quint testbanks](formal/testbanks/README.md) organize 78 acceptance
+cases for execution on the operator's server, with a manual self-hosted workflow
+and per-case receipts. The new banks await server execution.
 Range certificates make encrypted integer arithmetic exact by proof: under an
 `int<W>-checked` profile a circuit is evaluated only if interval arithmetic from
 its declared input ranges keeps every intermediate inside the `W`-bit word, and

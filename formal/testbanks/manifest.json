@@ -1,0 +1,705 @@
+{
+  "schema": "q45-testbanks-v1",
+  "status": "written_awaiting_server_execution",
+  "versions": {
+    "lean": "4.35.0",
+    "quint": "0.33.1",
+    "apalache": "0.62.4",
+    "java_major": 21
+  },
+  "scope": "Acceptance models, finite state exploration and toy replay; no concrete malicious-security or universal-refinement proof.",
+  "suites": {
+    "lean": [
+      "lean"
+    ],
+    "quint": [
+      "quint"
+    ],
+    "all": [
+      "lean",
+      "quint",
+      "replay"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "lean-build",
+      "kind": "lean_build",
+      "suite": "lean"
+    },
+    {
+      "id": "lean-positive",
+      "kind": "lean_bank",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/Positive.lean"
+    },
+    {
+      "id": "ln001",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN001_incorrect_is_correct.lean"
+    },
+    {
+      "id": "ln002",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN002_authentication_implies_correctness.lean"
+    },
+    {
+      "id": "ln003",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN003_canonical_implies_correctness.lean"
+    },
+    {
+      "id": "ln004",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN004_delta_preserves_bit.lean"
+    },
+    {
+      "id": "ln005",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN005_72_bit_margin.lean"
+    },
+    {
+      "id": "ln006",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN006_excess_mask_is_bounded.lean"
+    },
+    {
+      "id": "ln007",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN007_foreign_binding_admitted.lean"
+    },
+    {
+      "id": "ln008",
+      "kind": "lean_reject",
+      "suite": "lean",
+      "source": "formal/testbanks/lean/reject/LN008_duplicate_admitted.lean"
+    },
+    {
+      "id": "qc-scenarios",
+      "kind": "quint_bank",
+      "suite": "quint",
+      "source": "formal/quint/q45_ceremony.qnt"
+    },
+    {
+      "id": "qv-scenarios",
+      "kind": "quint_bank",
+      "suite": "quint",
+      "source": "formal/quint/q45_setup_views.qnt"
+    },
+    {
+      "id": "qb-scenarios",
+      "kind": "quint_bank",
+      "suite": "quint",
+      "source": "formal/testbanks/quint/q45_ceremony_bank.qnt"
+    },
+    {
+      "id": "qs-scenarios",
+      "kind": "quint_bank",
+      "suite": "quint",
+      "source": "formal/testbanks/quint/q45_setup_bank.qnt"
+    },
+    {
+      "id": "ceremony-safety",
+      "kind": "tlc",
+      "suite": "quint",
+      "source": "formal/quint/q45_ceremony.qnt",
+      "invariant": "safety",
+      "init": "init",
+      "counterexample": false
+    },
+    {
+      "id": "ideal-verifier-contract",
+      "kind": "tlc",
+      "suite": "quint",
+      "source": "formal/quint/q45_ceremony.qnt",
+      "invariant": "safety and outputIntegrity",
+      "init": "initStrict",
+      "counterexample": false
+    },
+    {
+      "id": "ceremony-integrity-counterexample",
+      "kind": "tlc",
+      "suite": "quint",
+      "source": "formal/quint/q45_ceremony.qnt",
+      "invariant": "outputIntegrity",
+      "init": "init",
+      "counterexample": true
+    },
+    {
+      "id": "setup-local-safety",
+      "kind": "tlc",
+      "suite": "quint",
+      "source": "formal/quint/q45_setup_views.qnt",
+      "invariant": "localSafety",
+      "init": "init",
+      "counterexample": false
+    },
+    {
+      "id": "setup-agreement-counterexample",
+      "kind": "tlc",
+      "suite": "quint",
+      "source": "formal/quint/q45_setup_views.qnt",
+      "invariant": "agreement",
+      "init": "init",
+      "counterexample": true
+    },
+    {
+      "id": "setup-relabeling-counterexample",
+      "kind": "tlc",
+      "suite": "quint",
+      "source": "formal/quint/q45_setup_views.qnt",
+      "invariant": "noRelabeling",
+      "init": "init",
+      "counterexample": true
+    },
+    {
+      "id": "quint-p2b-projection",
+      "kind": "projection",
+      "suite": "replay"
+    },
+    {
+      "id": "toy-640-replay",
+      "kind": "toy_replay",
+      "suite": "replay"
+    }
+  ],
+  "cases": [
+    {
+      "id": "LP001",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "session mismatch",
+      "declaration": "TclMesh.Q45Testbank.LP001_session_mismatch"
+    },
+    {
+      "id": "LP002",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "ciphertext mismatch",
+      "declaration": "TclMesh.Q45Testbank.LP002_ciphertext_mismatch"
+    },
+    {
+      "id": "LP003",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "quorum order mismatch",
+      "declaration": "TclMesh.Q45Testbank.LP003_quorum_order_mismatch"
+    },
+    {
+      "id": "LP004",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "outside holder",
+      "declaration": "TclMesh.Q45Testbank.LP004_outside_holder"
+    },
+    {
+      "id": "LP005",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "empty payload",
+      "declaration": "TclMesh.Q45Testbank.LP005_empty_payload"
+    },
+    {
+      "id": "LP006",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "duplicate altered payload",
+      "declaration": "TclMesh.Q45Testbank.LP006_duplicate_altered_payload"
+    },
+    {
+      "id": "LP007",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "four distinct bound",
+      "declaration": "TclMesh.Q45Testbank.LP007_four_distinct_bound"
+    },
+    {
+      "id": "LP008",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "four labels count",
+      "declaration": "TclMesh.Q45Testbank.LP008_four_labels_count"
+    },
+    {
+      "id": "LP009",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "opaque noncanonical admitted",
+      "declaration": "TclMesh.Q45Testbank.LP009_opaque_noncanonical_admitted"
+    },
+    {
+      "id": "LP010",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "authenticated incorrect admitted",
+      "declaration": "TclMesh.Q45Testbank.LP010_authenticated_incorrect_admitted"
+    },
+    {
+      "id": "LP011",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "one wrong holder invalidates certification",
+      "declaration": "TclMesh.Q45Testbank.LP011_one_wrong_holder_invalidates_certification"
+    },
+    {
+      "id": "LP012",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "ideal verifier filters wrong holder",
+      "declaration": "TclMesh.Q45Testbank.LP012_ideal_verifier_filters_wrong_holder"
+    },
+    {
+      "id": "LP013",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "four bounded masks",
+      "declaration": "TclMesh.Q45Testbank.LP013_four_bounded_masks"
+    },
+    {
+      "id": "LP014",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "overbound inside total budget",
+      "declaration": "TclMesh.Q45Testbank.LP014_overbound_inside_total_budget"
+    },
+    {
+      "id": "LP015",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "zero phase flips",
+      "declaration": "TclMesh.Q45Testbank.LP015_zero_phase_flips"
+    },
+    {
+      "id": "LP016",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "one phase flips",
+      "declaration": "TclMesh.Q45Testbank.LP016_one_phase_flips"
+    },
+    {
+      "id": "LP017",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "max measured noise headroom",
+      "declaration": "TclMesh.Q45Testbank.LP017_max_measured_noise_headroom"
+    },
+    {
+      "id": "LP018",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "width margin",
+      "declaration": "TclMesh.Q45Testbank.LP018_width_margin"
+    },
+    {
+      "id": "LP019",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "arbitrary offset canonical",
+      "declaration": "TclMesh.Q45Testbank.LP019_arbitrary_offset_canonical"
+    },
+    {
+      "id": "LP020",
+      "task": "lean-positive",
+      "expected": "proof_checks",
+      "claim": "phase translation",
+      "declaration": "TclMesh.Q45Testbank.LP020_phase_translation"
+    },
+    {
+      "id": "LN001",
+      "task": "ln001",
+      "expected": "false_claim_rejected",
+      "claim": "bad.correct = true"
+    },
+    {
+      "id": "LN002",
+      "task": "ln002",
+      "expected": "false_claim_rejected",
+      "claim": "bad.authenticated = true \u2192 bad.correct = true"
+    },
+    {
+      "id": "LN003",
+      "task": "ln003",
+      "expected": "false_claim_rejected",
+      "claim": "bad.canonical = true \u2192 bad.correct = true"
+    },
+    {
+      "id": "LN004",
+      "task": "ln004",
+      "expected": "false_claim_rejected",
+      "claim": "decode 0 = decode delta"
+    },
+    {
+      "id": "LN005",
+      "task": "ln005",
+      "expected": "false_claim_rejected",
+      "claim": "33 + 40 \u2264 72"
+    },
+    {
+      "id": "LN006",
+      "task": "ln006",
+      "expected": "false_claim_rejected",
+      "claim": "(2^80 + 1 : Nat) \u2264 2^80"
+    },
+    {
+      "id": "LN007",
+      "task": "ln007",
+      "expected": "false_claim_rejected",
+      "claim": "envelope empty {bad with binding := {bad.binding with session := 1}}"
+    },
+    {
+      "id": "LN008",
+      "task": "ln008",
+      "expected": "false_claim_rejected",
+      "claim": "envelope (submit empty bad) bad"
+    },
+    {
+      "id": "QC001",
+      "task": "qc-scenarios",
+      "expected": "scenario_passes",
+      "claim": "canonicalCorruptionTest",
+      "scenario": "canonicalCorruptionTest"
+    },
+    {
+      "id": "QC002",
+      "task": "qc-scenarios",
+      "expected": "scenario_passes",
+      "claim": "malformedAbortTest",
+      "scenario": "malformedAbortTest"
+    },
+    {
+      "id": "QC003",
+      "task": "qc-scenarios",
+      "expected": "scenario_passes",
+      "claim": "duplicateTest",
+      "scenario": "duplicateTest"
+    },
+    {
+      "id": "QC004",
+      "task": "qc-scenarios",
+      "expected": "scenario_passes",
+      "claim": "foreignBindingTest",
+      "scenario": "foreignBindingTest"
+    },
+    {
+      "id": "QC005",
+      "task": "qc-scenarios",
+      "expected": "scenario_passes",
+      "claim": "emptyPartialTest",
+      "scenario": "emptyPartialTest"
+    },
+    {
+      "id": "QC006",
+      "task": "qc-scenarios",
+      "expected": "scenario_passes",
+      "claim": "outsideQuorumTest",
+      "scenario": "outsideQuorumTest"
+    },
+    {
+      "id": "QC007",
+      "task": "qc-scenarios",
+      "expected": "scenario_passes",
+      "claim": "withheldTest",
+      "scenario": "withheldTest"
+    },
+    {
+      "id": "QV001",
+      "task": "qv-scenarios",
+      "expected": "scenario_passes",
+      "claim": "publicEquivocationTest",
+      "scenario": "publicEquivocationTest"
+    },
+    {
+      "id": "QV002",
+      "task": "qv-scenarios",
+      "expected": "scenario_passes",
+      "claim": "firstRoundEquivocationTest",
+      "scenario": "firstRoundEquivocationTest"
+    },
+    {
+      "id": "QV003",
+      "task": "qv-scenarios",
+      "expected": "scenario_passes",
+      "claim": "relabelingTest",
+      "scenario": "relabelingTest"
+    },
+    {
+      "id": "QV004",
+      "task": "qv-scenarios",
+      "expected": "scenario_passes",
+      "claim": "conflictingDeclaredTest",
+      "scenario": "conflictingDeclaredTest"
+    },
+    {
+      "id": "QV005",
+      "task": "qv-scenarios",
+      "expected": "scenario_passes",
+      "claim": "duplicatePublicTest",
+      "scenario": "duplicatePublicTest"
+    },
+    {
+      "id": "QB001",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "inputDuplicateTest",
+      "scenario": "inputDuplicateTest"
+    },
+    {
+      "id": "QB002",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "outsiderInputTest",
+      "scenario": "outsiderInputTest"
+    },
+    {
+      "id": "QB003",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "prematureSealTest",
+      "scenario": "prematureSealTest"
+    },
+    {
+      "id": "QB004",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "foreignSealTest",
+      "scenario": "foreignSealTest"
+    },
+    {
+      "id": "QB005",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "missingSealTest",
+      "scenario": "missingSealTest"
+    },
+    {
+      "id": "QB006",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "duplicateCommitTest",
+      "scenario": "duplicateCommitTest"
+    },
+    {
+      "id": "QB007",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "prematurePartialTest",
+      "scenario": "prematurePartialTest"
+    },
+    {
+      "id": "QB008",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "frozenQuorumCannotReformTest",
+      "scenario": "frozenQuorumCannotReformTest"
+    },
+    {
+      "id": "QB009",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "deadlineRejectsPartialTest",
+      "scenario": "deadlineRejectsPartialTest"
+    },
+    {
+      "id": "QB010",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "completedTerminalTest",
+      "scenario": "completedTerminalTest"
+    },
+    {
+      "id": "QB011",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "abortedTerminalTest",
+      "scenario": "abortedTerminalTest"
+    },
+    {
+      "id": "QB012",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "noEarlyExpiryTest",
+      "scenario": "noEarlyExpiryTest"
+    },
+    {
+      "id": "QB013",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "honestCompletionTest",
+      "scenario": "honestCompletionTest"
+    },
+    {
+      "id": "QB014",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "cancellingCorruptionsTest",
+      "scenario": "cancellingCorruptionsTest"
+    },
+    {
+      "id": "QB015",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "idealRejectsIncorrectTest",
+      "scenario": "idealRejectsIncorrectTest"
+    },
+    {
+      "id": "QB016",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "idealRejectsMalformedTest",
+      "scenario": "idealRejectsMalformedTest"
+    },
+    {
+      "id": "QB017",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "idealHonestCompletionTest",
+      "scenario": "idealHonestCompletionTest"
+    },
+    {
+      "id": "QB018",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "omit1HonestQuorumTest",
+      "scenario": "omit1HonestQuorumTest"
+    },
+    {
+      "id": "QB019",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "omit2HonestQuorumTest",
+      "scenario": "omit2HonestQuorumTest"
+    },
+    {
+      "id": "QB020",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "omit3HonestQuorumTest",
+      "scenario": "omit3HonestQuorumTest"
+    },
+    {
+      "id": "QB021",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "omit4HonestQuorumTest",
+      "scenario": "omit4HonestQuorumTest"
+    },
+    {
+      "id": "QB022",
+      "task": "qb-scenarios",
+      "expected": "scenario_passes",
+      "claim": "omit5HonestQuorumTest",
+      "scenario": "omit5HonestQuorumTest"
+    },
+    {
+      "id": "QS001",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "firstBeforePublicTest",
+      "scenario": "firstBeforePublicTest"
+    },
+    {
+      "id": "QS002",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "secondBeforeFirstTest",
+      "scenario": "secondBeforeFirstTest"
+    },
+    {
+      "id": "QS003",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "incompleteFinalizationTest",
+      "scenario": "incompleteFinalizationTest"
+    },
+    {
+      "id": "QS004",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "duplicateFirstTest",
+      "scenario": "duplicateFirstTest"
+    },
+    {
+      "id": "QS005",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "duplicateSecondTest",
+      "scenario": "duplicateSecondTest"
+    },
+    {
+      "id": "QS006",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "outsiderSenderTest",
+      "scenario": "outsiderSenderTest"
+    },
+    {
+      "id": "QS007",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "outOfDomainValueTest",
+      "scenario": "outOfDomainValueTest"
+    },
+    {
+      "id": "QS008",
+      "task": "qs-scenarios",
+      "expected": "scenario_passes",
+      "claim": "honestBothViewsTest",
+      "scenario": "honestBothViewsTest"
+    },
+    {
+      "id": "QI001",
+      "task": "ceremony-safety",
+      "expected": "exhaustive_safety",
+      "claim": "safety"
+    },
+    {
+      "id": "QI002",
+      "task": "ideal-verifier-contract",
+      "expected": "exhaustive_safety",
+      "claim": "safety and outputIntegrity"
+    },
+    {
+      "id": "QI003",
+      "task": "ceremony-integrity-counterexample",
+      "expected": "counterexample_found",
+      "claim": "outputIntegrity"
+    },
+    {
+      "id": "QI004",
+      "task": "setup-local-safety",
+      "expected": "exhaustive_safety",
+      "claim": "localSafety"
+    },
+    {
+      "id": "QI005",
+      "task": "setup-agreement-counterexample",
+      "expected": "counterexample_found",
+      "claim": "agreement"
+    },
+    {
+      "id": "QI006",
+      "task": "setup-relabeling-counterexample",
+      "expected": "counterexample_found",
+      "claim": "noRelabeling"
+    },
+    {
+      "id": "BR001",
+      "task": "quint-p2b-projection",
+      "expected": "concrete_trace_agrees",
+      "claim": "Generated Quint trace matches 20 P2b/P1 snapshots; false projection rejected."
+    },
+    {
+      "id": "BR002",
+      "task": "toy-640-replay",
+      "expected": "honest_and_adversarial_replay",
+      "claim": "Retain 640 honest and 640 altered-partial replay cases."
+    }
+  ]
+}
