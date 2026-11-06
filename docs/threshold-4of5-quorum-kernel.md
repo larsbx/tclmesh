@@ -205,7 +205,8 @@ rung is gated by the same O/M obligations plus its own.
 3. **P2 — DKG.** Each party deals its own `sⱼ` in replicated form, and
    `s = Σ sⱼ`. `pk` aggregates over a common reference string; `rlk` needs a
    multiparty relinearization-key round. Gate: O2–O7 pass with DKG keys, and
-   the dealer is gone from the code path.
+   the dealer is gone from the code path. P2a below exercises the public-key
+   and holder-local setup before the relinearization round.
 4. **P3 — malicious inputs.** Proof of plaintext knowledge bound to
    `(sid, i)`, or the TFHE clamp path. Gate: INV-Q10, plus a replay or copy
    mutant that must be rejected.
@@ -251,3 +252,97 @@ enter the opaque simulation envelope but aborts before a result is
 recorded. This replay uses trusted toy vectors and the original trusted
 dealer. Share authentication and cryptographic proof verification belong
 to later rungs.
+
+## 9. P2a toy collective public key and holder setup
+
+The [P2a experiment](../tools/q45_collective_setup.py) gives each of five
+participants a separate deterministic random stream in the test harness.
+They agree on one public polynomial `a` and each samples a private additive
+contribution `s_i` and error `e_i`. Each publishes `b_i = -a s_i + e_i`.
+The evaluator receives only `(Σ b_i, a)`. In the toy ring, adding the public
+shares gives `Σ b_i = -a Σ s_i + Σ e_i`.
+
+Each participant also splits its own `s_i` using the P0 replicated sharing.
+For each excluded triple, it sends one copy of the corresponding fragment to
+each of the two remaining holders. A holder adds the five fragments for each
+triple assigned to it. Each designated holder then computes its partial from
+its own inbox-derived pieces. No API in this setup returns the aggregate
+secret polynomial. The single-process test harness simulates all five inboxes
+and can inspect their contents.
+
+The tests encrypt all 32 input patterns, add the five ciphertexts, and
+reconstruct the resulting parity through each of the five possible quorums
+on each of four seeds. They also check exact fragment routing and rejection
+of incomplete, duplicate, foreign, malformed, and misrouted contributions.
+Run from the repository root:
+
+```sh
+python3 -B -m unittest discover -s tests -p 'test_threshold_q45_collective_setup.py'
+```
+
+This experiment assumes honest participants, a consistent public setup and
+private fragment delivery by the harness. Its parameters and randomness are
+for reproducible tests. The remaining P2 gate requires collective
+relinearization-key generation and replay of the nonlinear `e4` circuit
+under that key. Authenticated delivery and verifiable share correctness are
+outside the P2a model.
+
+## 10. P2b toy collective relinearization
+
+The [P2b experiment](../tools/q45_collective_relin.py) adds two rounds of
+contributions followed by public aggregation. It adapts the algebra of
+[Lattigo's relinearization-key protocol](https://pkg.go.dev/github.com/tuneinsight/lattigo/v6@v6.2.0/multiparty#RelinearizationKeyGenProtocol)
+to the P0 base-2¹⁶ gadget. The test harness supplies a fresh common polynomial
+`a_j` per digit and simulates delivery. For each digit `g_j = 2^(16j)`,
+participant `i` uses its local contribution `s_i` and samples an ephemeral
+`u_i`. All operations below are in the toy ring.
+
+```text
+A_j = sum_i(-u_i a_j + g_j s_i + e0_i)
+B_j = sum_i( s_i a_j             + e1_i)
+C_j = sum_i( s_i A_j + (u_i - s_i) B_j + e2_i)
+R_j = (C_j, B_j)
+```
+
+With `s = sum_i(s_i)`, `u = sum_i(u_i)` and `E_k = sum_i(ek_i)`,
+the decrypting phase is `C_j + s B_j = g_j s² + s E0 + u E1 + E2`.
+The evaluator receives the aggregated public and relinearization keys.
+Only the test oracle assembles the summed secret to check the gadget
+residuals, full-key decoding, and noise. Actual threshold reconstruction uses
+holder-local partials. All five parties are required for setup.
+
+The unchanged `e4` circuit is tested on all 128 seed/input combinations
+and all 640 seed/input/quorum combinations. Tests also cover incomplete or
+mixed transcripts, actual smudging in holder-local partials, and an empirical
+O6 check using the ten three-party views of each fixed toy setup.
+
+Collective relinearization raised the measured ciphertext noise width to
+33, 33, 33, and 34 bits across the four seeds. The P0 72-bit smudging setting
+missed the 40-bit margin in 61 of 128 ciphertexts. P2b uses an 80-bit setting
+and checks both the smudging margin and the four-partial decoding bound on
+every sampled ciphertext. These are reproducible toy measurements.
+
+```sh
+python3 -B -m unittest discover -s tests -p 'test_threshold_q45_collective_relin.py'
+```
+
+The experiment assumes honest contributors and a consistent first-round
+aggregate delivered to each participant. The Python objects do not implement
+authenticated broadcast, share proofs, or production key custody.
+
+## 11. P2b dishonest-participant characterization
+
+The [adversarial acceptance model](threshold-q45-p2b-adversarial-acceptance.md)
+preserves the 640 honest cases and exposes canonical dishonest contributions
+that the current interfaces accept. In particular, adding `DELTA` to one
+partial flips the bit in all 640 cases, including through the inert P1 actor.
+The 80-bit smudging checks establish correctness bounds only under the honest
+noise and bounded-mask assumptions; they do not enforce contribution integrity.
+
+```sh
+python3 -B tools/check_q45_adversarial.py
+```
+
+The failure matrix distinguishes local validation, authenticated agreement,
+verifiable sharing/partial proofs and construction-level obligations. These
+tests document limitations and add no malicious-security or release capability.
