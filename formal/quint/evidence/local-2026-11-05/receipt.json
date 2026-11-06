@@ -1,0 +1,151 @@
+{
+  "checks": [
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "lean-version",
+      "output_sha256": "eb22144228dd41cd51a0c84af4f976cd0cef473102dcf99b60be756b11f2b95a"
+    },
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "lean-build",
+      "output_sha256": "359e9ae978b19a043df4a6768a201d983c6c61ae2eea18e212e36e58b89461b6"
+    },
+    {
+      "axiom_audit": "audited 2027 declarations (723 theorems): standard axioms only",
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "lean-axioms",
+      "output_sha256": "13124a48f0ad5cf7b4242eebff9ea8079f893ea6c3cd6520e2cfd557d33595f7"
+    },
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "quint-version",
+      "output_sha256": "88dc89b23d1eb296b577d2cd6b8fd2a8013d9d499299cdb24578106eb5b4f59c"
+    },
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "q45_ceremony-typecheck",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "q45_ceremony-tests",
+      "output_sha256": "294c9c58fc762d682204e076374801c8ae56a97b72de83a832178cb8633aa6a7"
+    },
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "q45_setup_views-typecheck",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "q45_setup_views-tests",
+      "output_sha256": "01933ef45d9c85033b39fd26a8201cab04acc506e9f12c4bc0b00ee36aaeddb8"
+    },
+    {
+      "distinct_states": 15412,
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "ceremony-safety",
+      "output_sha256": "8aaa384c1e3d3ac01f5b0d86014d01ba40913b6b2c44404ad1cba992d63fed1d",
+      "states_generated": 1352849
+    },
+    {
+      "distinct_states": 682,
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "strict-contract",
+      "output_sha256": "4c11c6591bae6f320fb9144f3a94c6c26832d3eab74281cd13c2fd461695565b",
+      "states_generated": 60249
+    },
+    {
+      "distinct_states": 6667,
+      "exit_code": 1,
+      "expectation": "counterexample",
+      "name": "ceremony-integrity-counterexample",
+      "output_sha256": "2d44fd43529c82cc87ce9dda6a938dc388de0cd6322679a6260a5f65e4e30477",
+      "states_generated": 350914
+    },
+    {
+      "distinct_states": 114244,
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "setup-local-safety",
+      "output_sha256": "a9cf4ad609e308baf08793bff904c997a62774fe307934f0ab9ed29347f379f7",
+      "states_generated": 5759521
+    },
+    {
+      "distinct_states": 114183,
+      "exit_code": 1,
+      "expectation": "counterexample",
+      "name": "setup-agreement-counterexample",
+      "output_sha256": "85045a0262317f5d9fd31a803312e072c0fb5de04da9c15156b02028c5b10711",
+      "states_generated": 5744362
+    },
+    {
+      "distinct_states": 7090,
+      "exit_code": 1,
+      "expectation": "counterexample",
+      "name": "setup-relabeling-counterexample",
+      "output_sha256": "33883828e9e574370724ef641b54cb2721b85e709e223e7a3d54267ba02d4b1e",
+      "states_generated": 267338
+    },
+    {
+      "exit_code": 0,
+      "expectation": "success",
+      "name": "quint-p2b-actor-projection",
+      "output_sha256": "b63c0fbb13a5b73f861cb755ffe6ed8db8d1f0924e596ef6fb4bf1cff644a153"
+    }
+  ],
+  "evidence_sha256": {
+    "ceremony-integrity-counterexample.txt": "2d44fd43529c82cc87ce9dda6a938dc388de0cd6322679a6260a5f65e4e30477",
+    "ceremony-safety.txt": "8aaa384c1e3d3ac01f5b0d86014d01ba40913b6b2c44404ad1cba992d63fed1d",
+    "lean-axioms.txt": "13124a48f0ad5cf7b4242eebff9ea8079f893ea6c3cd6520e2cfd557d33595f7",
+    "lean-build.txt": "359e9ae978b19a043df4a6768a201d983c6c61ae2eea18e212e36e58b89461b6",
+    "lean-version.txt": "eb22144228dd41cd51a0c84af4f976cd0cef473102dcf99b60be756b11f2b95a",
+    "q45_ceremony-tests.txt": "294c9c58fc762d682204e076374801c8ae56a97b72de83a832178cb8633aa6a7",
+    "q45_ceremony-typecheck.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q45_setup_views-tests.txt": "01933ef45d9c85033b39fd26a8201cab04acc506e9f12c4bc0b00ee36aaeddb8",
+    "q45_setup_views-typecheck.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "quint-attack.itf.json": "c8a816d4de032d06dceeb6f38b377aa4fa2a7664a9a9b9c34ed56873a15e99d6",
+    "quint-p2b-actor-projection.txt": "b63c0fbb13a5b73f861cb755ffe6ed8db8d1f0924e596ef6fb4bf1cff644a153",
+    "quint-version.txt": "88dc89b23d1eb296b577d2cd6b8fd2a8013d9d499299cdb24578106eb5b4f59c",
+    "setup-agreement-counterexample.txt": "85045a0262317f5d9fd31a803312e072c0fb5de04da9c15156b02028c5b10711",
+    "setup-local-safety.txt": "a9cf4ad609e308baf08793bff904c997a62774fe307934f0ab9ed29347f379f7",
+    "setup-relabeling-counterexample.txt": "33883828e9e574370724ef641b54cb2721b85e709e223e7a3d54267ba02d4b1e",
+    "strict-contract.txt": "4c11c6591bae6f320fb9144f3a94c6c26832d3eab74281cd13c2fd461695565b"
+  },
+  "schema": "q45-lean-quint-v1",
+  "scope": "Abstract-model proofs, finite TLC checks and one concrete generated trace; no FHE security or universal refinement proof.",
+  "sha256": {
+    "experiments/threshold_q45/q45_ceremony.erl": "c3c664c96b57795193101fdad55bbafef43f0b490172286e80f1d680fd9c2ded",
+    "experiments/threshold_q45/q45_quint_replay.erl": "a1adc63aa0e3db64d3fe4f8e2f47752e0c1a4f2afbe3ab93d6e1905ca9ee1f58",
+    "formal/quint/package-lock.json": "bcdf6d20c047c47d74718a1501223a1709ae0b681009e010bad4bef3265ccac4",
+    "formal/quint/package.json": "7a5f28dcd257ae92058f537c4ba044e6d8aad438a3935e393195d61581d2b370",
+    "formal/quint/q45_ceremony.qnt": "e1ae23ff6ceb72962d0bfd029def524d9ddb27f4ab027340cd5dd8e4cec85eb0",
+    "formal/quint/q45_setup_views.qnt": "8f67dd9abc3546eef35b1b540b6dfe304b3dc78962b1ed5bacafcf8b067ac643",
+    "formal/quint/tlc.json": "a73a9762b43e9edcf45de2aca3bd1c949c0d135380f4c1f98c30df26aabbb6dd",
+    "spec/Audit.lean": "72ed001a67f18ef024a212188297b1ec65f9eade02ea77e48835937a2cf0296d",
+    "spec/TclMesh.lean": "5aff31899025f7bdb9b1a0732eec16dcab3edd4dac18b43933aa073b4c8db752",
+    "spec/TclMesh/Q45Adversarial.lean": "4cb124ff1530c3bcf9a94559460736c30fd63730e8712dde58f4ee3ff9c1dddd",
+    "spec/lean-toolchain": "ca5f1f601d34c49079e38d7e7041eb0f2a9c227fbc1df0f404820069a052330c",
+    "tools/check_q45_formal.py": "e9e5bef9d0fe5356482ac7752175a3b8f0ef597added268a3d6f8a0d4f8abe8b",
+    "tools/check_q45_quint_projection.py": "2aa0118e78be687eeb37907d76806440dea92c98340cdc63f4e6a71860dd5520",
+    "tools/q45_adversarial_probe.py": "79dfe8e85c7421474776607a2e28617dbe4194cf878f0c24d0c5efa8a181932e",
+    "tools/q45_collective_relin.py": "a98b735ea256932bda08877bf252b8637bd555f45a044c7bb58ee4b505a01f9a",
+    "tools/q45_collective_setup.py": "6bd676110ae93f6cd38d232b09339175e707e9f79bfdd553d9392c14e6884d8e",
+    "tools/q45_oracle.py": "19f53ac48a2c792ac13902238ebbc9bd253375675257c651c93479e02086620c"
+  },
+  "versions": {
+    "apalache": "0.62.4",
+    "lean": "Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)",
+    "quint": "0.33.1"
+  }
+}

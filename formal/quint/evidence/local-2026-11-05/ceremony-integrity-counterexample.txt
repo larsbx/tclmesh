@@ -1,0 +1,336 @@
+[TLC] Compiling to TLA+ (via Apalache)...
+# Usage statistics is OFF. We care about your privacy.
+# If you want to help our project, consider enabling statistics with config --enable-stats=true.
+
+Output directory: /workspace/scratch/3eae947bb0cc/tclmesh/formal/quint/_apalache-out/server/2026-11-05T19-42-10_10931630998196083666
+# APALACHE version: 0.62.4 | build: 7954daf                       I@19:42:10.560
+Starting checker server on port 8822...                           I@19:42:10.566
+The Apalache server is running on port 8822. Press Ctrl-C to stop.
+Failed to find a usable hardware address from the network interfaces; using random bytes: ea:21:13:c8:db:78:52:1a W@19:42:12.119
+PASS #0: SanyParser                                               I@19:42:14.538
+[TLC] Running TLC model checker...
+
+TLC2 Version 2026.11.05.194215
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 77 and seed 7481149759035020023 with 1 worker on 8 cores with 2048MB heap and 64MB offheap memory [pid: 342] (Linux 6.18.57 amd64, Ubuntu 21.0.12 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /tmp/quint-tlc-dIKKb1/q45_ceremony.tla
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/Integers.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/Sequences.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/FiniteSets.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/TLC.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/Apalache.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Apalache.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/Variants.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Variants.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/_TLCTrace.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/_TLCTrace.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/Naturals.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/quint-tlc-dIKKb1/tlc-1037171823698560702/TLCExt.tla (jar:file:/root/.quint/apalache-dist-0.62.4/apalache/lib/apalache.jar!/tla2sany/StandardModules/TLCExt.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module Apalache
+Semantic processing of module Variants
+Semantic processing of module TLCExt
+Semantic processing of module _TLCTrace
+Semantic processing of module q45_ceremony
+Linting of module Apalache
+Linting of module Variants
+Linting of module TLCExt
+Linting of module _TLCTrace
+Linting of module q45_ceremony
+Starting... (2026-11-05 19:42:16)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-05 19:42:16.
+Error: Invariant q_inv is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+s = [ phase |-> 0,
+  inputs |-> {},
+  seals |-> {},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 2: <input(1) line 94, col 3 to line 105, col 7 of module q45_ceremony>
+s = [ phase |-> 0,
+  inputs |-> {1},
+  seals |-> {},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 3: <input(2) line 94, col 3 to line 105, col 7 of module q45_ceremony>
+s = [ phase |-> 0,
+  inputs |-> {1, 2},
+  seals |-> {},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 4: <input(3) line 94, col 3 to line 105, col 7 of module q45_ceremony>
+s = [ phase |-> 0,
+  inputs |-> {1, 2, 3},
+  seals |-> {},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 5: <input(4) line 94, col 3 to line 105, col 7 of module q45_ceremony>
+s = [ phase |-> 0,
+  inputs |-> {1, 2, 3, 4},
+  seals |-> {},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 6: <input(5) line 94, col 3 to line 105, col 7 of module q45_ceremony>
+s = [ phase |-> 1,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 7: <seal(1,0) line 111, col 3 to line 123, col 7 of module q45_ceremony>
+s = [ phase |-> 1,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 8: <seal(2,0) line 111, col 3 to line 123, col 7 of module q45_ceremony>
+s = [ phase |-> 1,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 9: <seal(3,0) line 111, col 3 to line 123, col 7 of module q45_ceremony>
+s = [ phase |-> 1,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 10: <seal(4,0) line 111, col 3 to line 123, col 7 of module q45_ceremony>
+s = [ phase |-> 1,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 11: <seal(5,0) line 111, col 3 to line 123, col 7 of module q45_ceremony>
+s = [ phase |-> 2,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 12: <commit(1,0) line 129, col 3 to line 147, col 7 of module q45_ceremony>
+s = [ phase |-> 2,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 13: <commit(2,0) line 129, col 3 to line 147, col 7 of module q45_ceremony>
+s = [ phase |-> 2,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 14: <commit(3,0) line 129, col 3 to line 147, col 7 of module q45_ceremony>
+s = [ phase |-> 2,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2, 3},
+  quorum |-> {},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 15: <commit(4,0) line 129, col 3 to line 147, col 7 of module q45_ceremony>
+s = [ phase |-> 3,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2, 3, 4},
+  quorum |-> {1, 2, 3, 4},
+  received |-> {},
+  bad |-> {},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 16: <partial(1,0,TRUE,TRUE,FALSE) line 153, col 3 to line 177, col 7 of module q45_ceremony>
+s = [ phase |-> 3,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2, 3, 4},
+  quorum |-> {1, 2, 3, 4},
+  received |-> {1},
+  bad |-> {1},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 17: <partial(2,0,TRUE,TRUE,FALSE) line 153, col 3 to line 177, col 7 of module q45_ceremony>
+s = [ phase |-> 3,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2, 3, 4},
+  quorum |-> {1, 2, 3, 4},
+  received |-> {1, 2},
+  bad |-> {1, 2},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 18: <partial(3,0,TRUE,TRUE,FALSE) line 153, col 3 to line 177, col 7 of module q45_ceremony>
+s = [ phase |-> 3,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2, 3, 4},
+  quorum |-> {1, 2, 3, 4},
+  received |-> {1, 2, 3},
+  bad |-> {1, 2, 3},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 19: <partial(4,0,TRUE,TRUE,TRUE) line 153, col 3 to line 177, col 7 of module q45_ceremony>
+s = [ phase |-> 4,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2, 3, 4},
+  quorum |-> {1, 2, 3, 4},
+  received |-> {1, 2, 3, 4},
+  bad |-> {1, 2, 3},
+  malformed |-> {},
+  result |-> -1,
+  recorded |-> 0,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+State 20: <finish line 183, col 3 to line 194, col 8 of module q45_ceremony>
+s = [ phase |-> 5,
+  inputs |-> {1, 2, 3, 4, 5},
+  seals |-> {1, 2, 3, 4, 5},
+  commits |-> {1, 2, 3, 4},
+  quorum |-> {1, 2, 3, 4},
+  received |-> {1, 2, 3, 4},
+  bad |-> {1, 2, 3},
+  malformed |-> {},
+  result |-> 1,
+  recorded |-> 1,
+  clock |-> 0,
+  strict |-> FALSE ]
+
+350914 states generated, 6667 distinct states found, 3274 states left on queue.
+The depth of the complete state graph search is 20.
+Finished in 02s at (2026-11-05 19:42:18)
+Trace exploration spec path: /tmp/quint-tlc-dIKKb1/q45_ceremony_TTrace_1793907735.tla
+
+[violation] Found an issue (3187ms).
+Nov 05, 2026 7:42:13 PM com.google.protobuf.GeneratedMessage warnPre22Gencode
+WARNING: Vulnerable protobuf generated type in use: io.grpc.reflection.v1alpha.ServerReflectionRequest
+As of 2022/09/29 (release 21.7) makeExtensionsImmutable should not be called from protobuf gencode. If you are seeing this message, your gencode is vulnerable to a denial of service attack. You should regenerate your code using protobuf 25.6 or later. Use the latest version that meets your needs. However, if you understand the risks and wish to continue with vulnerable gencode, you can set the system property `-Dcom.google.protobuf.use_unsafe_pre22_gencode` on the command line to silence this warning. You also can set `-Dcom.google.protobuf.error_on_unsafe_pre22_gencode` to throw an error instead. See security vulnerability: https://github.com/protocolbuffers/protobuf/security/advisories/GHSA-h4h5-3hr4-j3g2
+error: found a counterexample

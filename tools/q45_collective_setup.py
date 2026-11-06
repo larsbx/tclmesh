@@ -5,7 +5,7 @@ the corresponding pairs of holders. The public key contains only the sum of
 public contributions and the common polynomial. No production protocol is
 implemented here.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from random import Random
 from typing import Iterable
 
@@ -15,7 +15,7 @@ Coalition = frozenset[int]
 PARTIES = frozenset(q45.PARTIES)
 
 
-def _canonical(poly: q45.Poly) -> bool:
+def canonical_polynomial(poly: q45.Poly) -> bool:
     return len(poly) == q45.N and all(type(c) is int and 0 <= c < q45.Q_MOD for c in poly)
 
 
@@ -25,8 +25,15 @@ class Setup:
     a: q45.Poly
 
     def __post_init__(self):
-        if not self.session or not _canonical(self.a):
+        if not self.session or not canonical_polynomial(self.a):
             raise ValueError("expected a session ID and a canonical common polynomial")
+
+
+@dataclass(frozen=True)
+class Contributor:
+    setup: Setup
+    party: int
+    secret: q45.Poly = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -58,6 +65,13 @@ class Holder:
 
 
 def contribute(setup: Setup, sender: int, rng: Random) -> tuple[PublicShare, tuple[Fragment, ...]]:
+    _, public, fragments = begin_contribution(setup, sender, rng)
+    return public, fragments
+
+
+def begin_contribution(
+    setup: Setup, sender: int, rng: Random
+) -> tuple[Contributor, PublicShare, tuple[Fragment, ...]]:
     if sender not in PARTIES:
         raise ValueError("unknown sender")
     secret = q45.ternary(rng)
@@ -67,7 +81,7 @@ def contribute(setup: Setup, sender: int, rng: Random) -> tuple[PublicShare, tup
         for coalition, value in q45.replicate(secret, rng).items()
         for recipient in sorted(q45.holders(coalition))
     )
-    return PublicShare(setup, sender, public), fragments
+    return Contributor(setup, sender, secret), PublicShare(setup, sender, public), fragments
 
 
 def public_key(setup: Setup, shares: Iterable[PublicShare]) -> PublicKey:
@@ -75,7 +89,7 @@ def public_key(setup: Setup, shares: Iterable[PublicShare]) -> PublicKey:
     if (
         len(shares) != len(PARTIES)
         or {p.sender for p in shares} != PARTIES
-        or any(p.setup != setup or not _canonical(p.value) for p in shares)
+        or any(p.setup != setup or not canonical_polynomial(p.value) for p in shares)
     ):
         raise ValueError("expected one public share from each setup participant")
     return PublicKey((q45.padd(*(p.value for p in shares)), setup.a))
@@ -90,7 +104,7 @@ def holder(setup: Setup, recipient: int, inbox: Iterable[Fragment]) -> Holder:
     if (
         len(inbox) != len(expected)
         or {(p.sender, p.coalition) for p in inbox} != expected
-        or any(p.setup != setup or p.recipient != recipient or not _canonical(p.value) for p in inbox)
+        or any(p.setup != setup or p.recipient != recipient or not canonical_polynomial(p.value) for p in inbox)
     ):
         raise ValueError("expected the recipient's complete, distinct setup fragments")
     return Holder(recipient, {
@@ -98,12 +112,15 @@ def holder(setup: Setup, recipient: int, inbox: Iterable[Fragment]) -> Holder:
     })
 
 
-def partial(local: Holder, quorum: Coalition, c1: q45.Poly, rng: Random) -> q45.Poly:
+def partial(
+    local: Holder, quorum: Coalition, c1: q45.Poly, rng: Random, *,
+    smudge_bits: int = q45.SMUDGE_BITS,
+) -> q45.Poly:
     if len(quorum) != q45.QUORUM or not quorum <= PARTIES or local.party not in quorum:
         raise ValueError("expected a four-party quorum containing the local holder")
-    if not _canonical(c1):
+    if not canonical_polynomial(c1):
         raise ValueError("expected a canonical ciphertext polynomial")
     designation = q45.designation(quorum)
     designated = [piece for c, piece in local.pieces.items() if designation[c] == local.party]
     sigma = q45.padd(q45.zero(), *designated)
-    return q45.padd(q45.pmul(c1, sigma), q45.smudge(rng, q45.SMUDGE_BITS))
+    return q45.padd(q45.pmul(c1, sigma), q45.smudge(rng, smudge_bits))

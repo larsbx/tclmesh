@@ -1,0 +1,9 @@
+
+  q45_setup_views
+    ok publicEquivocationTest passed 1 test(s)
+    ok firstRoundEquivocationTest passed 1 test(s)
+    ok relabelingTest passed 1 test(s)
+    ok conflictingDeclaredTest passed 1 test(s)
+    ok duplicatePublicTest passed 1 test(s)
+
+  5 passing (51ms)
