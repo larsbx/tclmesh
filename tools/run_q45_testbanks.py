@@ -163,16 +163,53 @@ def inventory():
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 
+def checked_checkout(revision):
+    """Require an explicit commit and a clean tree; Git failures are never clean."""
+    if not revision or not re.fullmatch(r'[0-9a-fA-F]{40}', revision):
+        raise ValueError('run requires --revision as an exact 40-character commit SHA')
+    revision = revision.lower()
+
+    def git(*argv):
+        try:
+            result = subprocess.run(['git', *argv], cwd=ROOT, capture_output=True, text=True)
+        except OSError as e:
+            raise ValueError(f'Git metadata unavailable: {e}') from e
+        if result.returncode != 0:
+            raise ValueError(f'Git metadata unavailable ({" ".join(argv)}): {result.stderr.strip()}')
+        return result.stdout.strip()
+
+    if Path(git('rev-parse', '--show-toplevel')).resolve() != ROOT:
+        raise ValueError('Git checkout root does not match the testbank repository')
+    selected = git('rev-parse', '--verify', revision + '^{commit}')
+    head = git('rev-parse', '--verify', 'HEAD^{commit}')
+    if selected != revision or head != revision:
+        raise ValueError(f'checkout revision mismatch: expected {revision}, found {head}')
+    # Explicit options prevent local status configuration from hiding untracked
+    # files or dirty submodules. Ignored tool caches/results remain permitted.
+    dirty = git('status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none')
+    if dirty:
+        raise ValueError('dirty checkout: commit or remove tracked and untracked changes before running')
+    return {'expected_revision': revision, 'revision': head, 'dirty': False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['validate', 'plan', 'run'])
     parser.add_argument('--suite', choices=['lean', 'quint', 'all'], default='all')
     parser.add_argument('--seed', default='0x45')
     parser.add_argument('--out', type=Path)
+    parser.add_argument('--revision', help='required for run: exact reviewed 40-character commit SHA')
     parser.add_argument('--timeout', type=int, default=900, help='seconds per subprocess')
     args = parser.parse_args()
     if args.timeout <= 0 or int(args.seed, 0) < 0:
         parser.error('positive timeout and nonnegative integer seed required')
+    if args.action == 'run':
+        if args.out is None:
+            parser.error('run requires --out pointing to a new result directory')
+        try:
+            checkout = checked_checkout(args.revision)
+        except ValueError as e:
+            parser.error(str(e))
     bank = load_bank()
     selected = [t for t in bank['tasks'] if t['suite'] in bank['suites'][args.suite]]
     cases = [c for c in bank['cases'] if any(c['task'] == t['id'] for t in selected)]
@@ -186,8 +223,6 @@ def main():
             result['plan'] = planned
         print(json.dumps(result, indent=2))
         return
-    if args.out is None:
-        parser.error('run requires --out pointing to a new result directory')
     out = args.out.resolve()
     if any(out.is_relative_to(ROOT / p) for p in ['spec', 'formal/testbanks', 'formal/quint']):
         parser.error('result directory must be separate from formal source files')
@@ -197,6 +232,7 @@ def main():
         'status': 'running', 'suite': args.suite, 'seed': args.seed,
         'scope': bank['scope'], 'host': {'hostname': platform.node(), 'platform': platform.platform(),
         'python': platform.python_version()}, 'source_sha256': inventory(),
+        'git': checkout,
         'tasks': [], 'cases': [{**c, 'status': 'not_run'} for c in cases], 'preflight': []}
 
     def save():
@@ -246,9 +282,6 @@ def main():
     current = None
     save()
     try:
-        git = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
-        dirty = subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, capture_output=True, text=True)
-        receipt['git'] = {'revision': git.stdout.strip(), 'dirty': bool(dirty.stdout.strip())}
         need_lean = any(t['suite'] == 'lean' for t in selected)
         need_quint = any(t['suite'] == 'quint' for t in selected)
         need_replay = any(t['suite'] == 'replay' for t in selected)
@@ -324,9 +357,18 @@ def main():
         receipt['finished_at'] = now()
         receipt['case_counts'] = {s: sum(c['status'] == s for c in receipt['cases'])
                                   for s in ['passed', 'failed', 'interrupted', 'not_run']}
-        receipt['source_changed_during_run'] = inventory() != receipt['source_sha256']
-        if receipt['source_changed_during_run']:
-            receipt.update(status='failed', error='source files changed during execution')
+        try:
+            receipt['source_changed_during_run'] = inventory() != receipt['source_sha256']
+            if receipt['source_changed_during_run']:
+                receipt.update(status='failed', error='source files changed during execution')
+        except Exception as e:
+            receipt.update(status='failed', source_changed_during_run=True,
+                           error=f'could not recheck source hashes: {e}')
+        try:
+            receipt['git_final'] = checked_checkout(args.revision)
+        except ValueError as e:
+            receipt.update(status='failed', checkout_changed_during_run=True,
+                           checkout_error=str(e), error=f'checkout verification failed: {e}')
         save()
     print(str(out / 'receipt.json'))
     if receipt['status'] != 'passed':

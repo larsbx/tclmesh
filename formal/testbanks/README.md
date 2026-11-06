@@ -67,18 +67,33 @@ report `structurally_valid_not_executed`, never a proof or test result.
 ## Execute on your server
 
 Choose a **new** result directory for each run. The runner refuses to
-overwrite an earlier receipt. From the repository root:
+overwrite an earlier receipt. Set `Q45_REVIEWED_REVISION` to the full
+40-character SHA selected in review, including the runner correction. Do not
+derive it from `HEAD` or a moving branch at execution time. From the repository
+root, after checking out that commit:
 
 ```sh
-python3 -B tools/run_q45_testbanks.py run --suite all --out "$HOME/q45-results/run-001"
+Q45_REVIEWED_REVISION='<reviewed-40-character-commit-SHA>'
+git checkout --detach "$Q45_REVIEWED_REVISION"
+python3 -B tools/run_q45_testbanks.py run --revision "$Q45_REVIEWED_REVISION" --suite all --out "$HOME/q45-results/run-001"
 ```
 
 Or run the two banks separately:
 
 ```sh
-python3 -B tools/run_q45_testbanks.py run --suite lean --out "$HOME/q45-results/lean-001"
-python3 -B tools/run_q45_testbanks.py run --suite quint --out "$HOME/q45-results/quint-001"
+python3 -B tools/run_q45_testbanks.py run --revision "$Q45_REVIEWED_REVISION" --suite lean --out "$HOME/q45-results/lean-001"
+python3 -B tools/run_q45_testbanks.py run --revision "$Q45_REVIEWED_REVISION" --suite quint --out "$HOME/q45-results/quint-001"
 ```
+
+Only `run` requires `--revision`. It rejects omitted, abbreviated or symbolic
+revisions, a different `HEAD`, staged/unstaged changes, untracked files and
+dirty submodules before reading the bank, creating the result directory or
+launching any test tool. Git must be available, every metadata command must
+succeed, and the checkout root must match this repository. A source archive
+without Git metadata cannot execute the bank. Ignored dependency caches and
+the ignored `q45-server-results/` directory remain allowed. Prefer an output
+directory outside the checkout; unignored output inside it makes the final
+clean-checkout check fail.
 
 `lean` has 28 cases; `quint` has 48. `all` also runs the two concrete replay
 cases, for 78 total. `--seed` defaults to `0x45` for Quint scenarios and the
@@ -91,7 +106,8 @@ an operator-provisioned self-hosted runner labeled `linux`, `x64` and
 `q45-formal`. It requires an exact commit SHA and a selected suite. It does
 not trigger on a push or pull request, and it does not fall back to a hosted
 runner. It explicitly installs the locked npm test dependency on the chosen
-server, then runs the bank and uploads that run's evidence to the repository.
+server, then passes that same SHA to the guarded CLI and uploads that run's
+evidence to the repository.
 The direct CLI above does not require GitHub Actions or a runner registration.
 The repository's other existing workflows are separate from this bank.
 
@@ -100,7 +116,8 @@ The repository's other existing workflows are separate from this bank.
 Each output directory contains an atomic `receipt.json` and separate stdout
 and stderr logs for every preflight/task command. The receipt records:
 
-- exact Git revision, dirty-checkout flag and source hashes;
+- explicitly selected Git revision, admitted clean-checkout metadata, final
+  checkout verification and source hashes;
 - hostname, platform, Python and prerequisite version output;
 - command arguments, working directory, elapsed time and log hashes;
 - every selected case, its expected outcome and observed status;
@@ -112,7 +129,11 @@ and the three negative QI cases must exhibit actual invariant violations.
 A parse/type/import error, tool-launch failure or timeout is a failure, not
 a valid counterexample. The runner stops at the first unexpected outcome,
 retains incomplete cases as `not_run`, stops child model-checker processes
-on timeout/interruption, and rejects a run if its source files change.
+on timeout/interruption, and rejects a run if its source files change. Before
+saving the final receipt, it also rechecks the selected revision and clean
+checkout. A changed `HEAD`, new dirt or unavailable Git metadata makes the
+overall receipt `failed`, even if all task expectations were satisfied.
+Initial checkout rejection exits nonzero and creates no receipt or logs.
 
 The Lean bank compiles outside the default `TclMesh` library target. Its
 custom audit counts exactly 20 bank theorems and permits only the standard
@@ -126,3 +147,17 @@ server run exists. This bank establishes acceptance-model evidence only;
 cryptographic soundness, malicious-secure FHE and universal implementation
 refinement remain open. It enables no governed release and merges no
 protocol changes.
+
+## Verify the runner guard without executing the banks
+
+```sh
+python3 -B -m unittest discover -s tests -p test_threshold_q45_testbank_checkout.py -v
+```
+
+These regressions use disposable local Git repositories and fake Lean command
+outputs only. They cover missing/wrong revisions, staged/unstaged/deleted and
+untracked source, dirty submodules, missing/broken Git metadata, failed Git
+status, detached checkouts, ignored caches, and source/revision/metadata changes
+during simulated execution. They also check the unchanged 78-case/22-task
+inventory through `validate` and `plan` without Git or any test tools. Passing
+these runner tests does not establish any Lean, Quint, TLC or replay result.
