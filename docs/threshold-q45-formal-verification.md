@@ -6,6 +6,13 @@ It does not change the cryptographic protocol, ceremony transition code or
 governed-release gate. The [adversarial acceptance report](threshold-q45-p2b-adversarial-acceptance.md)
 remains the account of the actual toy implementation's failures.
 
+The [server testbanks](../formal/testbanks/README.md) now provide the canonical
+78-case execution inventory, separate Lean rejection fixtures and expanded
+Quint scenarios. Those new banks are written and structurally validated only;
+their execution is reserved for the operator's server. Earlier local evidence
+below is historical evidence for the original models, not a result for the
+new testbanks.
+
 ## Reproduce
 
 Requirements: the exact version in `spec/lean-toolchain` (Lean 4.35.0),
@@ -24,8 +31,10 @@ succeed as specified. It accepts an expected failure only when TLC reports
 an invariant violation and a counterexample. A parse error, timeout or failed
 download cannot satisfy a negative check. Positive TLC runs must report a
 completed graph search and an empty queue. There is no silent simulation-only
-fallback. The path-scoped [CI workflow](../.github/workflows/q45-formal.yml)
-uploads logs, the generated ITF trace and a source-hashed receipt.
+fallback. The [workflow](../.github/workflows/q45-formal.yml) is now manual and
+targets a self-hosted server; it runs the new testbank entrypoint only when
+explicitly dispatched. Use the server guide above for the current execution
+procedure. The older command here remains available for the original checks.
 
 Local evidence is retained under
 [`formal/quint/evidence/local-2026-11-05`](../formal/quint/evidence/local-2026-11-05).

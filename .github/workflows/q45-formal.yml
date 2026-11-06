@@ -1,53 +1,51 @@
-name: Q45 Lean and Quint acceptance boundary
+name: Q45 server testbanks (manual)
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/q45-formal.yml'
-      - 'spec/**'
-      - 'formal/quint/**'
-      - 'tools/q45*.py'
-      - 'tools/check_q45*.py'
-      - 'experiments/threshold_q45/**'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/q45-formal.yml'
-      - 'spec/**'
-      - 'formal/quint/**'
-      - 'tools/q45*.py'
-      - 'tools/check_q45*.py'
-      - 'experiments/threshold_q45/**'
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact 40-character commit SHA to check
+        required: true
+        type: string
+      suite:
+        description: Testbank suite
+        required: true
+        default: all
+        type: choice
+        options: [all, lean, quint]
+
+permissions:
+  contents: read
 
 jobs:
-  q45-formal:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  q45-testbanks:
+    runs-on: [self-hosted, linux, x64, q45-formal]
+    timeout-minutes: 60
     steps:
+      - name: Require an exact source revision
+        env:
+          Q45_REVISION: ${{ inputs.revision }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          if not re.fullmatch(r'[0-9a-fA-F]{40}', os.environ['Q45_REVISION']):
+              raise SystemExit('revision must be an exact 40-character commit SHA')
+          PY
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: formal/quint/package-lock.json
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: Install Erlang/OTP
-        run: sudo apt-get update && sudo apt-get install -y erlang-base erlang-dev erlang-crypto
-      - name: Install pinned Lean toolchain through elan
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      - name: Install locked Quint
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      # The operator provisions the runtimes; dependency installation is explicit.
+      - name: Install the locked Quint test dependency
+        if: inputs.suite != 'lean'
         run: npm ci --ignore-scripts --no-audit --no-fund --prefix formal/quint
-      - name: Prove and model-check the acceptance boundary
+      - name: Execute the selected server testbank
+        env:
+          Q45_REVISION: ${{ inputs.revision }}
         run: |
-          mkdir -p q45-formal-evidence
-          python3 -B tools/check_q45_formal.py --receipt q45-formal-evidence/receipt.json --evidence-dir q45-formal-evidence
+          python3 -B tools/run_q45_testbanks.py run --revision "$Q45_REVISION" --suite '${{ inputs.suite }}' --out 'q45-server-results/${{ github.run_id }}-${{ github.run_attempt }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: q45-lean-quint-evidence
-          path: q45-formal-evidence
+          name: q45-server-testbanks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: q45-server-results
