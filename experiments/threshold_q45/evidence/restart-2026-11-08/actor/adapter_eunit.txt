@@ -1,0 +1,14 @@
+======================== EUnit ========================
+module 'q45_result_store_tests'
+  q45_result_store_tests: binding_is_deterministic_and_complete_test...[0.038 s] ok
+  q45_result_store_tests: invalid_bindings_are_rejected_test...ok
+  q45_result_store_tests: invalid_arguments_fail_before_io_test...[0.002 s] ok
+  q45_result_store_tests: commit_replay_and_restart_return_same_receipt_test...[0.288 s] ok
+  q45_result_store_tests: conflicting_retries_preserve_original_receipt_test...[0.175 s] ok
+  q45_result_store_tests: forged_receipt_hash_is_rejected_test...[0.023 s] ok
+  q45_result_store_tests: malformed_and_wrong_operation_responses_are_rejected_test...[0.141 s] ok
+  q45_result_store_tests: receipts_are_bound_to_request_fields_test...[0.056 s] ok
+  q45_result_store_tests: worker_failures_and_timeouts_are_not_empty_test...[0.065 s] ok
+  [done in 0.817 s]
+=======================================================
+  All 9 tests passed.

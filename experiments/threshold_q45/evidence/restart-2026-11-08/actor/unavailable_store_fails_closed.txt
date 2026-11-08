@@ -1,0 +1,20 @@
+=CRASH REPORT==== 8-Nov-2026::14:26:32.413517 ===
+  crasher:
+    initial call: q45_ceremony:init/1
+    pid: <0.82.0>
+    registered_name: []
+    exception exit: {result_store_unavailable,persistence_failed}
+      in function  gen_statem:init_result/8 (gen_statem.erl, line 1058)
+    ancestors: [<0.9.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.9.0>]
+    dictionary: []
+    trap_exit: false
+    status: running
+    heap_size: 987
+    stack_size: 28
+    reductions: 262
+  neighbours:
+
+Q45_CHECK_OK unavailable_store

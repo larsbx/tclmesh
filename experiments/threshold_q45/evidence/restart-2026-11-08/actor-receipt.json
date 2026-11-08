@@ -1,0 +1,497 @@
+{
+  "accepted": true,
+  "checks": [
+    {
+      "name": "adapter_eunit",
+      "status": "passed"
+    },
+    {
+      "crash_marker": {
+        "notifications": 0,
+        "stage": "after_commit"
+      },
+      "data_version_after": 2,
+      "data_version_before": 2,
+      "name": "whole_vm_after_commit",
+      "recovery_notifications": 0,
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed",
+      "writer_exit_code": -9
+    },
+    {
+      "crash_marker": {
+        "notifications": 1,
+        "stage": "after_completion"
+      },
+      "data_version_after": 2,
+      "data_version_before": 2,
+      "name": "whole_vm_after_completion",
+      "recovery_notifications": 0,
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed",
+      "writer_exit_code": -9
+    },
+    {
+      "name": "actor_after_commit",
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed"
+    },
+    {
+      "name": "actor_after_completion",
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed"
+    },
+    {
+      "name": "stale_writer",
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed"
+    },
+    {
+      "name": "race_identical",
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed"
+    },
+    {
+      "name": "unavailable_store_fails_closed",
+      "snapshot": {
+        "completions": [],
+        "results": []
+      },
+      "status": "passed"
+    },
+    {
+      "name": "lost_helper_reply_recovered_after_deadline",
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed"
+    },
+    {
+      "expectation": "compiled mutant fails with duplicate_completion",
+      "mutant_source_sha256": "b96e96b5e4505d815a90453f8f0e5b3ccd15a2e99aecc4268acb4b7b069b385c",
+      "name": "replay_notification_mutant",
+      "snapshot": {
+        "completions": [
+          {
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ],
+        "results": [
+          {
+            "binding_hex": "8368046400147134355f6c6f63616c5f62696e64696e675f76316d0000000f6576616c75617465643a01020304056d00000020c1de0f1e55b6ef835ac9ccee77913c2784f7205dd88be89d473a0ebd2688a0036b000401020304",
+            "bit": 1,
+            "receipt_hex": "109f11b47febb414f70229ce93c1e69919a72fa848deda31ebe3f478713bc422",
+            "sid_hex": "7134352d696e7671392d72657374617274"
+          }
+        ]
+      },
+      "status": "passed"
+    }
+  ],
+  "commands": [
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), true = is_list(code:lib_dir(eunit)), io:format(\"OTP ~s ERTS ~s~n\", [erlang:system_info(otp_release), erlang:system_info(version)]), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "otp-version",
+      "output_file": "otp-version.txt",
+      "output_sha256": "66669c4816fff3660f3fb7c2c9d975434873a1b4ac2ce95dcc5fbd1effbcbe66",
+      "seconds": 0.164
+    },
+    {
+      "command": [
+        "erlc",
+        "-Werror",
+        "-o",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "/workspace/scratch/20faefa4e70a/tclmesh/experiments/threshold_q45/q45_ceremony.erl",
+        "/workspace/scratch/20faefa4e70a/tclmesh/experiments/threshold_q45/q45_result_store.erl",
+        "/workspace/scratch/20faefa4e70a/tclmesh/experiments/threshold_q45/q45_restart_tests.erl",
+        "/workspace/scratch/20faefa4e70a/tclmesh/experiments/threshold_q45/q45_result_store_tests.erl"
+      ],
+      "exit_code": 0,
+      "name": "compile-baseline",
+      "output_file": "compile-baseline.txt",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seconds": 0.495
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "case eunit:test(q45_result_store_tests, [verbose]) of ok -> halt(0); _ -> halt(1) end."
+      ],
+      "exit_code": 0,
+      "name": "adapter_eunit",
+      "output_file": "adapter_eunit.txt",
+      "output_sha256": "a7fd48904501d8a4f491664eaa6f84217c95e0554835c7201d47db14ce171f7b",
+      "seconds": 0.985
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(replay, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21taXQuc3FsaXRl\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21taXQubWFya2VyLmpzb24=\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "whole_vm_after_commit-recovery",
+      "output_file": "whole_vm_after_commit-recovery.txt",
+      "output_sha256": "f0fa3c7075fe2e79d62883b3ca404646b62a987a3384956395f795f589688edd",
+      "seconds": 0.358
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(vm_after_commit, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21taXQuc3FsaXRl\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21taXQubWFya2VyLmpzb24=\"))), halt(0)."
+      ],
+      "exit_code": -9,
+      "name": "whole_vm_after_commit-writer",
+      "output_file": "whole_vm_after_commit-writer.txt",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seconds": 0.747,
+      "signal": "SIGKILL"
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(replay, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21wbGV0aW9uLnNxbGl0ZQ==\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21wbGV0aW9uLm1hcmtlci5qc29u\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "whole_vm_after_completion-recovery",
+      "output_file": "whole_vm_after_completion-recovery.txt",
+      "output_sha256": "f0fa3c7075fe2e79d62883b3ca404646b62a987a3384956395f795f589688edd",
+      "seconds": 0.367
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(vm_after_completion, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21wbGV0aW9uLnNxbGl0ZQ==\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi93aG9sZV92bV9hZnRlcl9jb21wbGV0aW9uLm1hcmtlci5qc29u\"))), halt(0)."
+      ],
+      "exit_code": -9,
+      "name": "whole_vm_after_completion-writer",
+      "output_file": "whole_vm_after_completion-writer.txt",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seconds": 0.764,
+      "signal": "SIGKILL"
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(actor_after_commit, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9hY3Rvcl9hZnRlcl9jb21taXQuc3FsaXRl\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9hY3Rvcl9hZnRlcl9jb21taXQubWFya2VyLmpzb24=\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "actor_after_commit",
+      "output_file": "actor_after_commit.txt",
+      "output_sha256": "a4c3a14dc086f2b3d8aff7411913493b2c822364ad99a5c55044f0a377d8893d",
+      "seconds": 0.485
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(actor_after_completion, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9hY3Rvcl9hZnRlcl9jb21wbGV0aW9uLnNxbGl0ZQ==\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9hY3Rvcl9hZnRlcl9jb21wbGV0aW9uLm1hcmtlci5qc29u\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "actor_after_completion",
+      "output_file": "actor_after_completion.txt",
+      "output_sha256": "f11ce96528287b64f9e241f94974ab672377c6eb5fbb967b51e6fb9cb966eadd",
+      "seconds": 0.434
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(stale_writer, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9zdGFsZV93cml0ZXIuc3FsaXRl\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9zdGFsZV93cml0ZXIubWFya2VyLmpzb24=\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "stale_writer",
+      "output_file": "stale_writer.txt",
+      "output_sha256": "256c73dc77206aae834c1f2d54e4a421843a59be37f7054116b5d2c436acc94d",
+      "seconds": 0.434
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(identical_race, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9yYWNlX2lkZW50aWNhbC5zcWxpdGU=\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9yYWNlX2lkZW50aWNhbC5tYXJrZXIuanNvbg==\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "race_identical",
+      "output_file": "race_identical.txt",
+      "output_sha256": "0c72c66a4cd1dacf2eb434093cb26043ba0f184054e363c75cd45a62392220f7",
+      "seconds": 0.357
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(unavailable_store, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi91bmF2YWlsYWJsZV9zdG9yZV9mYWlsc19jbG9zZWQuc3FsaXRl\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi91bmF2YWlsYWJsZV9zdG9yZV9mYWlsc19jbG9zZWQubWFya2VyLmpzb24=\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "unavailable_store_fails_closed",
+      "output_file": "unavailable_store_fails_closed.txt",
+      "output_sha256": "90ab8d324009bd5ddbc7839c347961be3beef6fc183924826877b91826ef01fe",
+      "seconds": 0.28
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/baseline-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(lost_helper_response, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9sb3N0X2hlbHBlcl9yZXBseV9yZWNvdmVyZWRfYWZ0ZXJfZGVhZGxpbmUuc3FsaXRl\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9sb3N0X2hlbHBlcl9yZXNwb25zZV93b3JrZXIucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9sb3N0X2hlbHBlcl9yZXBseV9yZWNvdmVyZWRfYWZ0ZXJfZGVhZGxpbmUubWFya2VyLmpzb24=\"))), halt(0)."
+      ],
+      "exit_code": 0,
+      "name": "lost_helper_reply_recovered_after_deadline",
+      "output_file": "lost_helper_reply_recovered_after_deadline.txt",
+      "output_sha256": "a5747c72c6a1c40daadd4bb01f79d62f96cfb18bd5073099cd1cdc708afa9429",
+      "seconds": 1.326
+    },
+    {
+      "command": [
+        "erlc",
+        "-Werror",
+        "-o",
+        "/tmp/q45-actor-restart-9np9xxbv/mutant-ebin",
+        "/tmp/q45-actor-restart-9np9xxbv/q45_ceremony.erl",
+        "/workspace/scratch/20faefa4e70a/tclmesh/experiments/threshold_q45/q45_result_store.erl",
+        "/workspace/scratch/20faefa4e70a/tclmesh/experiments/threshold_q45/q45_restart_tests.erl",
+        "/workspace/scratch/20faefa4e70a/tclmesh/experiments/threshold_q45/q45_result_store_tests.erl"
+      ],
+      "exit_code": 0,
+      "name": "compile-replay-notification-mutant",
+      "output_file": "compile-replay-notification-mutant.txt",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seconds": 0.447
+    },
+    {
+      "command": [
+        "erl",
+        "-noshell",
+        "-pa",
+        "/tmp/q45-actor-restart-9np9xxbv/mutant-ebin",
+        "-eval",
+        "{ok, _} = application:ensure_all_started(crypto), ok = q45_restart_tests:run(identical_race, binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9yZXBsYXlfbm90aWZpY2F0aW9uX211dGFudC5zcWxpdGU=\")), binary_to_list(base64:decode(\"L3dvcmtzcGFjZS9zY3JhdGNoLzIwZmFlZmE0ZTcwYS90Y2xtZXNoL3Rvb2xzL3E0NV9yZXN1bHRfc3RvcmUucHk=\")), binary_to_list(base64:decode(\"L3RtcC9xNDUtYWN0b3ItcmVzdGFydC05bnA5eHhidi9yZXBsYXlfbm90aWZpY2F0aW9uX211dGFudC5tYXJrZXIuanNvbg==\"))), halt(0)."
+      ],
+      "exit_code": 1,
+      "name": "replay_notification_mutant",
+      "output_file": "replay_notification_mutant.txt",
+      "output_sha256": "8baacb21617b8d7f268787b4d20fc88d8b96c7cd5205385e5ef389babf32f52b",
+      "seconds": 0.465
+    }
+  ],
+  "completed_utc": "2026-11-08T14:26:34.689515+00:00",
+  "error": null,
+  "evidence_sha256": {
+    "actor_after_commit.txt": "a4c3a14dc086f2b3d8aff7411913493b2c822364ad99a5c55044f0a377d8893d",
+    "actor_after_completion.txt": "f11ce96528287b64f9e241f94974ab672377c6eb5fbb967b51e6fb9cb966eadd",
+    "adapter_eunit.txt": "a7fd48904501d8a4f491664eaa6f84217c95e0554835c7201d47db14ce171f7b",
+    "compile-baseline.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile-replay-notification-mutant.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lost_helper_reply_recovered_after_deadline.txt": "a5747c72c6a1c40daadd4bb01f79d62f96cfb18bd5073099cd1cdc708afa9429",
+    "lost_helper_response_worker.py": "62cee696d8de00f7cc23c79462bb39dc511778477f1b36f6f3aa33613b96af7c",
+    "otp-version.txt": "66669c4816fff3660f3fb7c2c9d975434873a1b4ac2ce95dcc5fbd1effbcbe66",
+    "race_identical.txt": "0c72c66a4cd1dacf2eb434093cb26043ba0f184054e363c75cd45a62392220f7",
+    "replay_notification_mutant.txt": "8baacb21617b8d7f268787b4d20fc88d8b96c7cd5205385e5ef389babf32f52b",
+    "stale_writer.txt": "256c73dc77206aae834c1f2d54e4a421843a59be37f7054116b5d2c436acc94d",
+    "unavailable_store_fails_closed.txt": "90ab8d324009bd5ddbc7839c347961be3beef6fc183924826877b91826ef01fe",
+    "whole_vm_after_commit-recovery.txt": "f0fa3c7075fe2e79d62883b3ca404646b62a987a3384956395f795f589688edd",
+    "whole_vm_after_commit-writer.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "whole_vm_after_commit.marker.json": "deeb231cfdae0330bafc5c0328fdc8f3747e02da09e778f601794cf4d48010ca",
+    "whole_vm_after_completion-recovery.txt": "f0fa3c7075fe2e79d62883b3ca404646b62a987a3384956395f795f589688edd",
+    "whole_vm_after_completion-writer.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "whole_vm_after_completion.marker.json": "b774481e3bb0eee1298b3965a787e66561906edbda85f7097b6ced98c9534af9"
+  },
+  "mandatory_checks": [
+    "adapter_eunit",
+    "whole_vm_after_commit",
+    "whole_vm_after_completion",
+    "actor_after_commit",
+    "actor_after_completion",
+    "stale_writer",
+    "race_identical",
+    "unavailable_store_fails_closed",
+    "lost_helper_reply_recovered_after_deadline",
+    "replay_notification_mutant"
+  ],
+  "runtime_environment": {
+    "ERL_FLAGS": "+S 2",
+    "LD_PRELOAD": "unset for all Erlang/compiler/helper subprocesses"
+  },
+  "schema": "q45-actor-restart-v1",
+  "scope": "Inert research actor; local preserved SQLite authority; process/VM crashes, one durable result and logical completion, at-most-once notification emission. No host power-loss, external delivery, cryptographic security, or universal refinement claim.",
+  "source_after": {
+    "revision": "b675f2bd8d33113105057869c397e0ab6772c798",
+    "sha256": {
+      "experiments/threshold_q45/q45_ceremony.erl": "bacca8b5c39fd271233fc1b202fd069ff36ec49155352a27af1f3e194a444453",
+      "experiments/threshold_q45/q45_restart_tests.erl": "080e02f6ec2ce20d4a76a07f31560402d177db5249b2f5d6e838dd1a2a5ea479",
+      "experiments/threshold_q45/q45_result_store.erl": "3220f675692e19c84e0ed494e1ea1c097ad91319af20c06523eb4d6e207e64f5",
+      "experiments/threshold_q45/q45_result_store_tests.erl": "7b7d5bd4183032da2ee71d227988160c7dfae848ce08795feb71ad29e1e6b917",
+      "tools/check_q45_actor_restart.py": "963472cbe6eb1543745c801b899e87620cd32892b503407990a5846903bbdc75",
+      "tools/q45_result_store.py": "0a63604b6023927805a3cb30f55033f91f5d22d1e172a5a0b6576047d09aed29"
+    },
+    "status": ""
+  },
+  "source_and_git_state_unchanged": true,
+  "source_before": {
+    "revision": "b675f2bd8d33113105057869c397e0ab6772c798",
+    "sha256": {
+      "experiments/threshold_q45/q45_ceremony.erl": "bacca8b5c39fd271233fc1b202fd069ff36ec49155352a27af1f3e194a444453",
+      "experiments/threshold_q45/q45_restart_tests.erl": "080e02f6ec2ce20d4a76a07f31560402d177db5249b2f5d6e838dd1a2a5ea479",
+      "experiments/threshold_q45/q45_result_store.erl": "3220f675692e19c84e0ed494e1ea1c097ad91319af20c06523eb4d6e207e64f5",
+      "experiments/threshold_q45/q45_result_store_tests.erl": "7b7d5bd4183032da2ee71d227988160c7dfae848ce08795feb71ad29e1e6b917",
+      "tools/check_q45_actor_restart.py": "963472cbe6eb1543745c801b899e87620cd32892b503407990a5846903bbdc75",
+      "tools/q45_result_store.py": "0a63604b6023927805a3cb30f55033f91f5d22d1e172a5a0b6576047d09aed29"
+    },
+    "status": ""
+  },
+  "started_utc": "2026-11-08T14:26:27.288646+00:00",
+  "versions": {
+    "otp": "OTP 25 ERTS 13.2.2.5",
+    "python": "3.12.14",
+    "sqlite": "3.53.1"
+  }
+}

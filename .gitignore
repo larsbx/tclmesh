@@ -7,5 +7,9 @@ proof/.lake/
 kernel/core/target/
 security/target/
 backends/tfhe/target/
+formal/quint/node_modules/
+formal/quint/_apalache-out/
+/q45-server-results/
+/q45-restart-results/
 __pycache__/
 *.pyc

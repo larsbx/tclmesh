@@ -41,6 +41,28 @@ jobs:
       - name: Run release self-check
         run: tclsh tools/release_check.tcl
 
+  q45-ceremony:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Erlang/OTP
+        run: sudo apt-get update && sudo apt-get install -y erlang-base erlang-dev erlang-eunit erlang-crypto
+      - name: Check inert ceremony and reject transition mutants
+        run: python3 tools/check_q45_ceremony_mutants.py
+      - name: Check durable result through actor and BEAM process crashes
+        run: python3 -B tools/check_q45_actor_restart.py --receipt q45-restart-results/receipt.json --evidence-dir q45-restart-results
+      - name: Preserve scoped actor restart evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q45-actor-restart-${{ github.run_id }}-${{ github.run_attempt }}
+          path: q45-restart-results
+          if-no-files-found: error
+      - name: Replay P0 toy ciphertexts and partials through P1
+        run: python3 -B tools/check_q45_toy_replay.py
+      - name: Characterize dishonest P2b participants (toy counterexamples only)
+        run: python3 -B tools/check_q45_adversarial.py
+
   kernel:
     runs-on: ubuntu-latest
     steps:

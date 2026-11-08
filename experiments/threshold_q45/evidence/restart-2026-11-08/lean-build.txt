@@ -1,0 +1,6 @@
+ℹ [10/24] Replayed TclMesh.Q45Restart
+info: TclMesh/Q45Restart.lean:171:0: 'TclMesh.Q45Restart.noSecondWriteOrCompletion' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: TclMesh/Q45Restart.lean:172:0: 'TclMesh.Q45Restart.recordedRemains' depends on axioms: [propext]
+info: TclMesh/Q45Restart.lean:173:0: 'TclMesh.Q45Restart.recoveredIdentical' depends on axioms: [propext]
+info: TclMesh/Q45Restart.lean:174:0: 'TclMesh.Q45Restart.recoveredConflict' depends on axioms: [propext]
+Build completed successfully (24 jobs).

@@ -1,0 +1,9 @@
+
+  q45_restart
+    ok firstCommitTest passed 1 test(s)
+    ok recoveredIdenticalTest passed 1 test(s)
+    ok recoveredConflictTest passed 1 test(s)
+    ok replacementCounterexampleTest passed 1 test(s)
+    ok duplicateCompletionCounterexampleTest passed 1 test(s)
+
+  5 passing (21ms)

@@ -1,0 +1,78 @@
+{
+  "actor_replay": {
+    "canonical_bit_flip_completions": 640,
+    "executed": true,
+    "honest_cases": 640,
+    "malformed_payload_aborts": 4,
+    "otp_release": "25",
+    "output": "P2b/P1: 640 honest cases; 640 canonical bit-flip attacks completed; 640 small-offset attacks completed; 4 malformed probes aborted",
+    "small_offset_completions": 640
+  },
+  "claim": "Toy counterexample replay only; no malicious-security claim.",
+  "governed_release_enabled": false,
+  "measurements": {
+    "altered_relin_bound_80_failures": 128,
+    "altered_relin_decode_failures": 128,
+    "altered_relin_full_key_cases": 128,
+    "altered_relin_margin_80_failures": 128,
+    "altered_relin_threshold_cases": 640,
+    "altered_relin_threshold_failures": 640,
+    "decode_bound_80_failures": 0,
+    "delta_bit_flips_accepted": 640,
+    "full_key_cases": 128,
+    "margin_72_failures": 61,
+    "margin_80_failures": 0,
+    "noise_widths_by_seed": {
+      "4660": 33,
+      "69": 33,
+      "7": 33,
+      "99": 34
+    },
+    "over_bound_partials_decode_correctly": 640,
+    "required_margin_bits": 40,
+    "small_offsets_decode_correctly": 640,
+    "smudge_bits": 80,
+    "threshold_cases": 640
+  },
+  "python": "3.12.14",
+  "python_tests": 18,
+  "schema": "q45-p2b-adversarial-v1",
+  "sha256": {
+    "experiments/threshold_q45/q45_ceremony.erl": "bacca8b5c39fd271233fc1b202fd069ff36ec49155352a27af1f3e194a444453",
+    "experiments/threshold_q45/q45_ceremony_tests.erl": "74c101d674940d860b49b948421739dafc6d84216eca44b91b5a2c0668de271e",
+    "experiments/threshold_q45/q45_toy_replay.erl": "4c51808481e855ce291441348e5032fe40f247fcd4103329ac8572d5d9f27761",
+    "tests/test_threshold_q45_adversarial.py": "9b71ec6defa689f76d2670eb7f918999e473e53a29eb66c0e24ba7395fa813bc",
+    "tests/test_threshold_q45_collective_relin.py": "787d8401b434e52158131e676843fdb76a436b3106de1505440d7561d36b6e3c",
+    "tests/test_threshold_q45_collective_setup.py": "3ba18ed0518b6047795232b099b4b6026cc00a4f9e32b8c0611b5663aae28e63",
+    "tools/check_q45_adversarial.py": "3ed9bb8eaa41d2168ab30122a887c30fdb7c4b345c46ddfdc6374a0d02d0819a",
+    "tools/q45_adversarial_probe.py": "79dfe8e85c7421474776607a2e28617dbe4194cf878f0c24d0c5efa8a181932e",
+    "tools/q45_collective_relin.py": "a98b735ea256932bda08877bf252b8637bd555f45a044c7bb58ee4b505a01f9a",
+    "tools/q45_collective_setup.py": "6bd676110ae93f6cd38d232b09339175e707e9f79bfdd553d9392c14e6884d8e",
+    "tools/q45_oracle.py": "19f53ac48a2c792ac13902238ebbc9bd253375675257c651c93479e02086620c"
+  },
+  "source_pr": 55,
+  "source_revision": "b5507710d9a1d2d81e8643803dcb7e3dfd7f1f1d"
+}
+test_640_honest_cases_and_canonical_corruption_with_80_bit_smudging (test_threshold_q45_adversarial.DishonestParticipants.test_640_honest_cases_and_canonical_corruption_with_80_bit_smudging) ... ok
+test_altered_relin_contributions_invalidate_80_bit_noise_assumptions (test_threshold_q45_adversarial.DishonestParticipants.test_altered_relin_contributions_invalidate_80_bit_noise_assumptions) ... ok
+test_canonical_first_round_corruption_is_accepted_oracle_detects_bad_gadget (test_threshold_q45_adversarial.DishonestParticipants.test_canonical_first_round_corruption_is_accepted_oracle_detects_bad_gadget) ... ok
+test_canonical_second_round_corruption_is_accepted_oracle_detects_bad_gadget (test_threshold_q45_adversarial.DishonestParticipants.test_canonical_second_round_corruption_is_accepted_oracle_detects_bad_gadget) ... ok
+test_conflicting_round_transcript_rejected_but_relabeling_is_accepted (test_threshold_q45_adversarial.DishonestParticipants.test_conflicting_round_transcript_rejected_but_relabeling_is_accepted) ... ok
+test_direct_aggregate_objects_bypass_aggregation_shape_checks (test_threshold_q45_adversarial.DishonestParticipants.test_direct_aggregate_objects_bypass_aggregation_shape_checks) ... ok
+test_equal_replica_corruption_still_has_no_public_secret_consistency_check (test_threshold_q45_adversarial.DishonestParticipants.test_equal_replica_corruption_still_has_no_public_secret_consistency_check) ... ok
+test_fixture_matches_original_p2b_rng_and_keys (test_threshold_q45_adversarial.DishonestParticipants.test_fixture_matches_original_p2b_rng_and_keys) ... ok
+test_fragment_equivocation_is_accepted_and_quorums_can_disagree (test_threshold_q45_adversarial.DishonestParticipants.test_fragment_equivocation_is_accepted_and_quorums_can_disagree) ... ok
+test_holder_can_omit_smudging_without_public_rejection (test_threshold_q45_adversarial.DishonestParticipants.test_holder_can_omit_smudging_without_public_rejection) ... ok
+test_inconsistent_public_keys_are_locally_accepted (test_threshold_q45_adversarial.DishonestParticipants.test_inconsistent_public_keys_are_locally_accepted) ... ok
+test_last_public_contributor_can_choose_aggregate_with_known_secret (test_threshold_q45_adversarial.DishonestParticipants.test_last_public_contributor_can_choose_aggregate_with_known_secret) ... ok
+test_noncanonical_coefficients_are_rejected_at_public_fragment_and_relin_ingress (test_threshold_q45_adversarial.DishonestParticipants.test_noncanonical_coefficients_are_rejected_at_public_fragment_and_relin_ingress) ... ok
+test_partial_combiner_has_no_membership_count_or_value_validation (test_threshold_q45_adversarial.DishonestParticipants.test_partial_combiner_has_no_membership_count_or_value_validation) ... ok
+test_partial_withholding_does_not_automatically_redesignate (test_threshold_q45_adversarial.DishonestParticipants.test_partial_withholding_does_not_automatically_redesignate) ... ok
+test_sender_labels_can_be_forged_without_authentication (test_threshold_q45_adversarial.DishonestParticipants.test_sender_labels_can_be_forged_without_authentication) ... ok
+test_two_consistent_local_round_views_both_pass_without_global_agreement (test_threshold_q45_adversarial.DishonestParticipants.test_two_consistent_local_round_views_both_pass_without_global_agreement) ... ok
+test_withholding_and_duplicate_messages_are_rejected_at_each_setup_round (test_threshold_q45_adversarial.DishonestParticipants.test_withholding_and_duplicate_messages_are_rejected_at_each_setup_round) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 5.547s
+
+OK
