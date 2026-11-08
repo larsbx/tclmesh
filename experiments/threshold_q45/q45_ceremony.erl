@@ -4,7 +4,7 @@
 -module(q45_ceremony).
 -behaviour(gen_statem).
 
--export([start_link/4, submit/3, new/5, step/3]).
+-export([start_link/4, start_link/5, submit/3, new/5, step/3]).
 -export([init/1, callback_mode/0, handle_event/4]).
 
 -define(PARTIES, [1, 2, 3, 4, 5]).
@@ -12,17 +12,34 @@
 start_link(Sid, BudgetMs, Evaluate, Combine) ->
     gen_statem:start_link(?MODULE, {Sid, BudgetMs, Evaluate, Combine}, []).
 
+%% Optional durable result authority for the research actor. The /4 actor and
+%% pure reducer retain their original in-memory, terminal-rejection semantics.
+start_link(Sid, BudgetMs, Evaluate, Combine, Options) ->
+    gen_statem:start_link(?MODULE, {Sid, BudgetMs, Evaluate, Combine, Options}, []).
+
 submit(Pid, Sid, Event) ->
     gen_statem:call(Pid, {Sid, Event}, infinity).
 
 init({Sid, BudgetMs, Evaluate, Combine}) ->
     {Phase, Data} = new(Sid, BudgetMs, Evaluate, Combine, now_ms()),
-    {ok, Phase, Data, timer_action(Phase, Data)}.
+    {ok, Phase, Data, timer_action(Phase, Data)};
+init({Sid, BudgetMs, Evaluate, Combine, #{result_store := Store} = Options}) ->
+    {Phase, Data} = new(Sid, BudgetMs, Evaluate, Combine, now_ms()),
+    Durable = Data#{result_store => Store,
+                    completion_sink => maps:get(completion_sink, Options, undefined),
+                    hooks => maps:get(hooks, Options, #{})},
+    case q45_result_store:lookup(Store, Sid) of
+        empty -> {ok, Phase, Durable, timer_action(Phase, Durable)};
+        {ok, #{result := Bit} = Receipt} ->
+            {ok, complete, Durable#{result => Bit, durable_receipt => Receipt}};
+        {error, Reason} -> {stop, {result_store_unavailable, Reason}}
+    end;
+init(_) -> {stop, invalid_options}.
 
 callback_mode() -> handle_event_function.
 
 handle_event({call, From}, {Sid, Event}, Phase, Data) ->
-    {Reply, {Next, Updated}} = step({Phase, Data}, {Sid, Event}, now_ms()),
+    {Reply, {Next, Updated}} = actor_step({Phase, Data}, {Sid, Event}, now_ms()),
     Actions = [{reply, From, Reply}],
     case Next =:= Phase of
         true -> {keep_state, Updated, Actions};
@@ -35,6 +52,76 @@ handle_event({call, From}, _, _, _) ->
     {keep_state_and_data, [{reply, From, {error, invalid_event}}]};
 handle_event(_, _, _, _) ->
     keep_state_and_data.
+
+%% Recovery and identical retries expose the original receipt, without a write
+%% or a second notification. Completion records are durable; notification
+%% delivery is best-effort and is not an exactly-once external effect.
+actor_step({complete, #{sid := Sid, durable_receipt := Receipt}} = State,
+           {Sid, {result, LocalBinding, Bit}}, _) ->
+    replay_result(State, Receipt, LocalBinding, Bit);
+actor_step({_, #{sid := Sid, result_store := Store} = Data} = State,
+           {Sid, {result, LocalBinding, Bit}} = Event, _) ->
+    %% A previous helper may have committed but lost its reply, or another
+    %% local actor may have won. Consult the authority before eligibility:
+    %% committed results replay even after the original admission deadline.
+    case q45_result_store:lookup(Store, Sid) of
+        {ok, #{result := CommittedBit} = Receipt} ->
+            Complete = {complete, Data#{result => CommittedBit, durable_receipt => Receipt}},
+            replay_result(Complete, Receipt, LocalBinding, Bit);
+        empty -> actor_transition(State, Event, now_ms());
+        {error, Reason} -> reject(Reason, State)
+    end;
+actor_step(State, Event, Now) -> actor_transition(State, Event, Now).
+
+replay_result(State, Receipt, LocalBinding, Bit) ->
+    case q45_result_store:binding(LocalBinding) of
+        {ok, Binding} ->
+            case Receipt of
+                #{binding := Binding, result := Bit} -> {{ok, Receipt}, State};
+                _ -> reject(result_conflict, State)
+            end;
+        _ -> reject(result_conflict, State)
+    end.
+
+actor_transition({Phase, Data} = State, Event, Now) ->
+    case step(State, Event, Now) of
+        {ok, {complete, Updated}} = Result ->
+            case maps:find(result_store, Data) of
+                {ok, Store} -> persist_result(Store, {Phase, Data}, Updated);
+                error -> Result
+            end;
+        Result -> Result
+    end.
+
+persist_result(Store, State, #{sid := Sid, ciphertext := Ciphertext, digest := Digest,
+                              quorum := Quorum, result := Bit} = Updated) ->
+    case q45_result_store:binding({Ciphertext, Digest, Quorum}) of
+        {ok, Binding} ->
+            case q45_result_store:commit(Store, Sid, Binding, Bit) of
+                {inserted, Receipt} ->
+                    run_hook(after_commit, Receipt, Updated),
+                    notify_completion(Sid, Receipt, Updated),
+                    run_hook(after_completion, Receipt, Updated),
+                    {{ok, Receipt}, {complete, Updated#{durable_receipt => Receipt}}};
+                {replay, Receipt} ->
+                    {{ok, Receipt}, {complete, Updated#{durable_receipt => Receipt}}};
+                {error, Reason} -> reject(Reason, State)
+            end;
+        {error, Reason} -> reject(Reason, State)
+    end.
+
+notify_completion(Sid, Receipt, #{completion_sink := Sink}) when is_pid(Sink) ->
+    Sink ! {q45_complete, Sid, Receipt},
+    ok;
+notify_completion(_, _, _) -> ok.
+
+%% Test hooks deliberately expose the two commit/reply crash windows. They
+%% exist only in this inert experiment, never in the governed release path.
+run_hook(Stage, Receipt, #{hooks := Hooks}) ->
+    case maps:find(Stage, Hooks) of
+        {ok, Hook} when is_function(Hook, 1) -> Hook(Receipt);
+        error -> ok
+    end.
 
 now_ms() -> erlang:monotonic_time(millisecond).
 

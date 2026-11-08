@@ -49,6 +49,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y erlang-base erlang-dev erlang-eunit erlang-crypto
       - name: Check inert ceremony and reject transition mutants
         run: python3 tools/check_q45_ceremony_mutants.py
+      - name: Check durable result through actor and BEAM process crashes
+        run: python3 -B tools/check_q45_actor_restart.py --receipt q45-restart-results/receipt.json --evidence-dir q45-restart-results
+      - name: Preserve scoped actor restart evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q45-actor-restart-${{ github.run_id }}-${{ github.run_attempt }}
+          path: q45-restart-results
+          if-no-files-found: error
       - name: Replay P0 toy ciphertexts and partials through P1
         run: python3 -B tools/check_q45_toy_replay.py
       - name: Characterize dishonest P2b participants (toy counterexamples only)
@@ -103,6 +112,19 @@ jobs:
           tclsh tools/views.tcl ranges conformance/range_admission.json > admission-ranges.json
           spec/.lake/build/bin/spec-eval --ranges admission-ranges.json > spec-admission-ranges.json
           tclsh tools/views.tcl check-ranges admission-ranges.json spec-admission-ranges.json
+      - name: Release lifecycle (governed Tcl release = proved Lean machine; real process crashes)
+        run: |
+          spec/.lake/build/bin/spec-eval --release conformance/release_traces.json > spec-release.json
+          tclsh tools/release_conformance.tcl check conformance/release_traces.json spec-release.json
+          # Negative control: without combine-time re-authorization of every
+          # contribution, Tcl must diverge from the machine.
+          sed -i 's/^\(\s*\)_authorize \[dict get \$receipt language_id\]/\1continue; &/' src/release_policy.tcl
+          git diff --exit-code --quiet src/release_policy.tcl && { echo "mutation did not apply"; exit 1; }
+          if tclsh tools/release_conformance.tcl check conformance/release_traces.json spec-release.json; then
+            echo "release conformance accepted a Tcl implementation without live revocation"
+            exit 1
+          fi
+          git checkout -- src/release_policy.tcl
       - name: Upstream word-range corpus (the Lean model replays the vendored finite-kernels corpus)
         run: spec/.lake/build/bin/spec-eval --word-range conformance/word_range_v1.txt
       - name: Random differential conformance (kernel = spec exactly; kernel refines Tcl)

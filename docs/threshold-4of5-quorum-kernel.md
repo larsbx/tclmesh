@@ -134,8 +134,16 @@ at the respective deadline. A missing partial requires a fresh session ID
 and a fresh transcript. In-session quorum re-formation is deferred. The
 caller is responsible for unique session IDs, authenticated attribution in
 any future integration, and trusted, deterministic evaluation and
-combination callbacks. P1 records state in memory. Its simulated messages
+combination callbacks. The original P1 API records state in memory. Its simulated messages
 carry no signatures or proofs of input knowledge or partial correctness.
+
+An [optional durable-result adapter](threshold-q45-durable-result.md) extends
+INV-Q9 across process restart. It atomically commits one result and one
+logical completion record, returns the original receipt on identical retry,
+and rejects conflicting retries. It uses the same P1 actor with an explicit
+SQLite authority. Recovery never emits a second completion notification;
+guaranteed external delivery and recovery of uncommitted/aborted ceremonies
+are separate obligations. The original in-memory API remains available.
 
 ## 5. Invariants
 
@@ -150,6 +158,7 @@ carry no signatures or proofs of input knowledge or partial correctness.
 | INV-Q7 | Sub-quorum blind: 3 parties pooling every share they hold decode `T` at chance | O6 (empirical) | P0 |
 | INV-Q8 | Decrypt-only-`c_T`: admit simulated partials only for the exact locally recomputed `c_T` | Exact-byte and digest checks, foreign ciphertext mutant | P1 |
 | INV-Q9 | Model order: `S`, `δ_S` frozen before the first partial; `T` recorded once in the session process | Prefix model, deadline tests, transition mutants | P1 |
+| INV-Q9-R | Optional durable authority: one committed result and logical completion per session across process restart; identical receipt replay, conflicting retry rejected | [Restart proofs and actor crash acceptance](threshold-q45-durable-result.md); scope and storage assumptions apply | P1 research extension |
 | INV-Q10 | Input binding: `cᵢ` bound to `(sid, i)` with a proof of plaintext knowledge | proof verifier + replay mutant | P3 |
 
 ## 6. Dec∘Eval differential oracle

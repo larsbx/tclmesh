@@ -1,0 +1,216 @@
+name: Primus preprocessing fail-before-open (research-only native test)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/threshold-primus-preprocessing.yml'
+      - 'tools/threshold_primus_preprocessing_patch.py'
+      - 'tools/threshold_primus_opening_harness.py'
+      - 'tests/test_threshold_primus_preprocessing_patch.py'
+      - 'docs/threshold-primus-preprocessing-experiment.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  original-source-and-negative-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Synthetic red-first source mutation tests (no FHE)
+        run: python3 -m unittest discover -s tests -p 'test_threshold_primus_preprocessing_patch.py' -v
+      - name: Verify original Primus pin and apply confined preprocessing patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p research-output
+          git init --quiet primus-research
+          git -C primus-research fetch --quiet --depth 1 \
+            https://github.com/primus-labs/primus-fhe.git a0d075d9ec055fb8652925fee65768a14a627cfa
+          git -C primus-research checkout --quiet --detach FETCH_HEAD
+          test "$(git -C primus-research rev-parse HEAD)" = \
+            a0d075d9ec055fb8652925fee65768a14a627cfa
+          python3 tools/threshold_primus_preprocessing_patch.py \
+            --source primus-research \
+            --report research-output/preprocessing-patch-source.json \
+            > research-output/preprocessing-patch-stdout.json
+          python3 - <<'PY'
+          import json
+          with open('research-output/preprocessing-patch-source.json', encoding='utf-8') as f:
+              r=json.load(f)
+          assert r['status'] == 'MODIFIED_OVERLAY_SOURCE_PATCH_ONLY'
+          assert r['source_git_blob_verified'] == 'da2e4457a9f7d8f434815d8645c4b4b1b8c0eded'
+          assert r['cryptographic_release_admitted'] is False
+          assert r['native_tests_executed'] is False
+          PY
+          git -C primus-research diff -- mpc/src/dn.rs \
+            > research-output/preprocessing-failclosed.patch
+          test -s research-output/preprocessing-failclosed.patch
+          # Add a separately disclosed transitive version pin for *research* only.
+          python3 - <<'PY'
+          from pathlib import Path
+          file=Path('primus-research/algebra/Cargo.toml')
+          s=file.read_bytes()
+          old=b'branch = "dev"'
+          assert s.count(old)==1, 'unexpected upstream manifest signature'
+          assert b'https://github.com/primus-labs/concrete-ntt' in s
+          file.write_bytes(s.replace(
+            old, b'rev = "cdeba793e46208320b30d78be19f7be78d49016a"'))
+          PY
+          git -C primus-research diff -- algebra/Cargo.toml \
+            > research-output/concrete-ntt-version-pin.patch
+          test -s research-output/concrete-ntt-version-pin.patch
+          printf '%s\n' \
+            'cryptographic_release_admitted=false' \
+            'public_research_source_only=true' \
+            'source=modified_primus_overlay_not_original_Ajax' \
+            'native_fhe_decryption_executed=false' \
+            'malicious_security_established=false' \
+            > research-output/scope.txt
+          # Even successful patch application must never bless live release.
+          if python3 tools/threshold_primus_preprocessing_patch.py \
+              --source primus-research --require-release \
+              > research-output/deny-release.json; then
+            echo 'FAILURE: preprocessing patch enabled cryptographic release'
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          with open('research-output/deny-release.json', encoding='utf-8') as f:
+              r=json.load(f)
+          assert r['status'] == 'BLOCKED'
+          assert r['cryptographic_release_admitted'] is False
+          PY
+      - name: Exercise pinned multiplication and loader with an opening spy
+        shell: bash
+        run: |
+          set -euo pipefail
+          # One run on one revision: every fixed scenario (including the
+          # multi-party shortage abort) must pass, and the zero-fallback mutant
+          # must leak in all three exhaustion scenarios. The harness's
+          # SCENARIOS table is the only oracle; this step adds no expectations.
+          probe_dir="$(mktemp -d)"
+          trap 'rm -rf "$probe_dir"' EXIT
+          git -C primus-research show HEAD:mpc/src/dn.rs > "$probe_dir/dn.rs"
+          rustup toolchain install 1.85.1 --profile minimal
+          rustc +1.85.1 -Vv > research-output/opening-probe-rustc.txt
+          python3 tools/threshold_primus_opening_harness.py \
+            "$probe_dir/dn.rs" "$probe_dir" --run --rustc 'rustc +1.85.1' \
+            --report research-output/opening-probe.json \
+            > research-output/opening-probe.log
+          python3 - <<'PY'
+          import json
+          r = json.load(open('research-output/opening-probe.json', encoding='utf-8'))
+          assert r['ok'] is True and r['cryptographic_release_admitted'] is False
+          cells = {(c['variant'], c['scenario']): c['exit'] for c in r['results']}
+          for s in ('short-batch', 'exhausted', 'multiparty-shortage'):
+              assert cells[('fixed', s)] == 0 and cells[('zero-fallback', s)] == 49, s
+          PY
+      - name: Execute patched Rust helper unit tests without external FHE dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Compile the *actual inserted helper source* in isolation, so the
+          # fail-before-open primitives are exercised even if old Cargo deps fail.
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('primus-research/mpc/src/dn.rs').read_text(encoding='utf-8')
+          begin=source.index('// TclMesh #49 research-only modified-overlay hardening.')
+          end=source.index('/// MPC backend implementing', begin)
+          tests=source.index('#[cfg(test)]\nmod tclmesh_research_preprocessing_tests')
+          helper=source[begin:end]
+          unit=source[tests:]
+          Path('research-output/isolated-preprocessing-helpers.rs').write_text(
+              'use std::collections::VecDeque;\n' + helper + '\n' + unit,
+              encoding='utf-8')
+          PY
+          rustc --edition=2021 --test \
+            --crate-name tclmesh_preprocessing_helpers \
+            research-output/isolated-preprocessing-helpers.rs \
+            -o /tmp/primus-preprocessing-helper-tests \
+            > research-output/rustc-helper-compile.log 2>&1
+          /tmp/primus-preprocessing-helper-tests \
+            > research-output/rustc-helper-unit-tests.log 2>&1
+          echo 'native_isolated_helper_tests=passed' >> research-output/scope.txt
+      - name: Negative mutants must fail their Rust unit tests (research-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Mutate the actual extracted Rust test source, not a detached mock:
+          # one mutant removes the batch-availability assertion and one
+          # substitutes a deterministic zero triple when the pool is empty.
+          python3 - <<'PY'
+          from pathlib import Path
+          original=Path('research-output/isolated-preprocessing-helpers.rs').read_text()
+          mutations={
+              'disabled_batch_guard': (
+                  'assert!(available >= needed, "Insufficient Z2k preprocessing");',
+                  'let _ = (available, needed);'),
+              'restored_zero_triple_fallback': (
+                  'buffer.pop_front().expect("Z2k preprocessing exhausted")',
+                  'buffer.pop_front().unwrap_or((0, 0, 0))'),
+          }
+          for name,(old,new) in mutations.items():
+              assert original.count(old)==1, f'nonunique mutation target: {name}'
+              Path(f'research-output/mutant-{name}.rs').write_text(
+                  original.replace(old,new),encoding='utf-8')
+          PY
+          for mutant in disabled_batch_guard restored_zero_triple_fallback; do
+            rustc --edition=2021 --test \
+              --crate-name tclmesh_preprocessing_mutant \
+              "research-output/mutant-${mutant}.rs" \
+              -o "/tmp/primus-mutant-${mutant}" \
+              > "research-output/mutant-${mutant}-compile.log" 2>&1
+            if "/tmp/primus-mutant-${mutant}" \
+                > "research-output/mutant-${mutant}-test.log" 2>&1; then
+              echo "ERROR: required negative mutant survived: $mutant"
+              exit 1
+            fi
+            grep -q 'FAILED' "research-output/mutant-${mutant}-test.log"
+            echo "killed_mutant_${mutant}=true" >> research-output/scope.txt
+          done
+      - name: Resolve complete dependency lock; run native patch regression unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc -Vv > research-output/rustc.txt
+          cargo -V > research-output/cargo.txt
+          if cargo generate-lockfile --manifest-path primus-research/Cargo.toml \
+             > research-output/cargo-lock-resolution.log 2>&1; then
+             echo 'lock_resolution=ok' >> research-output/scope.txt
+          else
+             rc=$?
+             echo "lock_resolution=failed:$rc" >> research-output/scope.txt
+             exit "$rc"
+          fi
+          python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          p=tomllib.loads(Path('primus-research/Cargo.lock').read_text(encoding='utf-8'))
+          source=[x.get('source','') for x in p.get('package',[])
+                  if x.get('name')=='concrete-ntt']
+          assert source and all('cdeba793e46208320b30d78be19f7be78d49016a' in s
+                                for s in source), source
+          PY
+          if cargo test --manifest-path primus-research/Cargo.toml --package mpc \
+              --lib tclmesh_research_preprocessing_tests --locked \
+              > research-output/native-preprocessing-unit-tests.log 2>&1; then
+              echo 'native_preprocessing_unit_tests=passed' >> research-output/scope.txt
+          else
+              rc=$?
+              echo "native_preprocessing_unit_tests=failed:$rc" >> research-output/scope.txt
+              exit "$rc"
+          fi
+      - name: Public research receipts only (no shares or plaintext)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: primus-preprocessing-failclosed-receipt
+          path: |
+            research-output/
+            primus-research/Cargo.lock
+          if-no-files-found: warn
