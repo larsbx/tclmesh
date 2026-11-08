@@ -1,0 +1,2 @@
+[ok] No violation found (632ms at 1582 traces/second).
+Use --seed=0x45 --backend=typescript to reproduce.

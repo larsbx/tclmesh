@@ -1,0 +1,27 @@
+======================== EUnit ========================
+module 'q45_ceremony_tests'
+  q45_ceremony_tests: all_five_inputs_and_matching_attestations_test...[0.037 s] ok
+  q45_ceremony_tests: freeze_before_any_partial_test...ok
+  q45_ceremony_tests: exact_ciphertext_test...ok
+  q45_ceremony_tests: other_session_and_same_session_replay_test...ok
+  q45_ceremony_tests: result_once_test...ok
+  q45_ceremony_tests: timeout_boundaries_test...ok
+  q45_ceremony_tests: callback_failure_test...ok
+  q45_ceremony_tests: equivocation_is_only_locally_detected_test...ok
+  q45_ceremony_tests: incorrect_opaque_partial_is_only_rejected_by_fixture_callback_test...ok
+  q45_ceremony_tests: withheld_frozen_holder_cannot_be_replaced_in_session_test...ok
+  q45_ceremony_tests: actor_test...[0.010 s] ok
+  q45_ceremony_tests: model_prefixes_test...[0.014 s] ok
+  [done in 0.097 s]
+=======================================================
+  All 12 tests passed.
+Rejected four inputs (all_five_inputs_and_matching_attestations_test)
+Rejected inconsistent seal (all_five_inputs_and_matching_attestations_test)
+Rejected premature partial (freeze_before_any_partial_test)
+Rejected wrong ciphertext bytes (exact_ciphertext_test)
+Rejected wrong quorum binding (freeze_before_any_partial_test)
+Rejected duplicate partial (freeze_before_any_partial_test)
+Rejected foreign session replay (other_session_and_same_session_replay_test)
+Rejected repeat result (result_once_test)
+Rejected late acceptance at deadline (timeout_boundaries_test)
+9/9 compiled mutants rejected
